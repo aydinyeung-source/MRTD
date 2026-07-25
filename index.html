@@ -10,38 +10,68 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="screens">
-    <section class="screen is-active" id="screen-play" data-screen="play">
-      <div class="profile-card">
-        <div class="profile-card__avatar"></div>
-        <div class="profile-card__info">
-          <p class="profile-card__name">Player Name</p>
-          <p class="profile-card__level">Level 1</p>
+  <section class="auth" id="auth">
+    <form class="auth__panel" id="auth-form" novalidate>
+      <h1 class="auth__title">MRTD</h1>
+      <p class="auth__mode" id="auth-mode">Log in</p>
+
+      <label class="auth__field">
+        <span class="auth__label">Email</span>
+        <input class="auth__input" id="auth-email" type="email" autocomplete="email" required>
+      </label>
+
+      <label class="auth__field">
+        <span class="auth__label">Password</span>
+        <input class="auth__input" id="auth-password" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button class="auth__submit" id="auth-submit" type="submit">Log in</button>
+
+      <p class="auth__message" id="auth-message"></p>
+
+      <button class="auth__toggle" id="auth-toggle" type="button">
+        Need an account? Sign up
+      </button>
+    </form>
+  </section>
+
+  <div class="app" id="app" hidden>
+    <main class="screens">
+      <section class="screen is-active" id="screen-play" data-screen="play">
+        <div class="profile-card">
+          <div class="profile-card__avatar"></div>
+          <div class="profile-card__info">
+            <p class="profile-card__name">Player Name</p>
+            <p class="profile-card__level">Level 1</p>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="screen" id="screen-towers" data-screen="towers">
-      <p class="placeholder">Towers</p>
-    </section>
+      <section class="screen" id="screen-towers" data-screen="towers">
+        <p class="placeholder">Towers</p>
+      </section>
 
-    <section class="screen" id="screen-shop" data-screen="shop">
-      <p class="placeholder">Shop</p>
-    </section>
+      <section class="screen" id="screen-shop" data-screen="shop">
+        <p class="placeholder">Shop</p>
+      </section>
 
-    <section class="screen" id="screen-upgrades" data-screen="upgrades">
-      <p class="placeholder">Player Upgrades</p>
-    </section>
-  </main>
+      <section class="screen" id="screen-upgrades" data-screen="upgrades">
+        <p class="placeholder">Player Upgrades</p>
+      </section>
+    </main>
 
-  <p class="version" id="version"></p>
+    <div class="corner">
+      <button class="corner__signout" id="signout" type="button">Sign out</button>
+      <p class="version" id="version"></p>
+    </div>
 
-  <nav class="nav">
-    <button class="nav__tab is-active" type="button" data-tab="play">Play</button>
-    <button class="nav__tab" type="button" data-tab="towers">Towers</button>
-    <button class="nav__tab" type="button" data-tab="shop">Shop</button>
-    <button class="nav__tab" type="button" data-tab="upgrades">Player Upgrades</button>
-  </nav>
+    <nav class="nav">
+      <button class="nav__tab is-active" type="button" data-tab="play">Play</button>
+      <button class="nav__tab" type="button" data-tab="towers">Towers</button>
+      <button class="nav__tab" type="button" data-tab="shop">Shop</button>
+      <button class="nav__tab" type="button" data-tab="upgrades">Player Upgrades</button>
+    </nav>
+  </div>
 
   <script src="script.js"></script>
 </body>
