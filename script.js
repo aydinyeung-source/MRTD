@@ -8,7 +8,8 @@
      ========================================================= */
 
   var SUPABASE_URL = "https://excleibqafwphvuwvaua.supabase.co";
-  var SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+  var SUPABASE_ANON_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4Y2xlaWJxYWZ3cGh2dXd2YXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTE4NzYsImV4cCI6MjEwMDU2Nzg3Nn0.7Fq9TnkkfjYL6PIph5oYM8LopUmxbFoVozIRfyoINtI";
 
   /* Supabase accounts need an email address, but players sign in with
      a username only. The username is mapped to an internal address that
