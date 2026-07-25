@@ -11,9 +11,9 @@
 
   var COLS = 5;
   var ROWS = 4;
-  /* Level n costs 2^(n-1) level-1 towers of the same type. At 8 that
-     is 128 — deep enough that the top tiers stay rare. */
-  var MAX_LEVEL = 8;
+  /* Level n costs 2^(n-1) level-1 towers of the same type — 512 at
+     level 10. Reachable because matches are endless. */
+  var MAX_LEVEL = 10;
 
   /* One entry per tower type. Sprites replace `colour` later; the
      shape of this list is what the rest of the file depends on. */
