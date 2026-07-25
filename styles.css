@@ -91,26 +91,26 @@ body::after {
   }
 }
 
-/* Placeholder screens: relaxed serif, set off-axis rather than centred. */
+/* Placeholder screens: plain bold body text, set off-axis rather than centred. */
 .placeholder {
-  margin: clamp(20px, 7vh, 72px) 0 0;
-  max-width: 12ch;
-  padding-bottom: 0.2em;
+  display: inline-block;
+  margin: clamp(12px, 4vh, 36px) 0 0;
+  padding-bottom: 0.5em;
   border-bottom: 1px solid var(--rule);
-  font-family: var(--serif);
-  font-weight: 500;
-  font-size: clamp(38px, 8vw, 72px);
-  line-height: 1.02;
-  letter-spacing: -0.015em;
-  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--ink);
 }
 
 .screen[data-screen="shop"] .placeholder {
-  margin-left: clamp(0px, 12vw, 150px);
+  margin-left: clamp(0px, 8vw, 96px);
 }
 
 .screen[data-screen="upgrades"] .placeholder {
-  margin-left: clamp(0px, 6vw, 76px);
+  margin-left: clamp(0px, 4vw, 48px);
 }
 
 /* =========================================================
