@@ -126,26 +126,49 @@ body::after {
   outline: none;
 }
 
-.auth__submit {
-  width: 100%;
+.auth__actions {
+  display: flex;
+  gap: 10px;
   margin-top: 8px;
+}
+
+.auth__submit,
+.auth__signup {
+  flex: 1;
   padding: 13px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 10px;
-  background-color: var(--glacier);
   font-family: var(--rounded);
   font-weight: 700;
   font-size: 15px;
-  color: var(--paper-raised);
   cursor: pointer;
-  transition: background-color 320ms var(--ease-soft);
+  transition: background-color 320ms var(--ease-soft),
+              border-color 320ms var(--ease-soft),
+              color 320ms var(--ease-soft);
+}
+
+.auth__submit {
+  background-color: var(--glacier);
+  color: var(--paper-raised);
 }
 
 .auth__submit:hover:not(:disabled) {
   background-color: var(--ink);
 }
 
-.auth__submit:disabled {
+.auth__signup {
+  border-color: var(--rule);
+  background-color: transparent;
+  color: var(--glacier);
+}
+
+.auth__signup:hover:not(:disabled) {
+  border-color: var(--glacier);
+  background-color: var(--paper);
+}
+
+.auth__submit:disabled,
+.auth__signup:disabled {
   opacity: 0.55;
   cursor: default;
 }
@@ -161,24 +184,6 @@ body::after {
 
 .auth__message.is-error {
   color: #9d4b45;
-}
-
-.auth__toggle {
-  display: block;
-  width: 100%;
-  margin-top: 14px;
-  padding: 6px;
-  border: none;
-  background: none;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: color 320ms var(--ease-soft);
-}
-
-.auth__toggle:hover:not(:disabled) {
-  color: var(--glacier);
 }
 
 /* =========================================================

@@ -10,10 +10,16 @@
   var SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
   var SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 
+  /* Supabase accounts need an email address, but players sign in with
+     a username only. The username is mapped to an internal address that
+     is never shown and never receives mail. */
+  var USERNAME_DOMAIN = "mrtd.local";
+
   /* Single source of truth for the build number — bump it here. */
   var VERSION = "1.0.0";
 
   var STORAGE_KEY = "mrtd.session";
+  var USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 
   /* =========================================================
      Elements
@@ -22,21 +28,31 @@
   var auth = document.getElementById("auth");
   var app = document.getElementById("app");
   var form = document.getElementById("auth-form");
-  var modeLabel = document.getElementById("auth-mode");
-  var emailInput = document.getElementById("auth-email");
+  var usernameInput = document.getElementById("auth-username");
   var passwordInput = document.getElementById("auth-password");
-  var submitButton = document.getElementById("auth-submit");
-  var toggleButton = document.getElementById("auth-toggle");
+  var loginButton = document.getElementById("auth-login");
+  var signupButton = document.getElementById("auth-signup");
   var message = document.getElementById("auth-message");
   var signOutButton = document.getElementById("signout");
+  var profileName = document.querySelector(".profile-card__name");
   var version = document.getElementById("version");
 
   var tabs = document.querySelectorAll(".nav__tab");
   var screens = document.querySelectorAll(".screen");
 
-  var isSignUp = false;
-
   version.textContent = "v" + VERSION;
+
+  /* =========================================================
+     Username <-> internal address
+     ========================================================= */
+
+  function toEmail(username) {
+    return username.toLowerCase() + "@" + USERNAME_DOMAIN;
+  }
+
+  function toUsername(email) {
+    return email ? email.split("@")[0] : "";
+  }
 
   /* =========================================================
      Supabase Auth — plain REST, no SDK
@@ -64,13 +80,17 @@
     });
   }
 
-  function signUp(email, password) {
-    return authPost("signup", { email: email, password: password });
+  function signUp(username, password) {
+    return authPost("signup", {
+      email: toEmail(username),
+      password: password,
+      data: { username: username }
+    });
   }
 
-  function logIn(email, password) {
+  function logIn(username, password) {
     return authPost("token?grant_type=password", {
-      email: email,
+      email: toEmail(username),
       password: password
     });
   }
@@ -86,6 +106,22 @@
         Authorization: "Bearer " + accessToken
       }
     }).then(readResponse);
+  }
+
+  /* Supabase speaks in email terms; the player never should. */
+  function readableError(error) {
+    var text = error.message || "";
+
+    if (/invalid login credentials/i.test(text)) {
+      return "Wrong username or password.";
+    }
+    if (/already registered|already exists/i.test(text)) {
+      return "That username is taken.";
+    }
+    if (/password/i.test(text) && /least|short/i.test(text)) {
+      return "Password must be at least 6 characters.";
+    }
+    return text;
   }
 
   /* =========================================================
@@ -112,7 +148,11 @@
      Gate
      ========================================================= */
 
-  function unlock() {
+  function unlock(user) {
+    if (user) {
+      profileName.textContent = toUsername(user.email);
+    }
+
     auth.hidden = true;
     app.hidden = false;
   }
@@ -137,7 +177,7 @@
       .catch(function () {
         return refresh(session.refresh_token).then(function (renewed) {
           saveSession(renewed);
-          unlock();
+          unlock(renewed.user);
         });
       })
       .catch(function () {
@@ -150,67 +190,71 @@
      Auth form
      ========================================================= */
 
-  function setMode(signUpMode) {
-    isSignUp = signUpMode;
-    modeLabel.textContent = isSignUp ? "Sign up" : "Log in";
-    submitButton.textContent = isSignUp ? "Sign up" : "Log in";
-    toggleButton.textContent = isSignUp
-      ? "Already have an account? Log in"
-      : "Need an account? Sign up";
-    passwordInput.autocomplete = isSignUp ? "new-password" : "current-password";
-    setMessage("");
-  }
-
   function setMessage(text, isError) {
     message.textContent = text;
     message.classList.toggle("is-error", Boolean(isError));
   }
 
   function setBusy(busy) {
-    submitButton.disabled = busy;
-    toggleButton.disabled = busy;
+    loginButton.disabled = busy;
+    signupButton.disabled = busy;
   }
 
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-
-    var email = emailInput.value.trim();
+  function submit(isSignUp) {
+    var username = usernameInput.value.trim();
     var password = passwordInput.value;
 
-    if (!email || !password) {
-      setMessage("Enter an email and password.", true);
+    if (!USERNAME_PATTERN.test(username)) {
+      setMessage("Usernames are 3-20 letters, numbers or underscores.", true);
+      return;
+    }
+
+    if (!password) {
+      setMessage("Enter a password.", true);
       return;
     }
 
     setBusy(true);
     setMessage(isSignUp ? "Creating account..." : "Logging in...");
 
-    var request = isSignUp ? signUp(email, password) : logIn(email, password);
+    var request = isSignUp
+      ? signUp(username, password)
+      : logIn(username, password);
 
     request
       .then(function (data) {
         /* With email confirmation on, signup returns a user but no
-           tokens — the account is not usable until it is confirmed. */
+           tokens. There is no inbox to confirm from, so it must be
+           switched off in the Supabase dashboard. */
         if (!data.access_token) {
-          setMessage("Check your email to confirm your account.");
+          setMessage(
+            "Account created, but confirmation is required. " +
+              "Turn off email confirmation in Supabase.",
+            true
+          );
           return;
         }
 
         saveSession(data);
         form.reset();
         setMessage("");
-        unlock();
+        unlock(data.user);
       })
       .catch(function (error) {
-        setMessage(error.message, true);
+        setMessage(readableError(error), true);
       })
       .then(function () {
         setBusy(false);
       });
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    submit(false);
   });
 
-  toggleButton.addEventListener("click", function () {
-    setMode(!isSignUp);
+  signupButton.addEventListener("click", function () {
+    submit(true);
   });
 
   signOutButton.addEventListener("click", function () {
@@ -229,7 +273,7 @@
 
     clearSession();
     form.reset();
-    setMode(false);
+    setMessage("");
     lock();
   });
 
@@ -269,6 +313,5 @@
      Start
      ========================================================= */
 
-  setMode(false);
   restoreSession();
 })();

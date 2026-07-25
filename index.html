@@ -13,11 +13,11 @@
   <section class="auth" id="auth">
     <form class="auth__panel" id="auth-form" novalidate>
       <h1 class="auth__title">MRTD</h1>
-      <p class="auth__mode" id="auth-mode">Log in</p>
+      <p class="auth__mode">Log in or sign up</p>
 
       <label class="auth__field">
-        <span class="auth__label">Email</span>
-        <input class="auth__input" id="auth-email" type="email" autocomplete="email" required>
+        <span class="auth__label">Username</span>
+        <input class="auth__input" id="auth-username" type="text" autocomplete="username" required>
       </label>
 
       <label class="auth__field">
@@ -25,13 +25,12 @@
         <input class="auth__input" id="auth-password" type="password" autocomplete="current-password" required>
       </label>
 
-      <button class="auth__submit" id="auth-submit" type="submit">Log in</button>
+      <div class="auth__actions">
+        <button class="auth__submit" id="auth-login" type="submit">Log in</button>
+        <button class="auth__signup" id="auth-signup" type="button">Sign up</button>
+      </div>
 
       <p class="auth__message" id="auth-message"></p>
-
-      <button class="auth__toggle" id="auth-toggle" type="button">
-        Need an account? Sign up
-      </button>
     </form>
   </section>
 
