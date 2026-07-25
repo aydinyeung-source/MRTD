@@ -308,6 +308,66 @@ body::after {
 }
 
 /* =========================================================
+   Merge board — Play screen only
+   ========================================================= */
+
+.board {
+  margin: clamp(22px, 5vh, 44px) 0 0 clamp(16px, 4vw, 40px);
+  width: min(460px, 100%);
+}
+
+.board__canvas {
+  display: block;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background-color: var(--paper-raised);
+  box-shadow: 0 18px 40px -34px rgba(34, 42, 47, 0.45);
+  touch-action: none;
+  cursor: grab;
+}
+
+.board__canvas:active {
+  cursor: grabbing;
+}
+
+.board__controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.board__add {
+  padding: 11px 20px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background-color: var(--glacier);
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--paper-raised);
+  cursor: pointer;
+  transition: background-color 320ms var(--ease-soft);
+}
+
+.board__add:hover:not(:disabled) {
+  background-color: var(--ink);
+}
+
+.board__add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.board__hint {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* =========================================================
    Version number
    ========================================================= */
 
