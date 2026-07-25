@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MRTD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="screens">
+    <section class="screen is-active" id="screen-play" data-screen="play">
+      <div class="profile-card">
+        <div class="profile-card__avatar"></div>
+        <div class="profile-card__info">
+          <p class="profile-card__name">Player Name</p>
+          <p class="profile-card__level">Level 1</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-towers" data-screen="towers">
+      <p class="placeholder">Towers</p>
+    </section>
+
+    <section class="screen" id="screen-shop" data-screen="shop">
+      <p class="placeholder">Shop</p>
+    </section>
+
+    <section class="screen" id="screen-upgrades" data-screen="upgrades">
+      <p class="placeholder">Player Upgrades</p>
+    </section>
+  </main>
+
+  <p class="version" id="version"></p>
+
+  <nav class="nav">
+    <button class="nav__tab is-active" type="button" data-tab="play">Play</button>
+    <button class="nav__tab" type="button" data-tab="towers">Towers</button>
+    <button class="nav__tab" type="button" data-tab="shop">Shop</button>
+    <button class="nav__tab" type="button" data-tab="upgrades">Player Upgrades</button>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>
