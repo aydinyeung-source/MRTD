@@ -18,19 +18,22 @@
   /* One entry per tower type. Sprites replace `colour` later; the
      shape of this list is what the rest of the file depends on. */
   var TYPES = [
-    { key: "arrow", label: "Arrow", colour: "#4f6a78" },
-    { key: "frost", label: "Frost", colour: "#7fa5b8" },
-    { key: "cannon", label: "Cannon", colour: "#3c4a52" }
+    { key: "blender", label: "Blender", colour: "#4f6a78" },
+    { key: "dagger", label: "Dagger", colour: "#7fa5b8" },
+    { key: "farm", label: "Farm", colour: "#6d8a6f" },
+    { key: "shotgunner", label: "Shotgunner", colour: "#3c4a52" },
+    { key: "sniper", label: "Sniper", colour: "#8a6a78" }
   ];
 
   /* Tier decoration, reused across every type: the ring colour
      changes every three levels. */
   var TIERS = ["#c3d2da", "#9db8c4", "#d8b98a", "#c98f6a"];
 
-  /* Sprites live at towers/<type>/<level>.png — one image per level,
+  /* Sprites live at towers/<type>/<level>.svg — one image per level,
      1 through MAX_LEVEL. A missing file is not fatal: that level
      falls back to the placeholder shape. */
   var SPRITE_ROOT = "towers";
+  var SPRITE_EXT = ".svg";
 
   var sprites = {};
 
@@ -57,7 +60,7 @@
      ========================================================= */
 
   function spriteUrl(key, level) {
-    return SPRITE_ROOT + "/" + key + "/" + level + ".png";
+    return SPRITE_ROOT + "/" + key + "/" + level + SPRITE_EXT;
   }
 
   function spriteFor(tower) {
@@ -214,9 +217,21 @@
     var box = size - inset * 2;
     var sprite = spriteFor(tower);
 
-    /* Real art carries the level on its own — no ring, no number. */
+    /* Real art carries the level on its own — no ring, no number.
+       Sprites keep their aspect ratio and sit on the bottom of the
+       cell, so a wide, short tower is not stretched into a square. */
     if (sprite) {
-      ctx.drawImage(sprite, x + inset, y + inset, box, box);
+      var scale = Math.min(box / sprite.width, box / sprite.height);
+      var width = sprite.width * scale;
+      var height = sprite.height * scale;
+
+      ctx.drawImage(
+        sprite,
+        x + (size - width) / 2,
+        y + size - inset - height,
+        width,
+        height
+      );
       return;
     }
 
