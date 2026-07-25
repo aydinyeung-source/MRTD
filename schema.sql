@@ -18,12 +18,13 @@ alter table public.profiles add column if not exists highest_level integer     n
 alter table public.profiles add column if not exists xp            bigint      not null default 0;
 alter table public.profiles add column if not exists updated_at    timestamptz not null default now();
 
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'profiles_username_key') then
-    alter table public.profiles add constraint profiles_username_key unique (username);
-  end if;
-end $$;
+-- Usernames are case insensitive: "Aydin" and "aydin" are the same
+-- name. The index enforces that; the stored value keeps its original
+-- capitalisation for display.
+alter table public.profiles drop constraint if exists profiles_username_key;
+
+create unique index if not exists profiles_username_lower_idx
+  on public.profiles (lower(username));
 
 -- 2. Towers discovered ----------------------------------------
 create table if not exists public.player_towers (

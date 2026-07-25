@@ -53,12 +53,20 @@
      Username <-> internal address
      ========================================================= */
 
+  /* Lowercasing here is what makes usernames case insensitive:
+     "Aydin" and "aydin" resolve to the same account. */
   function toEmail(username) {
     return username.toLowerCase() + "@" + USERNAME_DOMAIN;
   }
 
-  function toUsername(email) {
-    return email ? email.split("@")[0] : "";
+  /* Display uses the capitalisation the player signed up with, which
+     is kept in user metadata. The address is only a fallback. */
+  function displayName(user) {
+    if (user.user_metadata && user.user_metadata.username) {
+      return user.user_metadata.username;
+    }
+
+    return user.email ? user.email.split("@")[0] : "";
   }
 
   /* =========================================================
@@ -157,7 +165,7 @@
 
   function unlock(user) {
     if (user) {
-      profileName.textContent = toUsername(user.email);
+      profileName.textContent = displayName(user);
     }
 
     auth.hidden = true;
