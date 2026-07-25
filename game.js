@@ -27,6 +27,13 @@
      changes every three levels. */
   var TIERS = ["#c3d2da", "#9db8c4", "#d8b98a", "#c98f6a"];
 
+  /* Sprites live at towers/<type>/<level>.png — one image per level,
+     1 through MAX_LEVEL. A missing file is not fatal: that level
+     falls back to the placeholder shape. */
+  var SPRITE_ROOT = "towers";
+
+  var sprites = {};
+
   var canvas = document.getElementById("board");
   var addButton = document.getElementById("board-add");
 
@@ -41,6 +48,58 @@
 
   var drag = null;
   var metrics = { cell: 0, gap: 0, pad: 0 };
+
+  /* =========================================================
+     Sprites
+
+     Everything is fetched up front so no tower pops in mid-match
+     the first time it appears on the board.
+     ========================================================= */
+
+  function spriteUrl(key, level) {
+    return SPRITE_ROOT + "/" + key + "/" + level + ".png";
+  }
+
+  function spriteFor(tower) {
+    return sprites[tower.type] ? sprites[tower.type][tower.level] : null;
+  }
+
+  function loadSprite(key, level, settle) {
+    var image = new Image();
+
+    image.onload = function () {
+      sprites[key][level] = image;
+      settle();
+    };
+
+    /* A missing level just draws the placeholder instead. */
+    image.onerror = function () {
+      sprites[key][level] = null;
+      settle();
+    };
+
+    image.src = spriteUrl(key, level);
+  }
+
+  function preload(done) {
+    var pending = TYPES.length * MAX_LEVEL;
+
+    function settle() {
+      pending -= 1;
+
+      if (pending === 0) {
+        done();
+      }
+    }
+
+    TYPES.forEach(function (type) {
+      sprites[type.key] = {};
+
+      for (var level = 1; level <= MAX_LEVEL; level += 1) {
+        loadSprite(type.key, level, settle);
+      }
+    });
+  }
 
   /* =========================================================
      Layout
@@ -149,12 +208,17 @@
     ctx.stroke();
   }
 
-  /* Base shape per type, then shared tier decoration on top —
-     the same layering a sprite atlas will use. */
   function drawTower(tower, x, y, size) {
     var type = typeOf(tower.type);
     var inset = size * 0.1;
     var box = size - inset * 2;
+    var sprite = spriteFor(tower);
+
+    /* Real art carries the level on its own — no ring, no number. */
+    if (sprite) {
+      ctx.drawImage(sprite, x + inset, y + inset, box, box);
+      return;
+    }
 
     roundedPath(x + inset, y + inset, box, box, 10);
     ctx.fillStyle = type.colour;
@@ -320,4 +384,5 @@
   }
 
   resize();
+  preload(draw);
 })();
