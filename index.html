@@ -25,9 +25,14 @@
         <input class="auth__input" id="auth-password" type="password" autocomplete="current-password" required>
       </label>
 
+      <label class="auth__field auth__field--reveal" id="auth-confirm-field" hidden>
+        <span class="auth__label">Confirm password</span>
+        <input class="auth__input" id="auth-confirm" type="password" autocomplete="new-password">
+      </label>
+
       <div class="auth__actions">
-        <button class="auth__submit" id="auth-login" type="submit">Log in</button>
-        <button class="auth__signup" id="auth-signup" type="button">Sign up</button>
+        <button class="auth__button is-primary" id="auth-login" type="button">Log in</button>
+        <button class="auth__button" id="auth-signup" type="button">Sign up</button>
       </div>
 
       <p class="auth__message" id="auth-message"></p>

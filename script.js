@@ -30,6 +30,8 @@
   var form = document.getElementById("auth-form");
   var usernameInput = document.getElementById("auth-username");
   var passwordInput = document.getElementById("auth-password");
+  var confirmField = document.getElementById("auth-confirm-field");
+  var confirmInput = document.getElementById("auth-confirm");
   var loginButton = document.getElementById("auth-login");
   var signupButton = document.getElementById("auth-signup");
   var message = document.getElementById("auth-message");
@@ -39,6 +41,10 @@
 
   var tabs = document.querySelectorAll(".nav__tab");
   var screens = document.querySelectorAll(".screen");
+
+  /* "login" or "signup". The buttons select the mode on the first
+     press and perform it on the second. */
+  var mode = "login";
 
   version.textContent = "v" + VERSION;
 
@@ -200,6 +206,32 @@
     signupButton.disabled = busy;
   }
 
+  function setMode(next) {
+    mode = next;
+
+    confirmField.hidden = next !== "signup";
+    loginButton.classList.toggle("is-primary", next === "login");
+    signupButton.classList.toggle("is-primary", next === "signup");
+    passwordInput.autocomplete =
+      next === "signup" ? "new-password" : "current-password";
+
+    if (next !== "signup") {
+      confirmInput.value = "";
+    }
+
+    setMessage("");
+  }
+
+  /* First press selects the mode, second press performs it. */
+  function press(target) {
+    if (mode !== target) {
+      setMode(target);
+      return;
+    }
+
+    submit(target === "signup");
+  }
+
   function submit(isSignUp) {
     var username = usernameInput.value.trim();
     var password = passwordInput.value;
@@ -211,6 +243,11 @@
 
     if (!password) {
       setMessage("Enter a password.", true);
+      return;
+    }
+
+    if (isSignUp && password !== confirmInput.value) {
+      setMessage("Passwords do not match.", true);
       return;
     }
 
@@ -237,7 +274,7 @@
 
         saveSession(data);
         form.reset();
-        setMessage("");
+        setMode("login");
         unlock(data.user);
       })
       .catch(function (error) {
@@ -248,13 +285,22 @@
       });
   }
 
-  form.addEventListener("submit", function (event) {
+  /* Enter performs whichever mode is currently selected. */
+  form.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
     event.preventDefault();
-    submit(false);
+    submit(mode === "signup");
+  });
+
+  loginButton.addEventListener("click", function () {
+    press("login");
   });
 
   signupButton.addEventListener("click", function () {
-    submit(true);
+    press("signup");
   });
 
   signOutButton.addEventListener("click", function () {
@@ -273,7 +319,7 @@
 
     clearSession();
     form.reset();
-    setMessage("");
+    setMode("login");
     lock();
   });
 
@@ -313,5 +359,6 @@
      Start
      ========================================================= */
 
+  setMode("login");
   restoreSession();
 })();

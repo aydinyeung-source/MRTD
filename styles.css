@@ -126,49 +126,51 @@ body::after {
   outline: none;
 }
 
+/* The confirm-password row animates in when sign up is selected.
+   Going from display:none to visible restarts the animation. */
+.auth__field--reveal {
+  animation: rise 420ms var(--ease-soft) both;
+}
+
 .auth__actions {
   display: flex;
   gap: 10px;
   margin-top: 8px;
 }
 
-.auth__submit,
-.auth__signup {
+.auth__button {
   flex: 1;
   padding: 13px;
-  border: 1px solid transparent;
+  border: 1px solid var(--rule);
   border-radius: 10px;
+  background-color: transparent;
   font-family: var(--rounded);
   font-weight: 700;
   font-size: 15px;
+  color: var(--glacier);
   cursor: pointer;
   transition: background-color 320ms var(--ease-soft),
               border-color 320ms var(--ease-soft),
               color 320ms var(--ease-soft);
 }
 
-.auth__submit {
-  background-color: var(--glacier);
-  color: var(--paper-raised);
-}
-
-.auth__submit:hover:not(:disabled) {
-  background-color: var(--ink);
-}
-
-.auth__signup {
-  border-color: var(--rule);
-  background-color: transparent;
-  color: var(--glacier);
-}
-
-.auth__signup:hover:not(:disabled) {
+.auth__button:hover:not(:disabled) {
   border-color: var(--glacier);
   background-color: var(--paper);
 }
 
-.auth__submit:disabled,
-.auth__signup:disabled {
+/* The selected mode. Pressing it again performs the action. */
+.auth__button.is-primary {
+  border-color: transparent;
+  background-color: var(--glacier);
+  color: var(--paper-raised);
+}
+
+.auth__button.is-primary:hover:not(:disabled) {
+  background-color: var(--ink);
+}
+
+.auth__button:disabled {
   opacity: 0.55;
   cursor: default;
 }
