@@ -7,7 +7,7 @@
      service_role key in this file.
      ========================================================= */
 
-  var SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+  var SUPABASE_URL = "https://excleibqafwphvuwvaua.supabase.co";
   var SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 
   /* Supabase accounts need an email address, but players sign in with
