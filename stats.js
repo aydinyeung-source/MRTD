@@ -49,6 +49,10 @@
   var MAX_MERGE = 10;
   var MAX_EVOLUTION = 10;
 
+  /* One map tile is worth this much range. A tower with 90 range
+     reaches 9 tiles. */
+  var RANGE_PER_TILE = 10;
+
   /* PLACEHOLDER base values — level 1, evolution 0. Only the farm's
      100 coins is real; everything else is a guess waiting to be
      tuned. Cooldown is fixed for the life of a tower: it never
@@ -59,11 +63,28 @@
      A spawner like:
        { label: "...", role: "spawner", health: 50, range: 0, cooldown: 3 } */
   var TOWERS = {
-    blender: { label: "Blender", role: "damage", damage: 12, range: 90, cooldown: 0.6 },
-    dagger: { label: "Dagger", role: "damage", damage: 8, range: 70, cooldown: 0.35 },
-    farm: { label: "Farm", role: "economy", damage: 0, range: 0, cooldown: 0, coins: 100 },
-    shotgunner: { label: "Shotgunner", role: "damage", damage: 20, range: 110, cooldown: 0.9 },
-    sniper: { label: "Sniper", role: "damage", damage: 45, range: 260, cooldown: 1.6 }
+    blender: {
+      label: "Blender", role: "damage", damage: 12, range: 90, cooldown: 0.6,
+      attack: { shape: "single" }
+    },
+    dagger: {
+      label: "Dagger", role: "damage", damage: 8, range: 70, cooldown: 0.35,
+      attack: { shape: "single" }
+    },
+    farm: {
+      label: "Farm", role: "economy", damage: 0, range: 0, cooldown: 0, coins: 100,
+      attack: null
+    },
+    shotgunner: {
+      label: "Shotgunner", role: "damage", damage: 20, range: 110, cooldown: 0.9,
+      /* A 100 degree spread in front. Full damage at the muzzle,
+         falling linearly to 30% at maximum range. */
+      attack: { shape: "cone", angle: 100, falloffTo: 0.3 }
+    },
+    sniper: {
+      label: "Sniper", role: "damage", damage: 45, range: 260, cooldown: 1.6,
+      attack: { shape: "single" }
+    }
   };
 
   function base(key) {
@@ -169,6 +190,52 @@
     return tower ? tower.cooldown : 0;
   }
 
+  function attackOf(key) {
+    var tower = base(key);
+
+    return tower ? tower.attack : null;
+  }
+
+  /* Damage actually dealt at a given distance. Only towers with
+     falloff care; everyone else deals full damage anywhere inside
+     their range. */
+  function damageAtDistance(key, level, evolution, distance) {
+    var full = damage(key, level, evolution);
+    var reach = range(key, level, evolution);
+    var attack = attackOf(key);
+
+    if (!attack || distance > reach) {
+      return distance > reach ? 0 : full;
+    }
+
+    if (attack.falloffTo === undefined || !reach) {
+      return full;
+    }
+
+    var ratio = Math.min(distance / reach, 1);
+
+    return full * (1 - ratio * (1 - attack.falloffTo));
+  }
+
+  /* Is a target inside the firing arc? Angles in radians.
+     Cones face wherever the tower is aimed. */
+  function inArc(key, towerAngle, targetAngle) {
+    var attack = attackOf(key);
+
+    if (!attack || attack.shape !== "cone") {
+      return true;
+    }
+
+    var half = (attack.angle * Math.PI) / 360;
+    var difference = Math.abs(targetAngle - towerAngle) % (Math.PI * 2);
+
+    if (difference > Math.PI) {
+      difference = Math.PI * 2 - difference;
+    }
+
+    return difference <= half;
+  }
+
   function describe(effect, evolution) {
     if (effect.mode === "add") {
       var amount = effect.amount * evolution;
@@ -205,6 +272,10 @@
     merge: MERGE,
     maxMerge: MAX_MERGE,
     maxEvolution: MAX_EVOLUTION,
+    rangePerTile: RANGE_PER_TILE,
+    attack: attackOf,
+    damageAtDistance: damageAtDistance,
+    inArc: inArc,
     damage: damage,
     range: range,
     health: health,
