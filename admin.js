@@ -152,9 +152,9 @@
       (tower || "random") + " card(s) to " +
       (target() ? "online players" : "everyone") + "?", function () {
       api("/rest/v1/rpc/admin_grant_towers", {
-        tower_key: tower,
-        copies: copies,
-        online_only: target()
+        p_tower: tower,
+        p_copies: copies,
+        p_online_only: target()
       })
         .then(report("Gave cards to"))
         .catch(fail);

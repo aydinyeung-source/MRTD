@@ -369,11 +369,16 @@
     return tower ? tower.cost : 0;
   }
 
-  /* Half of everything spent building it. A level n tower is
-     2^(n-1) level 1 towers, so a level 5 refunds eight towers'
-     worth and a level 1 refunds half of one. */
+  /* Buying a merged tower outright costs exactly what building it
+     from level 1s would: 2^(n-1) towers. So 1n, 2n, 4n, 8n... */
+  function buyCost(key, level) {
+    return cost(key) * Math.pow(2, (level || 1) - 1);
+  }
+
+  /* Half of everything spent building it, so a level 5 refunds
+     eight towers' worth and a level 1 refunds half of one. */
   function sellValue(key, level) {
-    return (cost(key) * Math.pow(2, (level || 1) - 1)) / 2;
+    return buyCost(key, level) / 2;
   }
 
   window.MRTD = window.MRTD || {};
@@ -395,6 +400,7 @@
     runReward: runReward,
     evolutionAll: EVOLUTION_ALL,
     cost: cost,
+    buyCost: buyCost,
     sellValue: sellValue,
     attack: attackOf,
     damageAtDistance: damageAtDistance,

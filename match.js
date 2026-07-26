@@ -68,6 +68,7 @@
   var speedButton = document.getElementById("match-speed");
   var skipButton = document.getElementById("match-skip");
   var hotbar = document.getElementById("hotbar");
+  var levels = document.getElementById("levels");
   var cashDisplay = document.getElementById("match-cash");
   var hpDisplay = document.getElementById("match-hp");
   var waveDisplay = document.getElementById("match-wave");
@@ -113,10 +114,15 @@
   var hover = null;
   var sellZone = null;
 
-  /* The tower waiting to be positioned: shown semi-opaque until a
-     second click commits it. */
+  /* The tower waiting to be positioned, as { key, level }. Shown
+     semi-opaque until a second click commits it. */
   var placing = null;
   var pointer = { x: 0, y: 0 };
+
+  /* Long press on a hotbar slot opens the level picker. */
+  var HOLD_MS = 400;
+  var holdTimer = null;
+  var held = false;
 
   /* =========================================================
      Map geometry
@@ -719,7 +725,7 @@
     /* Ghost of the tower waiting to be committed. */
     if (placing) {
       var tile = tileAt(pointer.x, pointer.y);
-      var ghost = { key: placing, level: 1 };
+      var ghost = placing;
 
       if (tile) {
         var target = tileRect(tile[0], tile[1]);
@@ -1071,6 +1077,7 @@
 
   function buildHotbar() {
     hotbar.textContent = "";
+    closeLevels();
 
     loadoutKeys().forEach(function (name) {
       var button = document.createElement("button");
@@ -1090,22 +1097,99 @@
       price.textContent = String(stats.cost(name));
       button.appendChild(price);
 
-      button.addEventListener("click", function () {
-        placing = placing === name ? null : name;
-        refreshHotbar();
-        draw();
+      /* Tap selects a level 1. Hold opens the level picker. */
+      button.addEventListener("pointerdown", function (event) {
+        event.preventDefault();
+        held = false;
+        holdTimer = window.setTimeout(function () {
+          held = true;
+          openLevels(name, button);
+        }, HOLD_MS);
+      });
+
+      button.addEventListener("pointerup", function () {
+        window.clearTimeout(holdTimer);
+
+        if (held) {
+          return;
+        }
+
+        select(name, 1);
+      });
+
+      button.addEventListener("pointerleave", function () {
+        window.clearTimeout(holdTimer);
       });
 
       hotbar.appendChild(button);
     });
   }
 
+  function select(name, level) {
+    var same = placing && placing.key === name && placing.level === level;
+
+    placing = same ? null : { key: name, level: level };
+    closeLevels();
+    refreshHotbar();
+    draw();
+  }
+
+  function affordable(name, level) {
+    return isDev() || stats.buyCost(name, level) <= cash;
+  }
+
+  /* Buy a merged tower outright: 1n, 2n, 4n, 8n and so on. */
+  function openLevels(name, button) {
+    levels.textContent = "";
+
+    for (var level = 1; level <= MAX_LEVEL; level += 1) {
+      levels.appendChild(levelRow(name, level));
+    }
+
+    var box = button.getBoundingClientRect();
+
+    levels.hidden = false;
+    levels.style.left = Math.max(8, box.left) + "px";
+    levels.style.bottom = window.innerHeight - box.top + 8 + "px";
+  }
+
+  function levelRow(name, level) {
+    var row = document.createElement("button");
+    var price = stats.buyCost(name, level);
+
+    row.className = "levels__row";
+    row.type = "button";
+    row.disabled = !affordable(name, level);
+
+    var label = document.createElement("span");
+    label.textContent = "Lv " + level;
+    row.appendChild(label);
+
+    var amount = document.createElement("span");
+    amount.className = "levels__price";
+    amount.textContent = isDev() ? "free" : String(price);
+    row.appendChild(amount);
+
+    row.addEventListener("click", function () {
+      select(name, level);
+    });
+
+    return row;
+  }
+
+  function closeLevels() {
+    levels.hidden = true;
+  }
+
   function refreshHotbar() {
     Array.prototype.forEach.call(hotbar.children, function (button) {
       var name = button.dataset.tower;
 
-      button.disabled = !isDev() && stats.cost(name) > cash;
-      button.classList.toggle("is-selected", placing === name);
+      button.disabled = !affordable(name, 1);
+      button.classList.toggle(
+        "is-selected",
+        Boolean(placing && placing.key === name)
+      );
     });
   }
 
@@ -1120,7 +1204,7 @@
       return;
     }
 
-    var price = stats.cost(placing);
+    var price = stats.buyCost(placing.key, placing.level);
 
     if (!isDev()) {
       if (price > cash) {
@@ -1129,7 +1213,13 @@
 
       cash -= price;
     }
-    towers[at] = { key: placing, level: 1, cooldown: 0, angle: 0 };
+
+    towers[at] = {
+      key: placing.key,
+      level: placing.level,
+      cooldown: 0,
+      angle: 0
+    };
     placing = null;
     refreshHud();
   }
@@ -1224,11 +1314,33 @@
 
   /* Escape cancels a pending placement. */
   window.addEventListener("keydown", function (event) {
-    if (event.key === "Escape" && placing) {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (!levels.hidden) {
+      closeLevels();
+      return;
+    }
+
+    if (placing) {
       placing = null;
       refreshHotbar();
       draw();
     }
+  });
+
+  /* Clicking away closes the level picker. */
+  document.addEventListener("pointerdown", function (event) {
+    if (levels.hidden || levels.contains(event.target)) {
+      return;
+    }
+
+    if (hotbar.contains(event.target)) {
+      return;
+    }
+
+    closeLevels();
   });
 
   /* =========================================================

@@ -182,11 +182,18 @@ begin
 end $$;
 
 -- 5. Grant tower copies -----------------------------------------
--- A null tower_key gives each player a random one instead.
+-- A null p_tower gives each player a random one instead.
+--
+-- The parameters are prefixed because plpgsql substitutes them
+-- into the SQL below: a parameter named tower_key or copies would
+-- be ambiguous against the columns of the same name, and the
+-- on conflict clause fails with "column reference is ambiguous".
+drop function if exists public.admin_grant_towers(text, integer, boolean);
+
 create or replace function public.admin_grant_towers(
-  tower_key   text,
-  copies      integer default 1,
-  online_only boolean default true
+  p_tower       text,
+  p_copies      integer default 1,
+  p_online_only boolean default true
 )
 returns integer
 language plpgsql
@@ -199,35 +206,36 @@ declare
 begin
   perform public.require_dev();
 
-  if copies is null or copies <= 0 or copies > 1000 then
+  if p_copies is null or p_copies <= 0 or p_copies > 1000 then
     raise exception 'Copies must be between 1 and 1000';
   end if;
 
-  if tower_key is not null
-     and not exists (select 1 from public.chest_odds where chest_odds.tower_key = admin_grant_towers.tower_key) then
+  if p_tower is not null
+     and not exists (select 1 from public.chest_odds c where c.tower_key = p_tower) then
     raise exception 'Unknown tower';
   end if;
 
   for target in
     select p.id from public.profiles p
-    where not online_only or exists (
+    where not p_online_only or exists (
       select 1 from public.player_sessions s
       where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
     )
   loop
-    picked := coalesce(tower_key, public.draw_tower());
+    picked := coalesce(p_tower, public.draw_tower());
 
-    insert into public.player_towers (player_id, tower_key, evolution, copies)
-    values (target.id, picked, 0, admin_grant_towers.copies)
+    insert into public.player_towers as pt (player_id, tower_key, evolution, copies)
+    values (target.id, picked, 0, p_copies)
     on conflict (player_id, tower_key, evolution)
-    do update set copies = public.player_towers.copies + admin_grant_towers.copies;
+    do update set copies = pt.copies + p_copies;
 
     affected := affected + 1;
   end loop;
 
   insert into public.admin_grants (granted_by, action, detail, recipients)
   values (auth.uid(), 'towers',
-          jsonb_build_object('tower', tower_key, 'copies', copies, 'online_only', online_only),
+          jsonb_build_object('tower', p_tower, 'copies', p_copies,
+                             'online_only', p_online_only),
           affected);
 
   return affected;
@@ -287,4 +295,5 @@ grant execute on function public.heartbeat() to authenticated;
 grant execute on function public.online_count() to authenticated;
 grant execute on function public.admin_grant_coins(bigint, boolean) to authenticated;
 grant execute on function public.admin_grant_towers(text, integer, boolean) to authenticated;
+grant execute on function public.admin_announce(text) to authenticated;
 grant execute on function public.admin_grant_chests(integer, boolean) to authenticated;
