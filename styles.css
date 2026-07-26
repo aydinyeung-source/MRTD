@@ -1054,7 +1054,7 @@ body::after {
 
 .upgrades {
   margin-top: clamp(20px, 4vh, 36px);
-  max-width: 720px;
+  max-width: 900px;
 }
 
 .upgrades__balance {
@@ -1067,55 +1067,82 @@ body::after {
 
 .upgrades__list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
 }
 
+/* One long bar per upgrade, running the width of the screen. */
 .upgrade {
   display: flex;
-  flex-direction: column;
-  width: 220px;
-  padding: 16px 18px;
+  align-items: center;
+  gap: clamp(14px, 3vw, 28px);
+  padding: 16px 20px;
   border: 1px solid var(--rule);
   border-radius: 14px;
   background-color: var(--paper-raised);
 }
 
-.upgrade__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+.upgrade__info {
+  width: 190px;
+  flex-shrink: 0;
 }
 
 .upgrade__name {
-  margin: 0;
+  margin: 0 0 4px;
   font-family: var(--rounded);
   font-weight: 700;
-  font-size: 14px;
-}
-
-.upgrade__level {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+  font-size: 15px;
 }
 
 .upgrade__note {
-  flex: 1;
-  margin: 0 0 14px;
+  margin: 0;
   font-family: var(--mono);
   font-size: 10px;
   line-height: 1.5;
   color: var(--ink-muted);
 }
 
+/* The bar graph: one segment per level, filled up to what is
+   owned, stretched across the row. */
+.upgrade__progress {
+  flex: 1;
+  min-width: 120px;
+}
+
+.upgrade__meter {
+  display: flex;
+  gap: 3px;
+  height: 14px;
+}
+
+.upgrade__seg {
+  flex: 1;
+  border-radius: 3px;
+  background-color: rgba(34, 42, 47, 0.09);
+  transition: background-color 320ms var(--ease-soft);
+}
+
+.upgrade__seg.is-filled {
+  background-color: var(--glacier);
+}
+
+/* The last few levels shade toward gold as they get expensive. */
+.upgrade__seg.is-filled:nth-last-child(-n + 3) {
+  background-color: #c9992b;
+}
+
+.upgrade__counts {
+  margin: 8px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
 .upgrade__buy {
-  padding: 9px;
+  flex-shrink: 0;
+  min-width: 92px;
+  padding: 11px 14px;
   border: 1px solid var(--rule);
   border-radius: 8px;
   background-color: transparent;
@@ -1126,6 +1153,20 @@ body::after {
   cursor: pointer;
   transition: border-color 240ms var(--ease-soft),
               background-color 240ms var(--ease-soft);
+}
+
+@media (max-width: 620px) {
+  .upgrade {
+    flex-wrap: wrap;
+  }
+
+  .upgrade__info {
+    width: 100%;
+  }
+
+  .upgrade__buy {
+    width: 100%;
+  }
 }
 
 .upgrade__buy:hover:not(:disabled) {

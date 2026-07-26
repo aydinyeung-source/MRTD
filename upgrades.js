@@ -60,6 +60,47 @@
     return table[level + 1] === undefined ? null : table[level + 1];
   }
 
+  /* What the upgrade is currently worth, in its own terms. */
+  function valueFor(name, level) {
+    var stats = window.MRTD.stats;
+
+    if (name === "placements") {
+      return stats.placementLimit(level) + " towers";
+    }
+
+    if (name === "starting_cash") {
+      return stats.startingCashFor(level) + " cash";
+    }
+
+    if (name === "quick_buy") {
+      return level ? "up to merge " + (level + 1) : "locked";
+    }
+
+    return level ? "unlocked" : "locked";
+  }
+
+  /* One segment per level, filled up to what is owned — a bar
+     graph running the length of the row. */
+  function meter(level, max) {
+    var track = document.createElement("div");
+
+    track.className = "upgrade__meter";
+
+    for (var i = 1; i <= max; i += 1) {
+      var segment = document.createElement("span");
+
+      segment.className = "upgrade__seg";
+
+      if (i <= level) {
+        segment.classList.add("is-filled");
+      }
+
+      track.appendChild(segment);
+    }
+
+    return track;
+  }
+
   function row(name) {
     var definition = window.MRTD.stats.upgrades[name];
     var level = owned[name] || 0;
@@ -69,39 +110,43 @@
     var card = document.createElement("article");
     card.className = "upgrade";
 
-    var head = document.createElement("div");
-    head.className = "upgrade__head";
+    var info = document.createElement("div");
+    info.className = "upgrade__info";
 
     var title = document.createElement("p");
     title.className = "upgrade__name";
     title.textContent = definition.label;
-    head.appendChild(title);
-
-    var owned_ = document.createElement("p");
-    owned_.className = "upgrade__level";
-    owned_.textContent =
-      definition.max === 1
-        ? level > 0 ? "Owned" : "Not owned"
-        : level + " / " + definition.max;
-    head.appendChild(owned_);
-
-    card.appendChild(head);
+    info.appendChild(title);
 
     var note = document.createElement("p");
     note.className = "upgrade__note";
     note.textContent = definition.note;
-    card.appendChild(note);
+    info.appendChild(note);
+
+    card.appendChild(info);
+
+    var track = document.createElement("div");
+    track.className = "upgrade__progress";
+
+    track.appendChild(meter(level, definition.max));
+
+    var counts = document.createElement("p");
+    counts.className = "upgrade__counts";
+    counts.textContent =
+      level + " / " + definition.max + "  ·  " + valueFor(name, level);
+    track.appendChild(counts);
+
+    card.appendChild(track);
 
     var button = document.createElement("button");
     button.className = "upgrade__buy";
     button.type = "button";
 
     if (price === null) {
-      button.textContent = definition.max === 1 ? "Owned" : "Maxed";
+      button.textContent = "Maxed";
       button.disabled = true;
     } else {
-      button.textContent = (level > 0 ? "Upgrade — " : "Buy — ") +
-        (dev ? "free" : price);
+      button.textContent = dev ? "Free" : String(price);
       button.disabled = !dev && coins < price;
       button.addEventListener("click", function () {
         buy(name, button);
