@@ -161,10 +161,13 @@
     collection.textContent = "";
 
     var coins = Number(profile.coins || 0);
+    var dev = Boolean(window.MRTD.dev);
 
-    coinsDisplay.textContent = String(coins);
-    buyOne.disabled = coins < 100;
-    buyTen.disabled = coins < 900;
+    /* Developers spend nothing — the server skips the charge too,
+       so this is not just a display trick. */
+    coinsDisplay.textContent = dev ? "∞" : String(coins);
+    buyOne.disabled = !dev && coins < 100;
+    buyTen.disabled = !dev && coins < 900;
 
     if (!rows.length) {
       collection.appendChild(
@@ -315,6 +318,8 @@
     setStatus("");
     refresh();
   });
+
+  document.addEventListener("mrtd:dev", refresh);
 
   document.addEventListener("mrtd:locked", function () {
     collection.textContent = "";

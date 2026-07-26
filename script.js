@@ -44,6 +44,7 @@
   var signupButton = document.getElementById("auth-signup");
   var message = document.getElementById("auth-message");
   var signOutButton = document.getElementById("signout");
+  var devButton = document.getElementById("devmode");
   var profileName = document.querySelector(".profile-card__name");
   var version = document.getElementById("version");
 
@@ -253,6 +254,63 @@
   }
 
   /* =========================================================
+     Developer mode
+
+     The button only appears for an account the database has
+     flagged. Toggling it on grants unlimited cash, unlimited
+     coins and every tower; toggling it off puts everything back.
+     ========================================================= */
+
+  var DEV_KEY = "mrtd.dev";
+  var devEnabled = false;
+
+  function devOn() {
+    try {
+      return localStorage.getItem(DEV_KEY) === "1";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function applyDev(on) {
+    devEnabled = Boolean(on);
+    window.MRTD.dev = devEnabled;
+    devButton.textContent = "Dev mode: " + (devEnabled ? "on" : "off");
+    devButton.classList.toggle("is-on", devEnabled);
+
+    try {
+      localStorage.setItem(DEV_KEY, devEnabled ? "1" : "0");
+    } catch (error) {
+      /* Storage refused; the toggle still works for this session. */
+    }
+
+    document.dispatchEvent(new CustomEvent("mrtd:dev"));
+  }
+
+  /* Only the flagged account ever sees the button. */
+  function checkDeveloper() {
+    authed("/rest/v1/profiles?select=is_dev")
+      .then(function (rows) {
+        var allowed = rows.length && rows[0].is_dev;
+
+        devButton.hidden = !allowed;
+
+        if (allowed) {
+          applyDev(devOn());
+        } else {
+          applyDev(false);
+        }
+      })
+      .catch(function () {
+        devButton.hidden = true;
+      });
+  }
+
+  devButton.addEventListener("click", function () {
+    applyDev(!devEnabled);
+  });
+
+  /* =========================================================
      Session storage
      ========================================================= */
 
@@ -285,6 +343,7 @@
     app.hidden = false;
 
     document.dispatchEvent(new CustomEvent("mrtd:unlocked"));
+    checkDeveloper();
   }
 
   function lock() {

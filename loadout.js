@@ -202,7 +202,21 @@
     render();
   }
 
+  /* Developer mode owns everything at full evolution. */
+  function everything() {
+    return Object.keys(window.MRTD.stats.towers).map(function (name) {
+      return { key: name, evolution: window.MRTD.stats.maxEvolution, copies: 1 };
+    });
+  }
+
   function refresh() {
+    if (window.MRTD.dev) {
+      owned = everything();
+      equipped = load().filter(ownedEntry);
+      render();
+      return Promise.resolve();
+    }
+
     return fetchOwned().then(function (rows) {
       owned = condense(rows);
 
@@ -224,6 +238,7 @@
   window.MRTD.refreshLoadout = refresh;
 
   document.addEventListener("mrtd:unlocked", refresh);
+  document.addEventListener("mrtd:dev", refresh);
   document.addEventListener("mrtd:locked", function () {
     owned = [];
     equipped = [];

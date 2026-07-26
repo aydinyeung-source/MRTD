@@ -99,6 +99,7 @@
     </main>
 
     <div class="corner">
+      <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
       <button class="corner__signout" id="signout" type="button">Sign out</button>
       <p class="version" id="version"></p>
     </div>
@@ -116,6 +117,8 @@
 
     <div class="match__top">
       <p class="match__stat"><span id="match-wave">0</span> wave</p>
+      <button class="match__button" id="match-speed" type="button">1×</button>
+      <button class="match__button" id="match-skip" type="button" hidden>Skip wave</button>
       <button class="match__button match__button--go" id="match-start" type="button">
         Start wave
       </button>

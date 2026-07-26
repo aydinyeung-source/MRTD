@@ -942,6 +942,32 @@ body::after {
   transition: color 320ms var(--ease-soft);
 }
 
+.corner__dev {
+  padding: 5px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: var(--paper-raised);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: border-color 320ms var(--ease-soft),
+              color 320ms var(--ease-soft);
+}
+
+.corner__dev.is-on {
+  border-color: #b07404;
+  color: #b07404;
+}
+
+.match__button.is-on {
+  border-color: var(--glacier);
+  background-color: var(--glacier);
+  color: var(--paper-raised);
+}
+
 .corner__signout:hover {
   color: var(--glacier);
 }

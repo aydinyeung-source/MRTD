@@ -44,6 +44,8 @@
   var viewButton = document.getElementById("match-view");
   var forfeitButton = document.getElementById("match-forfeit");
   var startButton = document.getElementById("match-start");
+  var speedButton = document.getElementById("match-speed");
+  var skipButton = document.getElementById("match-skip");
   var hotbar = document.getElementById("hotbar");
   var cashDisplay = document.getElementById("match-cash");
   var hpDisplay = document.getElementById("match-hp");
@@ -74,6 +76,15 @@
   var waveActive = false;
   var running = false;
   var lastFrame = 0;
+
+  /* Bonus paid the moment a wave is cleared, on top of farm income. */
+  var WAVE_BONUS = 100;
+
+  /* Breather between waves before the next one starts itself. */
+  var BREAK_SECONDS = 15;
+
+  var speed = 1;
+  var breakLeft = 0;
 
   var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [] };
   var drag = null;
@@ -670,13 +681,20 @@
      Waves and combat
      ========================================================= */
 
+  /* Startable when nothing is queued: either between waves, or
+     early while the tail of the last wave is still walking. */
+  function canStart() {
+    return baseHp > 0 && !spawnQueue.length;
+  }
+
   function startWave() {
-    if (waveActive || baseHp <= 0) {
+    if (!canStart()) {
       return;
     }
 
     wave += 1;
     waveActive = true;
+    breakLeft = 0;
     spawnTimer = 0;
     spawnQueue = [];
 
@@ -780,17 +798,18 @@
     });
   }
 
-  function earn(delta) {
-    /* Farms pay out per wave; approximate it as income over the
-       wave so cash arrives while you are playing. */
+  /* Paid when a wave is cleared: a flat bonus plus every farm's
+     output for that wave. */
+  function payWave() {
+    var total = WAVE_BONUS;
+
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
-      var perWave = stats.coins(tower.key, tower.level, 0);
 
-      if (perWave > 0 && waveActive) {
-        cash += (perWave / 12) * delta;
-      }
+      total += stats.coins(tower.key, tower.level, 0);
     });
+
+    cash += total;
   }
 
   function update(delta) {
@@ -835,8 +854,6 @@
       fire(position, towers[position], delta);
     });
 
-    earn(delta);
-
     shots = shots.filter(function (shot) {
       shot.life -= delta;
       return shot.life > 0;
@@ -846,6 +863,18 @@
     if (waveActive && !spawnQueue.length && !enemies.length) {
       waveActive = false;
       wavesBeaten = wave;
+      payWave();
+      breakLeft = BREAK_SECONDS;
+    }
+
+    /* The breather runs itself out and starts the next wave. */
+    if (!waveActive && breakLeft > 0) {
+      breakLeft -= delta;
+
+      if (breakLeft <= 0) {
+        breakLeft = 0;
+        startWave();
+      }
     }
 
     if (baseHp <= 0) {
@@ -864,7 +893,7 @@
 
     lastFrame = timestamp;
 
-    update(delta);
+    update(delta * speed);
     draw();
 
     window.requestAnimationFrame(loop);
@@ -874,12 +903,25 @@
      Cash, base, selling
      ========================================================= */
 
+  function isDev() {
+    return Boolean(window.MRTD && window.MRTD.dev);
+  }
+
   function refreshHud() {
-    cashDisplay.textContent = String(Math.floor(cash));
+    cashDisplay.textContent = isDev() ? "∞" : String(Math.floor(cash));
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
     waveDisplay.textContent = String(wave);
     exitButton.disabled = baseHp > 0;
-    startButton.disabled = waveActive || baseHp <= 0;
+
+    /* Counts down through the break, then starts itself. */
+    startButton.disabled = !canStart();
+    startButton.textContent =
+      breakLeft > 0 ? "Start wave (" + Math.ceil(breakLeft) + ")" : "Start wave";
+
+    /* Only offered once the wave has finished spawning and there
+       is still something left to kill. */
+    skipButton.hidden = !(waveActive && !spawnQueue.length && enemies.length > 0);
+
     refreshHotbar();
   }
 
@@ -926,6 +968,11 @@
      full list so the match is still playable before anything is
      owned. */
   function loadoutKeys() {
+    /* Developer mode ignores the loadout and unlocks everything. */
+    if (isDev()) {
+      return TOWER_KEYS;
+    }
+
     var equipped = window.MRTD.loadout ? window.MRTD.loadout() : [];
 
     return equipped.length ? equipped : TOWER_KEYS;
@@ -966,7 +1013,7 @@
     Array.prototype.forEach.call(hotbar.children, function (button) {
       var name = button.dataset.tower;
 
-      button.disabled = stats.cost(name) > cash;
+      button.disabled = !isDev() && stats.cost(name) > cash;
       button.classList.toggle("is-selected", placing === name);
     });
   }
@@ -984,11 +1031,13 @@
 
     var price = stats.cost(placing);
 
-    if (price > cash) {
-      return;
-    }
+    if (!isDev()) {
+      if (price > cash) {
+        return;
+      }
 
-    cash -= price;
+      cash -= price;
+    }
     towers[at] = { key: placing, level: 1, cooldown: 0, angle: 0 };
     placing = null;
     refreshHud();
@@ -1154,6 +1203,7 @@
     wave = 0;
     wavesBeaten = 0;
     waveActive = false;
+    breakLeft = 0;
     placing = null;
     drag = null;
     hover = null;
@@ -1255,6 +1305,25 @@
   exitButton.addEventListener("click", close);
   gameoverLeave.addEventListener("click", close);
   startButton.addEventListener("click", startWave);
+
+  /* Skipping starts the next wave while stragglers are still on
+     the path, which is the same call. */
+  skipButton.addEventListener("click", startWave);
+
+  speedButton.addEventListener("click", function () {
+    speed = speed === 1 ? 2 : 1;
+    speedButton.textContent = speed + "×";
+    speedButton.classList.toggle("is-on", speed === 2);
+  });
+
+  /* Toggling developer mode mid match takes effect immediately. */
+  document.addEventListener("mrtd:dev", function () {
+    if (!root.hidden) {
+      buildHotbar();
+      refreshHud();
+      draw();
+    }
+  });
 
   viewButton.addEventListener("click", function () {
     applyView(viewMode === "top" ? "3d" : "top");
