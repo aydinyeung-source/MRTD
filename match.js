@@ -33,10 +33,28 @@
 
   var TOWER_KEYS = ["blender", "dagger", "farm", "shotgunner", "sniper"];
 
+  /* Top down tokens per tower, used by the "Top" view. Colour and
+     shape carry the identity, so no extra artwork is needed and
+     they stay readable at phone tile sizes. */
+  var TOKENS = {
+    blender: { colour: "#4f6a78", shape: "circle" },
+    dagger: { colour: "#7fa5b8", shape: "circle" },
+    farm: { colour: "#6d8a6f", shape: "square" },
+    shotgunner: { colour: "#3c4a52", shape: "circle" },
+    sniper: { colour: "#8a6a78", shape: "circle" }
+  };
+
+  var VIEW_KEY = "mrtd.view";
+
+  /* "top" is the readable default; "3d" shows the drawn sprites and
+     is still rough, hence the beta label. */
+  var viewMode = "top";
+
   var root = document.getElementById("match");
   var canvas = document.getElementById("match-canvas");
   var exitButton = document.getElementById("match-exit");
   var addButton = document.getElementById("match-add");
+  var viewButton = document.getElementById("match-view");
   var playButton = document.getElementById("play");
 
   if (!canvas || !root) {
@@ -286,7 +304,54 @@
     ctx.stroke();
   }
 
+  /* Seen from above: a coloured token, a facing notch for towers
+     that fire in an arc, and the merge level in the middle. */
+  function drawTopTower(tower, x, y, size) {
+    var token = TOKENS[tower.key] || { colour: "#4f6a78", shape: "circle" };
+    var centreX = x + size / 2;
+    var centreY = y + size / 2;
+    var radius = size * 0.34;
+    var attack = stats.attack(tower.key);
+
+    /* Arc towers show which way they point. */
+    if (attack && attack.shape === "cone") {
+      var half = (attack.angle * Math.PI) / 360;
+
+      ctx.beginPath();
+      ctx.moveTo(centreX, centreY);
+      ctx.arc(centreX, centreY, radius * 1.5, -Math.PI / 2 - half, -Math.PI / 2 + half);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(34, 42, 47, 0.13)";
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+
+    if (token.shape === "square") {
+      roundedPath(centreX - radius, centreY - radius, radius * 2, radius * 2, radius * 0.35);
+    } else {
+      ctx.arc(centreX, centreY, radius, 0, Math.PI * 2);
+    }
+
+    ctx.fillStyle = token.colour;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(249, 251, 252, 0.85)";
+    ctx.lineWidth = Math.max(1.5, size * 0.045);
+    ctx.stroke();
+
+    ctx.fillStyle = "#f9fbfc";
+    ctx.font = "600 " + Math.max(9, Math.round(size * 0.34)) + "px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(tower.level), centreX, centreY + size * 0.01);
+  }
+
   function drawTower(tower, x, y, size) {
+    if (viewMode === "top") {
+      drawTopTower(tower, x, y, size);
+      return;
+    }
+
     var sprite = sprites[tower.key] && sprites[tower.key][tower.level];
 
     if (sprite) {
@@ -579,6 +644,36 @@
     root.hidden = true;
   }
 
+  /* =========================================================
+     View setting
+     ========================================================= */
+
+  function applyView(mode) {
+    viewMode = mode === "3d" ? "3d" : "top";
+    viewButton.textContent =
+      viewMode === "3d" ? "View: 3D - beta" : "View: Top";
+
+    try {
+      localStorage.setItem(VIEW_KEY, viewMode);
+    } catch (error) {
+      /* Private browsing can refuse storage; the view still works. */
+    }
+
+    draw();
+  }
+
+  function restoreView() {
+    var saved = null;
+
+    try {
+      saved = localStorage.getItem(VIEW_KEY);
+    } catch (error) {
+      saved = null;
+    }
+
+    applyView(saved || "top");
+  }
+
   if (playButton) {
     playButton.addEventListener("click", open);
   }
@@ -586,11 +681,16 @@
   exitButton.addEventListener("click", close);
   addButton.addEventListener("click", addTower);
 
+  viewButton.addEventListener("click", function () {
+    applyView(viewMode === "top" ? "3d" : "top");
+  });
+
   window.addEventListener("resize", function () {
     if (!root.hidden && layout()) {
       draw();
     }
   });
 
+  restoreView();
   loadSprites();
 })();
