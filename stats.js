@@ -32,6 +32,15 @@
     boost: { mode: "add", amount: 2.5, percent: true }
   };
 
+  /* Scaling every tower gets per evolution regardless of role.
+     Role effects below apply on top of this. */
+  var EVOLUTION_ALL = {
+    range: { mode: "multiply", factor: 1.1 } // +10% per evolution
+  };
+
+  /* Cash the player starts a match with — exactly one dagger. */
+  var STARTING_CASH = 100;
+
   /* What one evolution does, by role. Each effect is either
      "multiply" (compounds per evolution) or "add" (flat per
      evolution). percent: true means the value is itself a
@@ -41,7 +50,7 @@
     spawner: [{ stat: "health", mode: "multiply", rate: 0.15 }],
     booster: [
       { stat: "boost", mode: "add", amount: 3, percent: true },
-      { stat: "range", mode: "add", amount: 2.5 }
+      { stat: "range", mode: "add", amount: 5 }
     ],
     economy: [{ stat: "coins", mode: "multiply", rate: 0.1 }]
   };
@@ -62,28 +71,37 @@
        { label: "...", role: "booster", boost: 6, range: 120, cooldown: 0 }
      A spawner like:
        { label: "...", role: "spawner", health: 50, range: 0, cooldown: 3 } */
+  /* Base values: merge level 1, evolution 0. Radius in tiles is
+     range / 10, so 20 range is 2 tiles.
+
+     Cooldown is fixed for the life of a tower — it never changes
+     with merge level or evolution, so DPS scales purely on damage. */
   var TOWERS = {
     blender: {
-      label: "Blender", role: "damage", damage: 12, range: 20, cooldown: 0.6,
-      attack: { shape: "single" }
+      label: "Blender", role: "damage",
+      damage: 60, range: 15, cooldown: 0.5, cost: 150, // 120 dps
+      attack: { shape: "circle", angle: 360 }
     },
     dagger: {
-      label: "Dagger", role: "damage", damage: 8, range: 15, cooldown: 0.35,
+      label: "Dagger", role: "damage",
+      damage: 100, range: 20, cooldown: 0.4, cost: 100, // 250 dps
       attack: { shape: "single" }
     },
     farm: {
-      label: "Farm", role: "economy", damage: 0, range: 0, cooldown: 0, coins: 100,
+      label: "Farm", role: "economy",
+      damage: 0, range: 0, cooldown: 0, cost: 100, coins: 100,
       attack: null
     },
     shotgunner: {
-      /* 20 range is a 2 tile radius: radius in tiles is range / 10. */
-      label: "Shotgunner", role: "damage", damage: 20, range: 20, cooldown: 0.9,
-      /* A 100 degree spread in front. Full damage at the muzzle,
-         falling linearly to 30% at maximum range. */
-      attack: { shape: "cone", angle: 100, falloffTo: 0.3 }
+      label: "Shotgunner", role: "damage",
+      damage: 1000, range: 30, cooldown: 2.5, cost: 300, // 400 dps point blank
+      /* 100 degree spread in front. 1000 at the muzzle falling
+         linearly to 100 at maximum range, so falloffTo is 0.1. */
+      attack: { shape: "cone", angle: 100, falloffTo: 0.1 }
     },
     sniper: {
-      label: "Sniper", role: "damage", damage: 45, range: 60, cooldown: 1.6,
+      label: "Sniper", role: "damage",
+      damage: 1200, range: 60, cooldown: 3, cost: 300, // 400 dps
       attack: { shape: "single" }
     }
   };
@@ -123,6 +141,16 @@
         curve.mode === "add"
           ? value + curve.amount * merges
           : value * Math.pow(curve.factor, merges);
+    }
+
+    /* Scaling every tower gets per evolution, whatever its role. */
+    var universal = EVOLUTION_ALL[stat];
+
+    if (universal) {
+      value =
+        universal.mode === "add"
+          ? value + universal.amount * steps
+          : value * Math.pow(universal.factor, steps);
     }
 
     var effect = effectOn(key, stat);
@@ -252,18 +280,35 @@
     );
   }
 
-  /* Human readable summary for the shop card. Roles with several
-     effects list all of them. */
+  /* Human readable summary for the shop card: what every tower gets
+     per evolution, then whatever its role adds. */
   function evolutionSummary(key, evolution) {
     if (!evolution) {
       return "";
     }
 
-    return effectsFor(key)
-      .map(function (effect) {
-        return describe(effect, evolution);
-      })
-      .join(" · ");
+    var parts = Object.keys(EVOLUTION_ALL).map(function (stat) {
+      var curve = EVOLUTION_ALL[stat];
+
+      return describe(
+        curve.mode === "add"
+          ? { stat: stat, mode: "add", amount: curve.amount }
+          : { stat: stat, mode: "multiply", rate: curve.factor - 1 },
+        evolution
+      );
+    });
+
+    effectsFor(key).forEach(function (effect) {
+      parts.push(describe(effect, evolution));
+    });
+
+    return parts.join(" · ");
+  }
+
+  function cost(key) {
+    var tower = base(key);
+
+    return tower ? tower.cost : 0;
   }
 
   window.MRTD = window.MRTD || {};
@@ -274,6 +319,9 @@
     maxMerge: MAX_MERGE,
     maxEvolution: MAX_EVOLUTION,
     rangePerTile: RANGE_PER_TILE,
+    startingCash: STARTING_CASH,
+    evolutionAll: EVOLUTION_ALL,
+    cost: cost,
     attack: attackOf,
     damageAtDistance: damageAtDistance,
     inArc: inArc,
