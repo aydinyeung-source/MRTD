@@ -67,6 +67,7 @@
   var startButton = document.getElementById("match-start");
   var speedButton = document.getElementById("match-speed");
   var skipButton = document.getElementById("match-skip");
+  var autoButton = document.getElementById("match-auto");
   var hotbar = document.getElementById("hotbar");
   var levels = document.getElementById("levels");
   var cashDisplay = document.getElementById("match-cash");
@@ -108,6 +109,19 @@
 
   var speed = 1;
   var breakLeft = 0;
+
+  /* Simulation is advanced in fixed slices. Without this, 10x
+     would take one huge step per frame and cooldowns would drift —
+     a 0.4s tower would fire once per frame instead of several
+     times. */
+  var STEP = 1 / 60;
+  var MAX_STEPS = 40;
+
+  /* Chains waves without waiting: starts the next one the moment
+     the current one has finished spawning. Available in normal
+     play, not just developer mode. */
+  var AUTO_KEY = "mrtd.auto";
+  var autoSkip = false;
 
   var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [] };
   var drag = null;
@@ -974,11 +988,16 @@
       }
     }
 
+    /* Auto skip does not wait for either. Starting fills the spawn
+       queue, so canStart goes false again immediately and waves
+       chain rather than firing every frame. */
+    if (autoSkip && canStart()) {
+      startWave();
+    }
+
     if (baseHp <= 0) {
       endRun();
     }
-
-    refreshHud();
   }
 
   function loop(timestamp) {
@@ -990,7 +1009,18 @@
 
     lastFrame = timestamp;
 
-    update(delta * speed);
+    /* Fixed slices, so 2x and 10x are genuinely the same game
+       running faster rather than a coarser one. */
+    var remaining = delta * speed;
+    var steps = 0;
+
+    while (remaining > 0 && steps < MAX_STEPS && running) {
+      update(Math.min(STEP, remaining));
+      remaining -= STEP;
+      steps += 1;
+    }
+
+    refreshHud();
     draw();
 
     window.requestAnimationFrame(loop);
@@ -1520,14 +1550,47 @@
      the path, which is the same call. */
   skipButton.addEventListener("click", startWave);
 
-  speedButton.addEventListener("click", function () {
-    speed = speed === 1 ? 2 : 1;
+  /* 10x is a developer speed — normal play cycles 1x and 2x. */
+  function speedChoices() {
+    return isDev() ? [1, 2, 10] : [1, 2];
+  }
+
+  function setSpeed(next) {
+    speed = next;
     speedButton.textContent = speed + "×";
-    speedButton.classList.toggle("is-on", speed === 2);
+    speedButton.classList.toggle("is-on", speed > 1);
+  }
+
+  speedButton.addEventListener("click", function () {
+    var choices = speedChoices();
+    var index = choices.indexOf(speed);
+
+    setSpeed(choices[(index + 1) % choices.length]);
+  });
+
+  function setAuto(on) {
+    autoSkip = Boolean(on);
+    autoButton.textContent = "Auto: " + (autoSkip ? "on" : "off");
+    autoButton.classList.toggle("is-on", autoSkip);
+
+    try {
+      localStorage.setItem(AUTO_KEY, autoSkip ? "1" : "0");
+    } catch (error) {
+      /* Storage refused; the toggle still works for this session. */
+    }
+  }
+
+  autoButton.addEventListener("click", function () {
+    setAuto(!autoSkip);
   });
 
   /* Toggling developer mode mid match takes effect immediately. */
   document.addEventListener("mrtd:dev", function () {
+    /* Leaving developer mode while at 10x drops back to normal. */
+    if (speedChoices().indexOf(speed) < 0) {
+      setSpeed(1);
+    }
+
     if (!root.hidden) {
       buildHotbar();
       refreshHud();
@@ -1554,7 +1617,16 @@
     }
   });
 
+  function restoreAuto() {
+    try {
+      setAuto(localStorage.getItem(AUTO_KEY) === "1");
+    } catch (error) {
+      setAuto(false);
+    }
+  }
+
   buildHotbar();
   restoreView();
+  restoreAuto();
   loadSprites();
 })();
