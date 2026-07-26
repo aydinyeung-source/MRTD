@@ -20,7 +20,14 @@
   var VERSION = "1.0.0";
 
   var STORAGE_KEY = "mrtd.session";
+  var DEVICE_KEY = "mrtd.device";
   var USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+
+  /* How often a signed in device checks it is still the current
+     one, in milliseconds. */
+  var SESSION_CHECK_MS = 20000;
+
+  var sessionWatch = null;
 
   /* =========================================================
      Elements
@@ -140,6 +147,112 @@
   }
 
   /* =========================================================
+     One device at a time
+
+     Logging in claims the account for this device. Any other
+     device notices its token is stale and signs itself out.
+     ========================================================= */
+
+  function newDeviceToken() {
+    if (window.crypto && window.crypto.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var random = (Math.random() * 16) | 0;
+
+      return (c === "x" ? random : (random & 0x3) | 0x8).toString(16);
+    });
+  }
+
+  function authed(path, options) {
+    var session = loadSession();
+    var config = options || {};
+
+    if (!session || !session.access_token) {
+      return Promise.reject(new Error("Not logged in"));
+    }
+
+    return fetch(SUPABASE_URL + path, {
+      method: config.method || "GET",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + session.access_token,
+        "Content-Type": "application/json"
+      },
+      body: config.body ? JSON.stringify(config.body) : undefined
+    }).then(readResponse);
+  }
+
+  function claimDevice() {
+    var token = newDeviceToken();
+
+    return authed("/rest/v1/rpc/claim_session", {
+      method: "POST",
+      body: { new_session: token }
+    }).then(function () {
+      try {
+        localStorage.setItem(DEVICE_KEY, token);
+      } catch (error) {
+        /* Storage refused; the check below simply will not fire. */
+      }
+
+      return token;
+    });
+  }
+
+  function deviceToken() {
+    try {
+      return localStorage.getItem(DEVICE_KEY);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /* Signed out because the account was claimed elsewhere. */
+  function evict() {
+    stopSessionWatch();
+    clearSession();
+    form.reset();
+    setMode("login");
+    lock();
+    setMessage("Signed out — this account was used on another device.", true);
+  }
+
+  function checkDevice() {
+    var mine = deviceToken();
+
+    if (!mine) {
+      return;
+    }
+
+    authed("/rest/v1/player_sessions?select=session_id")
+      .then(function (rows) {
+        if (rows.length && rows[0].session_id !== mine) {
+          evict();
+        }
+      })
+      .catch(function () {
+        /* Offline or expired token: leave the player alone. */
+      });
+  }
+
+  function startSessionWatch() {
+    stopSessionWatch();
+    sessionWatch = window.setInterval(checkDevice, SESSION_CHECK_MS);
+    window.addEventListener("focus", checkDevice);
+  }
+
+  function stopSessionWatch() {
+    if (sessionWatch) {
+      window.clearInterval(sessionWatch);
+      sessionWatch = null;
+    }
+
+    window.removeEventListener("focus", checkDevice);
+  }
+
+  /* =========================================================
      Session storage
      ========================================================= */
 
@@ -198,6 +311,11 @@
           saveSession(renewed);
           unlock(renewed.user);
         });
+      })
+      .then(function () {
+        /* Returning to a tab that was kicked while it was closed. */
+        checkDevice();
+        startSessionWatch();
       })
       .catch(function () {
         clearSession();
@@ -289,6 +407,14 @@
         form.reset();
         setMode("login");
         unlock(data.user);
+
+        /* Claiming last means any other device is kicked only once
+           this one is actually in. */
+        claimDevice()
+          .then(startSessionWatch)
+          .catch(function () {
+            /* Not fatal: the player is signed in either way. */
+          });
       })
       .catch(function (error) {
         setMessage(readableError(error), true);
@@ -318,6 +444,8 @@
 
   signOutButton.addEventListener("click", function () {
     var session = loadSession();
+
+    stopSessionWatch();
 
     /* Revoke server-side, but drop the local session either way. */
     if (session && session.access_token) {
