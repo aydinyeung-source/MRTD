@@ -97,10 +97,15 @@
     <canvas class="match__canvas" id="match-canvas"></canvas>
 
     <div class="match__hud">
-      <button class="match__button" id="match-exit" type="button">Leave</button>
+      <p class="match__stat"><span id="match-cash">0</span> cash</p>
+      <p class="match__stat"><span id="match-hp">0</span> hp</p>
+
       <button class="match__button" id="match-add" type="button">Place tower</button>
       <button class="match__button" id="match-view" type="button">View: Top</button>
-      <p class="match__hint">Drag a tower onto an identical one to merge</p>
+      <button class="match__button" id="match-forfeit" type="button">Forfeit</button>
+      <button class="match__button" id="match-exit" type="button" disabled>Leave</button>
+
+      <p class="match__hint">Drag onto an identical tower to merge, or onto Sell to refund half</p>
     </div>
   </div>
 

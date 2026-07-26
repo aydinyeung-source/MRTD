@@ -311,6 +311,13 @@
     return tower ? tower.cost : 0;
   }
 
+  /* Half of everything spent building it. A level n tower is
+     2^(n-1) level 1 towers, so a level 5 refunds eight towers'
+     worth and a level 1 refunds half of one. */
+  function sellValue(key, level) {
+    return (cost(key) * Math.pow(2, (level || 1) - 1)) / 2;
+  }
+
   window.MRTD = window.MRTD || {};
   window.MRTD.stats = {
     towers: TOWERS,
@@ -322,6 +329,7 @@
     startingCash: STARTING_CASH,
     evolutionAll: EVOLUTION_ALL,
     cost: cost,
+    sellValue: sellValue,
     attack: attackOf,
     damageAtDistance: damageAtDistance,
     inArc: inArc,

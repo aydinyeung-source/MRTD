@@ -363,6 +363,30 @@ body::after {
   background-color: var(--paper);
 }
 
+.match__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.match__button:disabled:hover {
+  border-color: var(--rule);
+  background-color: var(--paper-raised);
+}
+
+.match__stat {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.match__stat span {
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .match__hint {
   margin: 0;
   font-family: var(--mono);

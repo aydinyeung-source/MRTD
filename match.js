@@ -53,12 +53,21 @@
      is still rough, hence the beta label. */
   var viewMode = "top";
 
+  var BASE_HP = 100;
+
   var root = document.getElementById("match");
   var canvas = document.getElementById("match-canvas");
   var exitButton = document.getElementById("match-exit");
   var addButton = document.getElementById("match-add");
   var viewButton = document.getElementById("match-view");
+  var forfeitButton = document.getElementById("match-forfeit");
+  var cashDisplay = document.getElementById("match-cash");
+  var hpDisplay = document.getElementById("match-hp");
   var playButton = document.getElementById("play");
+
+  /* A run only ends when the base falls. */
+  var cash = 0;
+  var baseHp = BASE_HP;
 
   if (!canvas || !root) {
     return;
@@ -76,6 +85,9 @@
   /* Tile key currently under the pointer, so its range can be
      previewed without picking the tower up. */
   var hover = null;
+
+  /* Drop target for selling, drawn only while dragging. */
+  var sellZone = null;
 
   /* =========================================================
      Map geometry
@@ -557,7 +569,7 @@
     if (drag) {
       drawRange(drag.tower, drag.x, drag.y);
 
-      var target = tileAt(drag.x, drag.y);
+      var target = inSellZone(drag.x, drag.y) ? null : tileAt(drag.x, drag.y);
 
       if (target) {
         var rect = tileRect(target[0], target[1]);
@@ -572,6 +584,8 @@
         ctx.strokeRect(rect.x + 1.5, rect.y + 1.5, rect.size - 3, rect.size - 3);
       }
 
+      drawSellZone(drag.tower, drag.x, drag.y);
+
       drawTower(
         drag.tower,
         drag.x - view.size / 2,
@@ -585,6 +599,98 @@
       var at = hover.split(",");
       drawRangeLabel(towers[hover], tileRect(Number(at[0]), Number(at[1])));
     }
+  }
+
+  /* =========================================================
+     Cash, base and the sell zone
+     ========================================================= */
+
+  function refreshHud() {
+    cashDisplay.textContent = String(Math.floor(cash));
+    hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
+
+    /* The only way out of a run is losing the base. */
+    exitButton.disabled = baseHp > 0;
+  }
+
+  function damageBase(amount) {
+    baseHp = Math.max(0, baseHp - amount);
+    refreshHud();
+    draw();
+  }
+
+  function startRun() {
+    towers = {};
+    cash = stats.startingCash;
+    baseHp = BASE_HP;
+    drag = null;
+    hover = null;
+    refreshHud();
+  }
+
+  /* Sits above the HUD, only while something is being dragged. */
+  function sellZoneRect() {
+    var width = Math.min(260, window.innerWidth - 40);
+    var height = 62;
+
+    return {
+      x: (window.innerWidth - width) / 2,
+      y: window.innerHeight - height - 96,
+      width: width,
+      height: height
+    };
+  }
+
+  function inSellZone(x, y) {
+    if (!sellZone) {
+      return false;
+    }
+
+    return (
+      x >= sellZone.x &&
+      x <= sellZone.x + sellZone.width &&
+      y >= sellZone.y &&
+      y <= sellZone.y + sellZone.height
+    );
+  }
+
+  function drawSellZone(tower, pointerX, pointerY) {
+    var rect = sellZone;
+    var active = inSellZone(pointerX, pointerY);
+    var value = stats.sellValue(tower.key, tower.level);
+
+    roundedPath(rect.x, rect.y, rect.width, rect.height, 14);
+    ctx.fillStyle = active ? "rgba(157, 75, 69, 0.92)" : "rgba(249, 251, 252, 0.94)";
+    ctx.fill();
+    ctx.strokeStyle = active ? "#9d4b45" : "rgba(34, 42, 47, 0.2)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = active ? "#f9fbfc" : "#222a2f";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.font = "700 15px 'Nunito', sans-serif";
+    ctx.fillText("Sell", rect.x + rect.width / 2, rect.y + 20);
+
+    ctx.font = "500 12px 'IBM Plex Mono', monospace";
+    ctx.fillText(
+      "+" + Math.floor(value) + " cash",
+      rect.x + rect.width / 2,
+      rect.y + 42
+    );
+  }
+
+  function sell(from) {
+    var tower = towers[from];
+
+    if (!tower) {
+      return;
+    }
+
+    cash += stats.sellValue(tower.key, tower.level);
+    delete towers[from];
+    refreshHud();
   }
 
   /* =========================================================
@@ -653,9 +759,20 @@
       return;
     }
 
-    var name = TOWER_KEYS[Math.floor(Math.random() * TOWER_KEYS.length)];
+    /* Only towers the player can actually pay for. */
+    var affordable = TOWER_KEYS.filter(function (name) {
+      return stats.cost(name) <= cash;
+    });
 
+    if (!affordable.length) {
+      return;
+    }
+
+    var name = affordable[Math.floor(Math.random() * affordable.length)];
+
+    cash -= stats.cost(name);
     towers[key(tile[0], tile[1])] = { key: name, level: 1 };
+    refreshHud();
     draw();
   }
 
@@ -678,6 +795,7 @@
     }
 
     drag = { from: at, tower: towers[at], x: point.x, y: point.y };
+    sellZone = sellZoneRect();
     canvas.setPointerCapture(event.pointerId);
     draw();
   });
@@ -717,13 +835,20 @@
 
     var point = pointerPosition(event);
 
-    drop(drag.from, tileAt(point.x, point.y));
+    if (inSellZone(point.x, point.y)) {
+      sell(drag.from);
+    } else {
+      drop(drag.from, tileAt(point.x, point.y));
+    }
+
     drag = null;
+    sellZone = null;
     draw();
   });
 
   canvas.addEventListener("pointercancel", function () {
     drag = null;
+    sellZone = null;
     draw();
   });
 
@@ -733,13 +858,19 @@
 
   function open() {
     root.hidden = false;
+    startRun();
 
     if (layout()) {
       draw();
     }
   }
 
+  /* Only reachable once the base is gone. */
   function close() {
+    if (baseHp > 0) {
+      return;
+    }
+
     root.hidden = true;
   }
 
@@ -782,6 +913,12 @@
 
   viewButton.addEventListener("click", function () {
     applyView(viewMode === "top" ? "3d" : "top");
+  });
+
+  /* Nothing attacks the base yet, so without this a run could never
+     end and the player would be stuck in the match. */
+  forfeitButton.addEventListener("click", function () {
+    damageBase(BASE_HP);
   });
 
   window.addEventListener("resize", function () {
