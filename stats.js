@@ -131,9 +131,35 @@
     return statValue(key, "coins", level, evolution);
   }
 
-  /* Percentage a booster grants to the towers it affects. */
+  /* Percentage a single booster grants to the towers it affects. */
   function boost(key, level, evolution) {
     return statValue(key, "boost", level, evolution);
+  }
+
+  /* Boosts DO NOT STACK. A tower sitting inside several booster
+     auras gets the single strongest one, never the sum — ten
+     boosters at 58.5% grant 58.5%, not 585%.
+
+     Accepts plain percentages or { key, level, evolution }. */
+  function effectiveBoost(sources) {
+    if (!sources || !sources.length) {
+      return 0;
+    }
+
+    return sources.reduce(function (best, source) {
+      var value =
+        typeof source === "number"
+          ? source
+          : boost(source.key, source.level, source.evolution);
+
+      return value > best ? value : best;
+    }, 0);
+  }
+
+  /* Applies a boost percentage to any stat value. Always feed this
+     the result of effectiveBoost, not a running total. */
+  function boosted(value, percent) {
+    return value * (1 + (percent || 0) / 100);
   }
 
   /* Set at spawn and never changed. */
@@ -184,6 +210,8 @@
     health: health,
     coins: coins,
     boost: boost,
+    effectiveBoost: effectiveBoost,
+    boosted: boosted,
     cooldown: cooldown,
     evolutionSummary: evolutionSummary
   };
