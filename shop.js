@@ -31,6 +31,10 @@
   var rollButton = document.getElementById("shop-roll-button");
   var status = document.getElementById("shop-status");
   var collection = document.getElementById("shop-collection");
+  var coinsDisplay = document.getElementById("shop-coins");
+  var buyOne = document.getElementById("shop-buy-1");
+  var buyTen = document.getElementById("shop-buy-10");
+  var oddsLine = document.getElementById("shop-odds");
 
   if (!collection) {
     return;
@@ -67,9 +71,16 @@
   }
 
   function loadProfile() {
-    return api("/rest/v1/profiles?select=free_roll_used").then(function (rows) {
-      return rows[0] || { free_roll_used: true };
+    return api("/rest/v1/profiles?select=free_roll_used,coins").then(function (rows) {
+      return rows[0] || { free_roll_used: true, coins: 0 };
     });
+  }
+
+  function loadOdds() {
+    return api("/rest/v1/chest_odds?select=tower_key,weight&order=weight.desc")
+      .catch(function () {
+        return [];
+      });
   }
 
   function loadCollection() {
@@ -149,6 +160,12 @@
     rollPanel.hidden = Boolean(profile.free_roll_used);
     collection.textContent = "";
 
+    var coins = Number(profile.coins || 0);
+
+    coinsDisplay.textContent = String(coins);
+    buyOne.disabled = coins < 100;
+    buyTen.disabled = coins < 900;
+
     if (!rows.length) {
       collection.appendChild(
         element(
@@ -199,12 +216,52 @@
      ========================================================= */
 
   function refresh() {
-    return Promise.all([loadProfile(), loadCollection()])
+    return Promise.all([loadProfile(), loadCollection(), loadOdds()])
       .then(function (results) {
         render(results[0], results[1]);
+        renderOdds(results[2]);
+
+        /* The Towers tab reads the same collection. */
+        if (window.MRTD.refreshLoadout) {
+          window.MRTD.refreshLoadout();
+        }
       })
       .catch(function (error) {
         setStatus(error.message, true);
+      });
+  }
+
+  function renderOdds(rows) {
+    if (!rows || !rows.length) {
+      oddsLine.textContent = "";
+      return;
+    }
+
+    var total = rows.reduce(function (sum, row) {
+      return sum + row.weight;
+    }, 0);
+
+    oddsLine.textContent = rows
+      .map(function (row) {
+        return labelFor(row.tower_key) + " " + Math.round((row.weight / total) * 100) + "%";
+      })
+      .join("  ·  ");
+  }
+
+  function openChest(draws, button) {
+    button.disabled = true;
+    setStatus("Opening...");
+
+    api("/rest/v1/rpc/open_chest", { method: "POST", body: { draws: draws } })
+      .then(function (result) {
+        var names = (result || []).map(labelFor);
+
+        setStatus("Got: " + names.join(", "));
+        return refresh();
+      })
+      .catch(function (error) {
+        setStatus(error.message, true);
+        button.disabled = false;
       });
   }
 
@@ -245,6 +302,14 @@
   }
 
   rollButton.addEventListener("click", roll);
+
+  buyOne.addEventListener("click", function () {
+    openChest(1, buyOne);
+  });
+
+  buyTen.addEventListener("click", function () {
+    openChest(10, buyTen);
+  });
 
   document.addEventListener("mrtd:unlocked", function () {
     setStatus("");

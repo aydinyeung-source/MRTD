@@ -55,6 +55,15 @@
 
       <section class="screen" id="screen-towers" data-screen="towers">
         <p class="placeholder">Towers</p>
+
+        <div class="loadout">
+          <p class="loadout__label">Equipped · 5 slots</p>
+          <div class="loadout__slots" id="loadout-slots"></div>
+
+          <p class="loadout__label">Owned</p>
+          <p class="loadout__status" id="loadout-status"></p>
+          <div class="loadout__owned" id="loadout-owned"></div>
+        </div>
       </section>
 
       <section class="screen" id="screen-shop" data-screen="shop">
@@ -67,6 +76,15 @@
               Open free roll
             </button>
             <p class="shop__roll-note">One roll, once ever. Every tower equally likely.</p>
+          </div>
+
+          <div class="shop__chest">
+            <p class="shop__balance"><span id="shop-coins">0</span> coins</p>
+            <div class="shop__buys">
+              <button class="shop__buy" id="shop-buy-1" type="button">Summon ×1 — 100</button>
+              <button class="shop__buy" id="shop-buy-10" type="button">Summon ×10 — 900</button>
+            </div>
+            <p class="shop__odds" id="shop-odds"></p>
           </div>
 
           <p class="shop__status" id="shop-status"></p>
@@ -128,6 +146,7 @@
 
   <script src="stats.js"></script>
   <script src="script.js"></script>
+  <script src="loadout.js"></script>
   <script src="shop.js"></script>
   <script src="match.js"></script>
 </body>

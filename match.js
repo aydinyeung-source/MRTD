@@ -821,8 +821,10 @@
         return false;
       }
 
+      /* A leak costs the base whatever hp the enemy had left, so
+         damage done on the way still counts for something. */
       if (enemy.progress >= end) {
-        baseHp = Math.max(0, baseHp - stats.enemies[enemy.kind].damage);
+        baseHp = Math.max(0, baseHp - enemy.hp);
         return false;
       }
 
@@ -920,10 +922,19 @@
      Hotbar
      ========================================================= */
 
+  /* The five towers equipped in the Towers tab. Falls back to the
+     full list so the match is still playable before anything is
+     owned. */
+  function loadoutKeys() {
+    var equipped = window.MRTD.loadout ? window.MRTD.loadout() : [];
+
+    return equipped.length ? equipped : TOWER_KEYS;
+  }
+
   function buildHotbar() {
     hotbar.textContent = "";
 
-    TOWER_KEYS.forEach(function (name) {
+    loadoutKeys().forEach(function (name) {
       var button = document.createElement("button");
 
       button.className = "hotbar__slot";
@@ -1157,10 +1168,36 @@
     gameoverWaves.textContent = String(wavesBeaten);
     gameoverCoins.textContent = String(stats.runReward(wavesBeaten));
     gameover.hidden = false;
+
+    bankRun(wavesBeaten);
+  }
+
+  /* Credit the coins server side. The reward is recalculated in
+     Postgres from the wave count, so the browser cannot name its
+     own figure. */
+  function bankRun(waves) {
+    var session = window.MRTD.session();
+
+    if (!session || !session.access_token) {
+      return;
+    }
+
+    fetch(window.MRTD.url + "/rest/v1/rpc/bank_run", {
+      method: "POST",
+      headers: {
+        apikey: window.MRTD.key,
+        Authorization: "Bearer " + session.access_token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ waves_beaten: waves })
+    }).catch(function () {
+      /* Offline: the run still shows its reward on screen. */
+    });
   }
 
   function open() {
     root.hidden = false;
+    buildHotbar();
     startRun();
 
     if (layout()) {

@@ -700,6 +700,191 @@ body::after {
 }
 
 /* =========================================================
+   Loadout — Towers tab
+   ========================================================= */
+
+.loadout {
+  margin-top: clamp(20px, 4vh, 36px);
+  max-width: 760px;
+}
+
+.loadout__label {
+  margin: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.loadout__slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.loadout__slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 96px;
+  height: 112px;
+  padding: 10px 8px;
+  border: 2px dashed var(--rule);
+  border-radius: 14px;
+  background-color: transparent;
+}
+
+.loadout__slot.is-filled {
+  border-style: solid;
+  border-color: var(--glacier);
+  background-color: var(--paper-raised);
+  cursor: pointer;
+}
+
+.loadout__owned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.loadout__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 96px;
+  height: 112px;
+  padding: 10px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background-color: var(--paper-raised);
+  cursor: pointer;
+  transition: border-color 240ms var(--ease-soft),
+              transform 240ms var(--ease-soft);
+}
+
+.loadout__card:hover {
+  border-color: var(--glacier);
+  transform: translateY(-2px);
+}
+
+.loadout__card.is-equipped {
+  opacity: 0.45;
+}
+
+.loadout__icon {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+}
+
+.loadout__name {
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.loadout__meta {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.loadout__status {
+  margin: -4px 0 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+/* Higher evolutions carry the same gold as the shop cards. */
+.loadout__card[data-evolution="1"],
+.loadout__slot[data-evolution="1"] { border-color: #dccfae; }
+.loadout__card[data-evolution="2"],
+.loadout__slot[data-evolution="2"] { border-color: #dbc79a; }
+.loadout__card[data-evolution="3"],
+.loadout__slot[data-evolution="3"] { border-color: #d8bf85; }
+.loadout__card[data-evolution="4"],
+.loadout__slot[data-evolution="4"] { border-color: #d5b76f; }
+.loadout__card[data-evolution="5"],
+.loadout__slot[data-evolution="5"] { border-color: #d2ae59; }
+.loadout__card[data-evolution="6"],
+.loadout__slot[data-evolution="6"] { border-color: #cfa442; }
+.loadout__card[data-evolution="7"],
+.loadout__slot[data-evolution="7"] { border-color: #c9992b; }
+.loadout__card[data-evolution="8"],
+.loadout__slot[data-evolution="8"] { border-color: #c08d18; }
+.loadout__card[data-evolution="9"],
+.loadout__slot[data-evolution="9"] { border-color: #b8810b; }
+.loadout__card[data-evolution="10"],
+.loadout__slot[data-evolution="10"] { border-color: #b07404; }
+
+/* =========================================================
+   Chest
+   ========================================================= */
+
+.shop__chest {
+  margin-top: 22px;
+  padding: 20px 22px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background-color: var(--paper-raised);
+}
+
+.shop__balance {
+  margin: 0 0 14px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 20px;
+  color: #b07404;
+}
+
+.shop__buys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.shop__buy {
+  padding: 12px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background-color: transparent;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--glacier);
+  cursor: pointer;
+  transition: border-color 320ms var(--ease-soft),
+              background-color 320ms var(--ease-soft);
+}
+
+.shop__buy:hover:not(:disabled) {
+  border-color: var(--glacier);
+  background-color: var(--paper);
+}
+
+.shop__buy:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.shop__odds {
+  margin: 14px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+/* =========================================================
    Play button — Play screen only
    ========================================================= */
 

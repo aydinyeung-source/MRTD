@@ -43,18 +43,20 @@
 
   var BASE_HP = 1000;
 
-  /* PLACEHOLDER enemies. Speed is tiles per second, damage is what
-     the base loses if one gets through, bounty is match cash.
-     Colours stand in until the SVGs arrive. */
+  /* PLACEHOLDER enemies. Speed is tiles per second, bounty is match
+     cash. There is no damage stat: an enemy that reaches the base
+     takes its REMAINING hp off the base, so wounding something still
+     counts even if it gets through. Colours stand in until the SVGs
+     arrive. */
   var ENEMIES = {
-    grunt: { label: "Grunt", hp: 100, speed: 1.2, damage: 10, bounty: 15, colour: "#7a5c8a" },
-    runner: { label: "Runner", hp: 60, speed: 2.6, damage: 5, bounty: 12, colour: "#c98f6a" },
-    brute: { label: "Brute", hp: 700, speed: 0.6, damage: 40, bounty: 55, colour: "#5a6b52" }
+    grunt: { label: "Grunt", hp: 100, speed: 1.2, bounty: 15, colour: "#7a5c8a" },
+    runner: { label: "Runner", hp: 60, speed: 2.6, bounty: 12, colour: "#c98f6a" },
+    brute: { label: "Brute", hp: 700, speed: 0.6, bounty: 55, colour: "#5a6b52" }
   };
 
   /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
   var WAVE = {
-    hpGrowth: 1.15,   // per wave, compounding
+    hpGrowth: 1.1,    // per wave, compounding
     bountyGrowth: 1.04,
     countBase: 5,
     countPerWave: 1.5,
