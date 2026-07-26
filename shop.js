@@ -1,0 +1,259 @@
+(function () {
+  "use strict";
+
+  /* =========================================================
+     Shop and collection.
+
+     Rolling and evolving both run as Postgres functions, not as
+     writes from here — the browser can ask for a roll but cannot
+     grant itself one.
+
+     Evolution is meta progression and persists. It is separate
+     from the merge levels inside a match.
+     ========================================================= */
+
+  var TOWERS = [
+    { key: "blender", label: "Blender" },
+    { key: "dagger", label: "Dagger" },
+    { key: "farm", label: "Farm" },
+    { key: "shotgunner", label: "Shotgunner" },
+    { key: "sniper", label: "Sniper" }
+  ];
+
+  var MAX_EVOLUTION = 10;
+
+  /* Damage compounds: each evolution is this much more than the one
+     below it. At 0.1 a maxed tower deals 2.59x; at 0.2, 6.19x. */
+  var DAMAGE_PER_EVOLUTION = 0.1;
+
+  /* Which artwork stands in for the tower in the collection. The
+     sprite never changes with evolution — only the border does. */
+  var ICON_LEVEL = 1;
+
+  var rollPanel = document.getElementById("shop-roll");
+  var rollButton = document.getElementById("shop-roll-button");
+  var status = document.getElementById("shop-status");
+  var collection = document.getElementById("shop-collection");
+
+  if (!collection) {
+    return;
+  }
+
+  /* =========================================================
+     Supabase
+     ========================================================= */
+
+  function api(path, options) {
+    var session = window.MRTD.session();
+    var config = options || {};
+
+    if (!session || !session.access_token) {
+      return Promise.reject(new Error("Not logged in."));
+    }
+
+    return fetch(window.MRTD.url + path, {
+      method: config.method || "GET",
+      headers: {
+        apikey: window.MRTD.key,
+        Authorization: "Bearer " + session.access_token,
+        "Content-Type": "application/json"
+      },
+      body: config.body ? JSON.stringify(config.body) : undefined
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          throw new Error(data.message || data.msg || "Request failed");
+        }
+        return data;
+      });
+    });
+  }
+
+  function loadProfile() {
+    return api("/rest/v1/profiles?select=free_roll_used").then(function (rows) {
+      return rows[0] || { free_roll_used: true };
+    });
+  }
+
+  function loadCollection() {
+    return api(
+      "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0"
+    );
+  }
+
+  /* =========================================================
+     Rendering
+     ========================================================= */
+
+  function damageBonus(evolution) {
+    return Math.round((Math.pow(1 + DAMAGE_PER_EVOLUTION, evolution) - 1) * 100);
+  }
+
+  function labelFor(key) {
+    var match = TOWERS.filter(function (tower) {
+      return tower.key === key;
+    })[0];
+
+    return match ? match.label : key;
+  }
+
+  function element(tag, className, text) {
+    var node = document.createElement(tag);
+
+    node.className = className;
+
+    if (text !== undefined) {
+      node.textContent = text;
+    }
+
+    return node;
+  }
+
+  function buildCard(row) {
+    var card = element("article", "tower-card");
+    card.dataset.evolution = String(row.evolution);
+
+    var icon = document.createElement("img");
+    icon.className = "tower-card__icon";
+    icon.src = "towers/" + row.tower_key + "/" + ICON_LEVEL + ".svg";
+    icon.alt = labelFor(row.tower_key);
+    card.appendChild(icon);
+
+    card.appendChild(element("p", "tower-card__name", labelFor(row.tower_key)));
+
+    var meta =
+      row.evolution === 0
+        ? "Base"
+        : "Evolution " + row.evolution + " · +" + damageBonus(row.evolution) + "% damage";
+    card.appendChild(element("p", "tower-card__meta", meta));
+
+    card.appendChild(element("p", "tower-card__count", "×" + row.copies));
+
+    if (row.copies >= 2 && row.evolution < MAX_EVOLUTION) {
+      var button = element("button", "tower-card__evolve", "Evolve 2 →");
+      button.type = "button";
+
+      button.addEventListener("click", function () {
+        evolve(row.tower_key, row.evolution, button);
+      });
+
+      card.appendChild(button);
+    } else if (row.evolution >= MAX_EVOLUTION) {
+      card.appendChild(element("p", "tower-card__maxed", "Fully evolved"));
+    }
+
+    return card;
+  }
+
+  function render(profile, rows) {
+    rollPanel.hidden = Boolean(profile.free_roll_used);
+    collection.textContent = "";
+
+    if (!rows.length) {
+      collection.appendChild(
+        element(
+          "p",
+          "shop__empty",
+          profile.free_roll_used
+            ? "No towers yet."
+            : "Open your free roll to get your first tower."
+        )
+      );
+      return;
+    }
+
+    /* Group by tower, then show each evolution tier held. */
+    TOWERS.forEach(function (tower) {
+      var owned = rows
+        .filter(function (row) {
+          return row.tower_key === tower.key;
+        })
+        .sort(function (a, b) {
+          return a.evolution - b.evolution;
+        });
+
+      if (!owned.length) {
+        return;
+      }
+
+      var group = element("section", "shop__group");
+      group.appendChild(element("h3", "shop__group-title", tower.label));
+
+      var list = element("div", "shop__tiers");
+      owned.forEach(function (row) {
+        list.appendChild(buildCard(row));
+      });
+
+      group.appendChild(list);
+      collection.appendChild(group);
+    });
+  }
+
+  function setStatus(text, isError) {
+    status.textContent = text || "";
+    status.classList.toggle("is-error", Boolean(isError));
+  }
+
+  /* =========================================================
+     Actions
+     ========================================================= */
+
+  function refresh() {
+    return Promise.all([loadProfile(), loadCollection()])
+      .then(function (results) {
+        render(results[0], results[1]);
+      })
+      .catch(function (error) {
+        setStatus(error.message, true);
+      });
+  }
+
+  function roll() {
+    rollButton.disabled = true;
+    setStatus("Rolling...");
+
+    api("/rest/v1/rpc/claim_free_roll", { method: "POST", body: {} })
+      .then(function (key) {
+        setStatus("You got the " + labelFor(key) + "!");
+        return refresh();
+      })
+      .catch(function (error) {
+        setStatus(error.message, true);
+        rollButton.disabled = false;
+      });
+  }
+
+  function evolve(key, evolution, button) {
+    button.disabled = true;
+    setStatus("Evolving...");
+
+    api("/rest/v1/rpc/evolve_tower", {
+      method: "POST",
+      body: { target_key: key, from_evolution: evolution }
+    })
+      .then(function (next) {
+        setStatus(
+          labelFor(key) + " reached evolution " + next +
+            " · +" + damageBonus(next) + "% damage"
+        );
+        return refresh();
+      })
+      .catch(function (error) {
+        setStatus(error.message, true);
+        button.disabled = false;
+      });
+  }
+
+  rollButton.addEventListener("click", roll);
+
+  document.addEventListener("mrtd:unlocked", function () {
+    setStatus("");
+    refresh();
+  });
+
+  document.addEventListener("mrtd:locked", function () {
+    collection.textContent = "";
+    rollPanel.hidden = true;
+    setStatus("");
+  });
+})();

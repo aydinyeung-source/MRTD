@@ -170,11 +170,15 @@
 
     auth.hidden = true;
     app.hidden = false;
+
+    document.dispatchEvent(new CustomEvent("mrtd:unlocked"));
   }
 
   function lock() {
     auth.hidden = false;
     app.hidden = true;
+
+    document.dispatchEvent(new CustomEvent("mrtd:locked"));
   }
 
   /* Restore a stored session on load; refresh it if the access
@@ -367,6 +371,14 @@
   /* =========================================================
      Start
      ========================================================= */
+
+  /* The only surface other scripts use: config plus the current
+     session. Everything else in this file stays private. */
+  window.MRTD = {
+    url: SUPABASE_URL,
+    key: SUPABASE_ANON_KEY,
+    session: loadSession
+  };
 
   setMode("login");
   restoreSession();
