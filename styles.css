@@ -1083,16 +1083,18 @@ body::after {
 }
 
 .corner__signout {
-  padding: 0;
-  border: none;
-  background: none;
+  padding: 5px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: var(--paper-raised);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--ink-soft);
   cursor: pointer;
-  transition: color 320ms var(--ease-soft);
+  transition: border-color 320ms var(--ease-soft),
+              color 320ms var(--ease-soft);
 }
 
 .corner__dev {
@@ -1122,6 +1124,7 @@ body::after {
 }
 
 .corner__signout:hover {
+  border-color: var(--glacier);
   color: var(--glacier);
 }
 
