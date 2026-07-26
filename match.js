@@ -699,6 +699,10 @@
     spawnTimer = 0;
     spawnQueue = [];
 
+    /* Paid up front, so the money is available to spend on the
+       wave you are about to face. */
+    payWave();
+
     var pool = stats.wavePool(wave);
     var count = stats.waveCount(wave);
 
@@ -799,7 +803,7 @@
     });
   }
 
-  /* Paid when a wave is cleared: a flat bonus plus every farm's
+  /* Paid when a wave starts: a flat bonus plus every farm's
      output for that wave. */
   function payWave() {
     var total = WAVE_BONUS;
@@ -864,7 +868,6 @@
     if (waveActive && !spawnQueue.length && !enemies.length) {
       waveActive = false;
       wavesBeaten = wave;
-      payWave();
       breakLeft = BREAK_SECONDS;
     }
 

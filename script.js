@@ -25,7 +25,7 @@
 
   /* How often a signed in device checks it is still the current
      one, in milliseconds. */
-  var SESSION_CHECK_MS = 20000;
+  var SESSION_CHECK_MS = 8000;
 
   var sessionWatch = null;
 
@@ -220,6 +220,9 @@
     setMessage("Signed out — this account was used on another device.", true);
   }
 
+  /* One call does two jobs: refreshes this player's presence stamp
+     so the admin panel can count who is online, and returns the
+     session that currently owns the account. */
   function checkDevice() {
     var mine = deviceToken();
 
@@ -227,15 +230,69 @@
       return;
     }
 
-    authed("/rest/v1/player_sessions?select=session_id")
-      .then(function (rows) {
-        if (rows.length && rows[0].session_id !== mine) {
-          evict();
+    authed("/rest/v1/rpc/heartbeat", { method: "POST", body: {} })
+      .then(function (result) {
+        if (!result) {
+          return;
         }
+
+        if (result.session && result.session !== mine) {
+          evict();
+          return;
+        }
+
+        showBroadcast(result.announcement);
       })
       .catch(function () {
         /* Offline or expired token: leave the player alone. */
       });
+  }
+
+  /* =========================================================
+     Broadcast banner
+
+     On screen long enough to read: roughly a second per ten
+     characters, floored at four and capped at twenty.
+     ========================================================= */
+
+  var SEEN_KEY = "mrtd.seenBroadcast";
+  var broadcast = document.getElementById("broadcast");
+  var broadcastBody = document.getElementById("broadcast-body");
+  var broadcastTimer = null;
+
+  function lastSeenBroadcast() {
+    try {
+      return Number(localStorage.getItem(SEEN_KEY)) || 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function readingTime(text) {
+    return Math.min(20, Math.max(4, text.length / 10)) * 1000;
+  }
+
+  function showBroadcast(announcement) {
+    if (!announcement || !announcement.id || announcement.id <= lastSeenBroadcast()) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(SEEN_KEY, String(announcement.id));
+    } catch (error) {
+      /* Storage refused; the message may repeat once. */
+    }
+
+    broadcastBody.textContent = announcement.body;
+    broadcast.hidden = false;
+
+    if (broadcastTimer) {
+      window.clearTimeout(broadcastTimer);
+    }
+
+    broadcastTimer = window.setTimeout(function () {
+      broadcast.hidden = true;
+    }, readingTime(announcement.body));
   }
 
   function startSessionWatch() {

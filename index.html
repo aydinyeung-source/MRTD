@@ -51,6 +51,61 @@
         </div>
 
         <button class="play-button" id="play" type="button">Play</button>
+
+        <section class="admin" id="admin" hidden>
+          <p class="admin__label">Admin · <span id="admin-online">0</span> online</p>
+
+          <div class="admin__row">
+            <label class="admin__field">
+              <span>Coins</span>
+              <input class="admin__input" id="admin-coins" type="number" value="500" min="1">
+            </label>
+            <button class="admin__button" id="admin-give-coins" type="button">Give coins</button>
+          </div>
+
+          <div class="admin__row">
+            <label class="admin__field">
+              <span>Chests each</span>
+              <input class="admin__input" id="admin-chests" type="number" value="1" min="1">
+            </label>
+            <button class="admin__button" id="admin-give-chests" type="button">Give chests</button>
+          </div>
+
+          <div class="admin__row">
+            <label class="admin__field">
+              <span>Cards</span>
+              <select class="admin__input" id="admin-tower">
+                <option value="">Random</option>
+                <option value="dagger">Dagger</option>
+                <option value="blender">Blender</option>
+                <option value="farm">Farm</option>
+                <option value="shotgunner">Shotgunner</option>
+                <option value="sniper">Sniper</option>
+              </select>
+            </label>
+            <label class="admin__field">
+              <span>Copies</span>
+              <input class="admin__input" id="admin-copies" type="number" value="1" min="1">
+            </label>
+            <button class="admin__button" id="admin-give-towers" type="button">Give cards</button>
+          </div>
+
+          <div class="admin__row">
+            <label class="admin__field admin__field--wide">
+              <span>Broadcast</span>
+              <input class="admin__input" id="admin-message" type="text"
+                     maxlength="500" placeholder="Message to all players">
+            </label>
+            <button class="admin__button" id="admin-send" type="button">Send</button>
+          </div>
+
+          <label class="admin__check">
+            <input type="checkbox" id="admin-online-only" checked>
+            <span>Online players only</span>
+          </label>
+
+          <p class="admin__status" id="admin-status"></p>
+        </section>
       </section>
 
       <section class="screen" id="screen-towers" data-screen="towers">
@@ -112,6 +167,10 @@
     </nav>
   </div>
 
+  <div class="broadcast" id="broadcast" hidden>
+    <p class="broadcast__body" id="broadcast-body"></p>
+  </div>
+
   <div class="match" id="match" hidden>
     <canvas class="match__canvas" id="match-canvas"></canvas>
 
@@ -152,6 +211,7 @@
   <script src="script.js"></script>
   <script src="loadout.js"></script>
   <script src="shop.js"></script>
+  <script src="admin.js"></script>
   <script src="match.js"></script>
 </body>
 </html>
