@@ -373,12 +373,11 @@
      ========================================================= */
 
   /* The only surface other scripts use: config plus the current
-     session. Everything else in this file stays private. */
-  window.MRTD = {
-    url: SUPABASE_URL,
-    key: SUPABASE_ANON_KEY,
-    session: loadSession
-  };
+     session. Merged, not assigned — stats.js shares this object. */
+  window.MRTD = window.MRTD || {};
+  window.MRTD.url = SUPABASE_URL;
+  window.MRTD.key = SUPABASE_ANON_KEY;
+  window.MRTD.session = loadSession;
 
   setMode("login");
   restoreSession();

@@ -22,13 +22,15 @@
 
   var MAX_EVOLUTION = 10;
 
-  /* Damage compounds: each evolution is this much more than the one
-     below it. At 0.1 a maxed tower deals 2.59x; at 0.2, 6.19x. */
-  var DAMAGE_PER_EVOLUTION = 0.1;
-
   /* Which artwork stands in for the tower in the collection. The
      sprite never changes with evolution — only the border does. */
   var ICON_LEVEL = 1;
+
+  /* The farm earns cash instead of dealing damage, so its card
+     reports the bonus it actually gets. */
+  function bonusKind(key) {
+    return key === "farm" ? "cash" : "damage";
+  }
 
   var rollPanel = document.getElementById("shop-roll");
   var rollButton = document.getElementById("shop-roll-button");
@@ -85,8 +87,11 @@
      Rendering
      ========================================================= */
 
-  function damageBonus(evolution) {
-    return Math.round((Math.pow(1 + DAMAGE_PER_EVOLUTION, evolution) - 1) * 100);
+  function bonusText(key, evolution) {
+    var kind = bonusKind(key);
+    var percent = window.MRTD.stats.evolutionBonus(kind, evolution);
+
+    return "+" + percent + "% " + kind;
   }
 
   function labelFor(key) {
@@ -124,7 +129,8 @@
     var meta =
       row.evolution === 0
         ? "Base"
-        : "Evolution " + row.evolution + " · +" + damageBonus(row.evolution) + "% damage";
+        : "Evolution " + row.evolution + " · " +
+          bonusText(row.tower_key, row.evolution);
     card.appendChild(element("p", "tower-card__meta", meta));
 
     card.appendChild(element("p", "tower-card__count", "×" + row.copies));
@@ -234,7 +240,7 @@
       .then(function (next) {
         setStatus(
           labelFor(key) + " reached evolution " + next +
-            " · +" + damageBonus(next) + "% damage"
+            " · " + bonusText(key, next)
         );
         return refresh();
       })
