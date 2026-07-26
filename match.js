@@ -119,9 +119,8 @@
   var MAX_STEPS = 40;
 
   /* Chains waves without waiting: starts the next one the moment
-     the current one has finished spawning. Available in normal
-     play, not just developer mode. */
-  var AUTO_KEY = "mrtd.auto";
+     the current one has finished spawning. Deliberately not
+     remembered — every match begins with it off. */
   var autoSkip = false;
 
   var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [] };
@@ -1479,7 +1478,13 @@
     wave = 0;
     wavesBeaten = 0;
     waveActive = false;
-    breakLeft = 0;
+
+    /* The same breather as between waves, so there is time to
+       place towers before anything walks in. */
+    breakLeft = BREAK_SECONDS;
+
+    /* Never carried over from the last match. */
+    setAuto(false);
     placing = null;
     drag = null;
     hover = null;
@@ -1629,12 +1634,6 @@
     autoSkip = Boolean(on);
     autoButton.textContent = "Auto: " + (autoSkip ? "on" : "off");
     autoButton.classList.toggle("is-on", autoSkip);
-
-    try {
-      localStorage.setItem(AUTO_KEY, autoSkip ? "1" : "0");
-    } catch (error) {
-      /* Storage refused; the toggle still works for this session. */
-    }
   }
 
   autoButton.addEventListener("click", function () {
@@ -1674,16 +1673,8 @@
     }
   });
 
-  function restoreAuto() {
-    try {
-      setAuto(localStorage.getItem(AUTO_KEY) === "1");
-    } catch (error) {
-      setAuto(false);
-    }
-  }
-
   buildHotbar();
   restoreView();
-  restoreAuto();
+  setAuto(false);
   loadSprites();
 })();
