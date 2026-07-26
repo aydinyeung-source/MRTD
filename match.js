@@ -1192,11 +1192,19 @@
     return isDev() || stats.buyCost(name, level) <= cash;
   }
 
+  /* Quick buy level 1 unlocks merge level 2, level 9 unlocks 10.
+     Level 1 towers never need the upgrade. */
+  function maxBuyLevel() {
+    return Math.min(MAX_LEVEL, 1 + upgradeLevel("quick_buy"));
+  }
+
   /* Buy a merged tower outright: 1n, 2n, 4n, 8n and so on. */
   function openLevels(name, button) {
+    var ceiling = maxBuyLevel();
+
     levels.textContent = "";
 
-    for (var level = 1; level <= MAX_LEVEL; level += 1) {
+    for (var level = 1; level <= ceiling; level += 1) {
       levels.appendChild(levelRow(name, level));
     }
 
@@ -1249,6 +1257,12 @@
 
   function place(tile) {
     if (!tile || !placing) {
+      return;
+    }
+
+    /* Guards against a stale selection after an upgrade change. */
+    if (placing.level > maxBuyLevel()) {
+      placing = null;
       return;
     }
 

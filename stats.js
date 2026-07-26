@@ -60,8 +60,8 @@
     },
     quick_buy: {
       label: "Quick buy",
-      note: "Hold a hotbar slot to buy a merged tower outright",
-      max: 1
+      note: "Hold a hotbar slot to buy merged towers outright. Each level unlocks one merge level higher.",
+      max: 9
     },
     game_speed: {
       label: "2× speed",

@@ -51,8 +51,15 @@ insert into public.upgrade_costs (upgrade_key, level, cost) values
   ('starting_cash',  7, 2000), ('starting_cash',  8, 2800), ('starting_cash',  9, 3900),
   ('starting_cash', 10, 5500),
 
-  -- One-time unlocks.
-  ('quick_buy',  1, 750),
+  -- Quick buy: each level unlocks buying one merge level higher.
+  -- Level 1 unlocks buying merge level 2, level 9 unlocks level 10.
+  -- The most expensive line in the game: buying a level 10 outright
+  -- skips 512 towers' worth of merging.
+  ('quick_buy', 1,  1000), ('quick_buy', 2,  1600), ('quick_buy', 3,  2400),
+  ('quick_buy', 4,  3700), ('quick_buy', 5,  5800), ('quick_buy', 6,  9000),
+  ('quick_buy', 7, 14000), ('quick_buy', 8, 21500), ('quick_buy', 9, 33000),
+
+  -- One-time unlock.
   ('game_speed', 1, 500);
 
 -- 3. Buying ------------------------------------------------------
