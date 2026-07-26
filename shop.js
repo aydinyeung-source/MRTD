@@ -255,11 +255,19 @@
     button.disabled = true;
     setStatus("Opening...");
 
-    api("/rest/v1/rpc/open_chest", { method: "POST", body: { draws: draws } })
+    var sandbox = Boolean(window.MRTD.dev);
+
+    api("/rest/v1/rpc/open_chest", {
+      method: "POST",
+      body: { draws: draws, sandbox: sandbox }
+    })
       .then(function (result) {
         var names = (result || []).map(labelFor);
 
-        setStatus("Got: " + names.join(", "));
+        setStatus(
+          "Got: " + names.join(", ") +
+            (sandbox ? "  (dev mode — not kept)" : "")
+        );
         return refresh();
       })
       .catch(function (error) {
@@ -289,7 +297,11 @@
 
     api("/rest/v1/rpc/evolve_tower", {
       method: "POST",
-      body: { target_key: key, from_evolution: evolution }
+      body: {
+        target_key: key,
+        from_evolution: evolution,
+        sandbox: Boolean(window.MRTD.dev)
+      }
     })
       .then(function (next) {
         setStatus(

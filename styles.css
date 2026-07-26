@@ -502,6 +502,15 @@ body::after {
   color: #b07404;
 }
 
+.gameover__note {
+  margin: -16px 0 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b07404;
+}
+
 .gameover__button {
   width: 100%;
   padding: 13px;

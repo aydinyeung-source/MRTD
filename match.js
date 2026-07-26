@@ -53,6 +53,7 @@
   var gameover = document.getElementById("gameover");
   var gameoverWaves = document.getElementById("gameover-waves");
   var gameoverCoins = document.getElementById("gameover-coins");
+  var gameoverNote = document.getElementById("gameover-note");
   var gameoverLeave = document.getElementById("gameover-leave");
   var playButton = document.getElementById("play");
 
@@ -1216,7 +1217,10 @@
     waveActive = false;
 
     gameoverWaves.textContent = String(wavesBeaten);
-    gameoverCoins.textContent = String(stats.runReward(wavesBeaten));
+    gameoverCoins.textContent = isDev()
+      ? "0"
+      : String(stats.runReward(wavesBeaten));
+    gameoverNote.hidden = !isDev();
     gameover.hidden = false;
 
     bankRun(wavesBeaten);
@@ -1239,7 +1243,11 @@
         Authorization: "Bearer " + session.access_token,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ waves_beaten: waves })
+      body: JSON.stringify({
+        waves_beaten: waves,
+        /* Developer runs pay nothing and leave no trace. */
+        sandbox: isDev()
+      })
     }).catch(function () {
       /* Offline: the run still shows its reward on screen. */
     });
