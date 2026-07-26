@@ -18,19 +18,19 @@
        meta coins   spent outside a match, not modelled yet
      ========================================================= */
 
-  /* Per merge level, compounding. Being roots, every two merges is
-     exactly x5 damage and x2 range. */
-  var MERGE = {
-    damage: Math.sqrt(5), // 2.2360
-    range: Math.sqrt(2),  // 1.4142
-    coins: Math.sqrt(5),  // 2.2360
-    health: Math.sqrt(5), // PLACEHOLDER — spawner merge scaling unspecified
-    boost: 1              // PLACEHOLDER — see note below
-  };
+  /* What one merge does. Most stats multiply — being roots, every
+     two merges is exactly x5 damage and x2 range.
 
-  /* Boost is a percentage others receive, so it cannot use the x5
-     curve: a level 10 booster would grant 1397x. Left flat until
-     you decide how merging should improve it. */
+     Boost is the exception: it is a percentage other towers
+     receive, so multiplying it by the x5 curve would have a level
+     10 booster granting 1397x. It adds instead. */
+  var MERGE = {
+    damage: { mode: "multiply", factor: Math.sqrt(5) }, // 2.2360
+    range: { mode: "multiply", factor: Math.sqrt(2) },  // 1.4142
+    coins: { mode: "multiply", factor: Math.sqrt(5) },
+    health: { mode: "multiply", factor: Math.sqrt(5) }, // PLACEHOLDER — unspecified
+    boost: { mode: "add", amount: 2.5, percent: true }
+  };
 
   /* What one evolution does, by role. Each effect is either
      "multiply" (compounds per evolution) or "add" (flat per
@@ -82,7 +82,8 @@
     })[0];
   }
 
-  /* value = base * mergeCurve * evolutionMultiplier + evolutionFlat */
+  /* Merge scaling applied first, then evolution on top. Each can be
+     multiplicative or additive independently. */
   function statValue(key, stat, level, evolution) {
     var tower = base(key);
 
@@ -90,9 +91,18 @@
       return 0;
     }
 
+    var merges = (level || 1) - 1;
     var steps = evolution || 0;
-    var curve = MERGE[stat] === undefined ? 1 : MERGE[stat];
-    var value = tower[stat] * Math.pow(curve, (level || 1) - 1);
+    var curve = MERGE[stat];
+    var value = tower[stat];
+
+    if (curve) {
+      value =
+        curve.mode === "add"
+          ? value + curve.amount * merges
+          : value * Math.pow(curve.factor, merges);
+    }
+
     var effect = effectOn(key, stat);
 
     if (!effect || !steps) {
