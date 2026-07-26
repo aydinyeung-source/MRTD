@@ -33,15 +33,18 @@
 
   var TOWER_KEYS = ["blender", "dagger", "farm", "shotgunner", "sniper"];
 
-  /* Top down tokens per tower, used by the "Top" view. Colour and
-     shape carry the identity, so no extra artwork is needed and
-     they stay readable at phone tile sizes. */
+  /* Top down designs, drawn rather than imported. Colours are taken
+     from the actual SVGs so both views agree, and the detail count
+     grows with merge level the way the artwork does.
+
+     These are authored plan views, not conversions of the side art —
+     a side elevation carries no depth information to convert from. */
   var TOKENS = {
-    blender: { colour: "#4f6a78", shape: "circle" },
-    dagger: { colour: "#7fa5b8", shape: "circle" },
-    farm: { colour: "#6d8a6f", shape: "square" },
-    shotgunner: { colour: "#3c4a52", shape: "circle" },
-    sniper: { colour: "#8a6a78", shape: "circle" }
+    blender: { body: "#8e8e8e", accent: "#ff140a", plan: "blades" },
+    dagger: { body: "#949494", accent: "#bb0000", plan: "blades" },
+    farm: { body: "#eae484", accent: "#b8ae4a", plan: "field" },
+    shotgunner: { body: "#656565", accent: "#8c8c8c", plan: "barrels" },
+    sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" }
   };
 
   var VIEW_KEY = "mrtd.view";
@@ -304,46 +307,142 @@
     ctx.stroke();
   }
 
-  /* Seen from above: a coloured token, a facing notch for towers
-     that fire in an arc, and the merge level in the middle. */
+  /* ---- Plan view pieces. Each draws around 0,0 with the token
+     already translated, so they only deal in radius. ---- */
+
+  /* Radial blades, one more every couple of merges. */
+  function planBlades(token, radius, level) {
+    var count = 3 + Math.floor((level - 1) / 2);
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < count; i += 1) {
+      ctx.save();
+      ctx.rotate((i / count) * Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.16, 0);
+      ctx.lineTo(0, -radius * 1.45);
+      ctx.lineTo(radius * 0.16, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* Crop rows, more of them as the farm grows. */
+  function planField(token, radius, level) {
+    var rows = 2 + Math.floor(level / 2);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.1);
+    ctx.beginPath();
+
+    for (var i = 1; i <= rows; i += 1) {
+      var y = -radius + (radius * 2 * i) / (rows + 1);
+      ctx.moveTo(-radius * 0.78, y);
+      ctx.lineTo(radius * 0.78, y);
+    }
+
+    ctx.stroke();
+  }
+
+  /* Side by side barrels, widening with level. */
+  function planBarrels(token, radius, level) {
+    var count = level < 4 ? 2 : level < 8 ? 3 : 4;
+    var width = radius * 0.26;
+    var span = width * (count - 1) * 1.5;
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < count; i += 1) {
+      var offset = -span / 2 + i * width * 1.5;
+      ctx.fillRect(offset - width / 2, -radius * 1.5, width, radius * 1.1);
+    }
+  }
+
+  /* One long barrel that lengthens as it merges. */
+  function planBarrel(token, radius, level) {
+    var length = radius * (1.2 + level * 0.09);
+
+    ctx.fillStyle = token.accent;
+    ctx.fillRect(-radius * 0.13, -length, radius * 0.26, length);
+
+    /* Muzzle brake once it is a serious rifle. */
+    if (level >= 6) {
+      ctx.fillRect(-radius * 0.26, -length, radius * 0.52, radius * 0.18);
+    }
+  }
+
+  var PLANS = {
+    blades: planBlades,
+    field: planField,
+    barrels: planBarrels,
+    barrel: planBarrel
+  };
+
+  /* Seen from above: the firing arc, the tower's own plan design,
+     then the merge level. */
   function drawTopTower(tower, x, y, size) {
-    var token = TOKENS[tower.key] || { colour: "#4f6a78", shape: "circle" };
+    var token = TOKENS[tower.key];
+
+    if (!token) {
+      return;
+    }
+
     var centreX = x + size / 2;
     var centreY = y + size / 2;
-    var radius = size * 0.34;
+    var radius = size * 0.32;
     var attack = stats.attack(tower.key);
 
-    /* Arc towers show which way they point. */
+    ctx.save();
+    ctx.translate(centreX, centreY);
+
+    /* Arc towers show the spread they actually fire in. */
     if (attack && attack.shape === "cone") {
       var half = (attack.angle * Math.PI) / 360;
 
       ctx.beginPath();
-      ctx.moveTo(centreX, centreY);
-      ctx.arc(centreX, centreY, radius * 1.5, -Math.PI / 2 - half, -Math.PI / 2 + half);
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius * 2, -Math.PI / 2 - half, -Math.PI / 2 + half);
       ctx.closePath();
-      ctx.fillStyle = "rgba(34, 42, 47, 0.13)";
+      ctx.fillStyle = "rgba(34, 42, 47, 0.12)";
       ctx.fill();
+    }
+
+    var isField = token.plan === "field";
+
+    /* Barrels and blades are drawn first so the body covers their
+       roots and they read as sticking out. Crop rows are markings
+       on the field, so they go on top instead. */
+    if (!isField && PLANS[token.plan]) {
+      PLANS[token.plan](token, radius, tower.level);
     }
 
     ctx.beginPath();
 
-    if (token.shape === "square") {
-      roundedPath(centreX - radius, centreY - radius, radius * 2, radius * 2, radius * 0.35);
+    if (isField) {
+      roundedPath(-radius, -radius, radius * 2, radius * 2, radius * 0.3);
     } else {
-      ctx.arc(centreX, centreY, radius, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
     }
 
-    ctx.fillStyle = token.colour;
+    ctx.fillStyle = token.body;
     ctx.fill();
     ctx.strokeStyle = "rgba(249, 251, 252, 0.85)";
-    ctx.lineWidth = Math.max(1.5, size * 0.045);
+    ctx.lineWidth = Math.max(1.5, size * 0.04);
     ctx.stroke();
 
-    ctx.fillStyle = "#f9fbfc";
-    ctx.font = "600 " + Math.max(9, Math.round(size * 0.34)) + "px 'IBM Plex Mono', monospace";
+    if (isField) {
+      PLANS[token.plan](token, radius, tower.level);
+    }
+
+    ctx.fillStyle = token.plan === "field" ? "#3f3a12" : "#f9fbfc";
+    ctx.font = "600 " + Math.max(9, Math.round(size * 0.3)) + "px 'IBM Plex Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(tower.level), centreX, centreY + size * 0.01);
+    ctx.fillText(String(tower.level), 0, size * 0.01);
+
+    ctx.restore();
   }
 
   function drawTower(tower, x, y, size) {
