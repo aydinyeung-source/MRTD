@@ -41,6 +41,62 @@
   /* Cash the player starts a match with — exactly one dagger. */
   var STARTING_CASH = 100;
 
+  var BASE_HP = 1000;
+
+  /* PLACEHOLDER enemies. Speed is tiles per second, damage is what
+     the base loses if one gets through, bounty is match cash.
+     Colours stand in until the SVGs arrive. */
+  var ENEMIES = {
+    grunt: { label: "Grunt", hp: 100, speed: 1.2, damage: 10, bounty: 15, colour: "#7a5c8a" },
+    runner: { label: "Runner", hp: 60, speed: 2.6, damage: 5, bounty: 12, colour: "#c98f6a" },
+    brute: { label: "Brute", hp: 700, speed: 0.6, damage: 40, bounty: 55, colour: "#5a6b52" }
+  };
+
+  /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
+  var WAVE = {
+    hpGrowth: 1.15,   // per wave, compounding
+    bountyGrowth: 1.04,
+    countBase: 5,
+    countPerWave: 1.5,
+    spawnGap: 0.75    // seconds between spawns
+  };
+
+  function waveEnemyHp(kind, wave) {
+    var enemy = ENEMIES[kind];
+
+    return enemy ? enemy.hp * Math.pow(WAVE.hpGrowth, wave - 1) : 0;
+  }
+
+  function waveBounty(kind, wave) {
+    var enemy = ENEMIES[kind];
+
+    return enemy ? enemy.bounty * Math.pow(WAVE.bountyGrowth, wave - 1) : 0;
+  }
+
+  function waveCount(wave) {
+    return Math.floor(WAVE.countBase + wave * WAVE.countPerWave);
+  }
+
+  /* Which enemies appear, by wave. Runners join at 3, brutes at 6. */
+  function wavePool(wave) {
+    var pool = ["grunt"];
+
+    if (wave >= 3) {
+      pool.push("runner");
+    }
+
+    if (wave >= 6) {
+      pool.push("brute");
+    }
+
+    return pool;
+  }
+
+  /* Meta coins taken back to the lobby, from the last wave BEATEN. */
+  function runReward(wavesBeaten) {
+    return Math.floor(5 * Math.pow(Math.max(0, wavesBeaten), 1.25));
+  }
+
   /* What one evolution does, by role. Each effect is either
      "multiply" (compounds per evolution) or "add" (flat per
      evolution). percent: true means the value is itself a
@@ -327,6 +383,14 @@
     maxEvolution: MAX_EVOLUTION,
     rangePerTile: RANGE_PER_TILE,
     startingCash: STARTING_CASH,
+    baseHp: BASE_HP,
+    enemies: ENEMIES,
+    wave: WAVE,
+    waveEnemyHp: waveEnemyHp,
+    waveBounty: waveBounty,
+    waveCount: waveCount,
+    wavePool: wavePool,
+    runReward: runReward,
     evolutionAll: EVOLUTION_ALL,
     cost: cost,
     sellValue: sellValue,

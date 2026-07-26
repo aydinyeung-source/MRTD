@@ -96,16 +96,33 @@
   <div class="match" id="match" hidden>
     <canvas class="match__canvas" id="match-canvas"></canvas>
 
+    <div class="match__top">
+      <p class="match__stat"><span id="match-wave">0</span> wave</p>
+      <button class="match__button match__button--go" id="match-start" type="button">
+        Start wave
+      </button>
+    </div>
+
     <div class="match__hud">
       <p class="match__stat"><span id="match-cash">0</span> cash</p>
       <p class="match__stat"><span id="match-hp">0</span> hp</p>
 
-      <button class="match__button" id="match-add" type="button">Place tower</button>
+      <div class="hotbar" id="hotbar"></div>
+
       <button class="match__button" id="match-view" type="button">View: Top</button>
       <button class="match__button" id="match-forfeit" type="button">Forfeit</button>
       <button class="match__button" id="match-exit" type="button" disabled>Leave</button>
+    </div>
 
-      <p class="match__hint">Drag onto an identical tower to merge, or onto Sell to refund half</p>
+    <div class="gameover" id="gameover" hidden>
+      <div class="gameover__panel">
+        <h2 class="gameover__title">Base destroyed</h2>
+        <p class="gameover__line">Waves beaten <span id="gameover-waves">0</span></p>
+        <p class="gameover__reward"><span id="gameover-coins">0</span> coins</p>
+        <button class="gameover__button" id="gameover-leave" type="button">
+          Back to lobby
+        </button>
+      </div>
     </div>
   </div>
 

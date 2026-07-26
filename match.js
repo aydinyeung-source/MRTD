@@ -2,43 +2,31 @@
   "use strict";
 
   /* =========================================================
-     The match map.
+     The match.
 
      Everything is a tile, and one tile is stats.rangePerTile
-     worth of range. Nothing spawns yet — this is the field, the
-     portal, the base, and tower placement only.
-
-     The path switchbacks across the map so a long ranged tower
+     worth of range. The path switchbacks so a long ranged tower
      parked between two runs can cover both.
+
+     A run only ends when the base falls.
      ========================================================= */
 
   var stats = window.MRTD && window.MRTD.stats;
 
   var GRID = { cols: 26, rows: 15 };
 
-  /* Corners of the path, in landscape tile coordinates. Portal is
-     the first, base is the last. Segments are always straight. */
+  /* Corners of the path in landscape tiles. Portal first, base last. */
   var WAYPOINTS = [
-    [0, 2],
-    [21, 2],
-    [21, 6],
-    [4, 6],
-    [4, 10],
-    [22, 10],
-    [22, 13],
-    [1, 13]
+    [0, 2], [21, 2], [21, 6], [4, 6], [4, 10], [22, 10], [22, 13], [1, 13]
   ];
 
   var MAX_LEVEL = 10;
+  var TOWER_KEYS = ["dagger", "blender", "shotgunner", "sniper", "farm"];
 
-  var TOWER_KEYS = ["blender", "dagger", "farm", "shotgunner", "sniper"];
-
-  /* Top down designs, drawn rather than imported. Colours are taken
-     from the actual SVGs so both views agree, and the detail count
-     grows with merge level the way the artwork does.
-
-     These are authored plan views, not conversions of the side art —
-     a side elevation carries no depth information to convert from. */
+  /* Top down designs, drawn rather than imported. Colours come from
+     the real SVGs so both views agree, and detail grows with merge
+     level. These are authored plan views, not conversions — a side
+     elevation carries no depth information to convert from. */
   var TOKENS = {
     blender: { body: "#8e8e8e", accent: "#ff140a", plan: "blades" },
     dagger: { body: "#949494", accent: "#bb0000", plan: "blades" },
@@ -48,26 +36,23 @@
   };
 
   var VIEW_KEY = "mrtd.view";
-
-  /* "top" is the readable default; "3d" shows the drawn sprites and
-     is still rough, hence the beta label. */
   var viewMode = "top";
-
-  var BASE_HP = 100;
 
   var root = document.getElementById("match");
   var canvas = document.getElementById("match-canvas");
   var exitButton = document.getElementById("match-exit");
-  var addButton = document.getElementById("match-add");
   var viewButton = document.getElementById("match-view");
   var forfeitButton = document.getElementById("match-forfeit");
+  var startButton = document.getElementById("match-start");
+  var hotbar = document.getElementById("hotbar");
   var cashDisplay = document.getElementById("match-cash");
   var hpDisplay = document.getElementById("match-hp");
+  var waveDisplay = document.getElementById("match-wave");
+  var gameover = document.getElementById("gameover");
+  var gameoverWaves = document.getElementById("gameover-waves");
+  var gameoverCoins = document.getElementById("gameover-coins");
+  var gameoverLeave = document.getElementById("gameover-leave");
   var playButton = document.getElementById("play");
-
-  /* A run only ends when the base falls. */
-  var cash = 0;
-  var baseHp = BASE_HP;
 
   if (!canvas || !root) {
     return;
@@ -75,19 +60,30 @@
 
   var ctx = canvas.getContext("2d");
 
-  /* Tower positions, keyed "col,row". */
   var towers = {};
   var sprites = {};
+  var enemies = [];
+  var shots = [];
 
-  var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [], portrait: false };
+  var cash = 0;
+  var baseHp = 0;
+  var wave = 0;
+  var wavesBeaten = 0;
+  var spawnQueue = [];
+  var spawnTimer = 0;
+  var waveActive = false;
+  var running = false;
+  var lastFrame = 0;
+
+  var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [] };
   var drag = null;
-
-  /* Tile key currently under the pointer, so its range can be
-     previewed without picking the tower up. */
   var hover = null;
-
-  /* Drop target for selling, drawn only while dragging. */
   var sellZone = null;
+
+  /* The tower waiting to be positioned: shown semi-opaque until a
+     second click commits it. */
+  var placing = null;
+  var pointer = { x: 0, y: 0 };
 
   /* =========================================================
      Map geometry
@@ -97,16 +93,12 @@
     return col + "," + row;
   }
 
-  /* Phones are tall and monitors are wide, so the whole map is
-     transposed in portrait. A mirrored path is still the same
-     path. */
   function waypoints(portrait) {
     return WAYPOINTS.map(function (point) {
       return portrait ? [point[1], point[0]] : point;
     });
   }
 
-  /* Fills in every tile between the corners. */
   function buildPath(points) {
     var tiles = [];
 
@@ -163,10 +155,9 @@
       path: buildPath(points),
       portal: points[0],
       base: points[points.length - 1],
-      portrait: portrait
+      pathSet: {}
     };
 
-    view.pathSet = {};
     view.path.forEach(function (tile) {
       view.pathSet[key(tile[0], tile[1])] = true;
     });
@@ -194,6 +185,12 @@
     };
   }
 
+  function tileCentre(col, row) {
+    var rect = tileRect(col, row);
+
+    return { x: rect.x + rect.size / 2, y: rect.y + rect.size / 2 };
+  }
+
   function tileAt(x, y) {
     var col = Math.floor((x - view.x) / view.size);
     var row = Math.floor((y - view.y) / view.size);
@@ -205,6 +202,25 @@
     var bounds = canvas.getBoundingClientRect();
 
     return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  }
+
+  /* Position of an enemy that has walked `progress` tiles. */
+  function pathPoint(progress) {
+    var index = Math.floor(progress);
+    var fraction = progress - index;
+
+    if (index >= view.path.length - 1) {
+      var last = view.path[view.path.length - 1];
+      return tileCentre(last[0], last[1]);
+    }
+
+    var from = tileCentre(view.path[index][0], view.path[index][1]);
+    var to = tileCentre(view.path[index + 1][0], view.path[index + 1][1]);
+
+    return {
+      x: from.x + (to.x - from.x) * fraction,
+      y: from.y + (to.y - from.y) * fraction
+    };
   }
 
   /* =========================================================
@@ -226,7 +242,6 @@
 
     image.onload = function () {
       sprites[name][level] = image;
-      draw();
     };
 
     image.onerror = function () {
@@ -251,78 +266,6 @@
     ctx.rect(x, y, width, height);
   }
 
-  function drawField() {
-    var width = view.cols * view.size;
-    var height = view.rows * view.size;
-
-    ctx.fillStyle = "#dfe7ea";
-    ctx.fillRect(view.x, view.y, width, height);
-
-    /* Tile grid, faint. */
-    ctx.strokeStyle = "rgba(34, 42, 47, 0.07)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-
-    for (var col = 0; col <= view.cols; col += 1) {
-      ctx.moveTo(view.x + col * view.size, view.y);
-      ctx.lineTo(view.x + col * view.size, view.y + height);
-    }
-
-    for (var row = 0; row <= view.rows; row += 1) {
-      ctx.moveTo(view.x, view.y + row * view.size);
-      ctx.lineTo(view.x + width, view.y + row * view.size);
-    }
-
-    ctx.stroke();
-  }
-
-  function drawPath() {
-    ctx.fillStyle = "#b9c6cc";
-
-    view.path.forEach(function (tile) {
-      var rect = tileRect(tile[0], tile[1]);
-      ctx.fillRect(rect.x, rect.y, rect.size, rect.size);
-    });
-  }
-
-  function drawPortal() {
-    var rect = tileRect(view.portal[0], view.portal[1]);
-    var centreX = rect.x + rect.size / 2;
-    var centreY = rect.y + rect.size / 2;
-
-    ctx.beginPath();
-    ctx.arc(centreX, centreY, rect.size * 0.42, 0, Math.PI * 2);
-    ctx.fillStyle = "#3d3350";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(centreX, centreY, rect.size * 0.24, 0, Math.PI * 2);
-    ctx.fillStyle = "#6f5f92";
-    ctx.fill();
-  }
-
-  function drawBase() {
-    var rect = tileRect(view.base[0], view.base[1]);
-    var inset = rect.size * 0.12;
-
-    roundedPath(
-      rect.x + inset,
-      rect.y + inset,
-      rect.size - inset * 2,
-      rect.size - inset * 2,
-      rect.size * 0.18
-    );
-    ctx.fillStyle = "#4f6a78";
-    ctx.fill();
-    ctx.strokeStyle = "#2a3d47";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-
-  /* ---- Plan view pieces. Each draws around 0,0 with the token
-     already translated, so they only deal in radius. ---- */
-
-  /* Radial blades, one more every couple of merges. */
   function planBlades(token, radius, level) {
     var count = 3 + Math.floor((level - 1) / 2);
 
@@ -341,7 +284,6 @@
     }
   }
 
-  /* Crop rows, more of them as the farm grows. */
   function planField(token, radius, level) {
     var rows = 2 + Math.floor(level / 2);
 
@@ -358,7 +300,6 @@
     ctx.stroke();
   }
 
-  /* Side by side barrels, widening with level. */
   function planBarrels(token, radius, level) {
     var count = level < 4 ? 2 : level < 8 ? 3 : 4;
     var width = radius * 0.26;
@@ -372,14 +313,12 @@
     }
   }
 
-  /* One long barrel that lengthens as it merges. */
   function planBarrel(token, radius, level) {
     var length = radius * (1.2 + level * 0.09);
 
     ctx.fillStyle = token.accent;
     ctx.fillRect(-radius * 0.13, -length, radius * 0.26, length);
 
-    /* Muzzle brake once it is a serious rifle. */
     if (level >= 6) {
       ctx.fillRect(-radius * 0.26, -length, radius * 0.52, radius * 0.18);
     }
@@ -392,8 +331,6 @@
     barrel: planBarrel
   };
 
-  /* Seen from above: the firing arc, the tower's own plan design,
-     then the merge level. */
   function drawTopTower(tower, x, y, size) {
     var token = TOKENS[tower.key];
 
@@ -401,15 +338,14 @@
       return;
     }
 
-    var centreX = x + size / 2;
-    var centreY = y + size / 2;
     var radius = size * 0.32;
     var attack = stats.attack(tower.key);
+    var isField = token.plan === "field";
 
     ctx.save();
-    ctx.translate(centreX, centreY);
+    ctx.translate(x + size / 2, y + size / 2);
+    ctx.rotate(tower.angle || 0);
 
-    /* Arc towers show the spread they actually fire in. */
     if (attack && attack.shape === "cone") {
       var half = (attack.angle * Math.PI) / 360;
 
@@ -421,11 +357,6 @@
       ctx.fill();
     }
 
-    var isField = token.plan === "field";
-
-    /* Barrels and blades are drawn first so the body covers their
-       roots and they read as sticking out. Crop rows are markings
-       on the field, so they go on top instead. */
     if (!isField && PLANS[token.plan]) {
       PLANS[token.plan](token, radius, tower.level);
     }
@@ -448,13 +379,13 @@
       PLANS[token.plan](token, radius, tower.level);
     }
 
-    ctx.fillStyle = token.plan === "field" ? "#3f3a12" : "#f9fbfc";
+    ctx.restore();
+
+    ctx.fillStyle = isField ? "#3f3a12" : "#f9fbfc";
     ctx.font = "600 " + Math.max(9, Math.round(size * 0.3)) + "px 'IBM Plex Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(tower.level), 0, size * 0.01);
-
-    ctx.restore();
+    ctx.fillText(String(tower.level), x + size / 2, y + size / 2);
   }
 
   function drawTower(tower, x, y, size) {
@@ -470,20 +401,13 @@
       var width = sprite.width * scale;
       var height = sprite.height * scale;
 
-      ctx.drawImage(
-        sprite,
-        x + (size - width) / 2,
-        y + size - height,
-        width,
-        height
-      );
+      ctx.drawImage(sprite, x + (size - width) / 2, y + size - height, width, height);
     } else {
       roundedPath(x + size * 0.15, y + size * 0.15, size * 0.7, size * 0.7, 6);
       ctx.fillStyle = "#4f6a78";
       ctx.fill();
     }
 
-    /* Merge level, bottom right of the tile. */
     ctx.fillStyle = "#222a2f";
     ctx.font = "600 " + Math.max(9, Math.round(size * 0.26)) + "px 'IBM Plex Mono', monospace";
     ctx.textAlign = "right";
@@ -491,8 +415,6 @@
     ctx.fillText(String(tower.level), x + size - 2, y + size - 1);
   }
 
-  /* Range is expressed in stat units, so it converts to tiles:
-     radius in tiles is range / rangePerTile. */
   function drawRange(tower, centreX, centreY) {
     var tiles = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
 
@@ -509,7 +431,6 @@
     ctx.stroke();
   }
 
-  /* Name and reach of the tower being hovered, drawn above it. */
   function drawRangeLabel(tower, rect) {
     var tiles = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
     var text =
@@ -535,123 +456,111 @@
     ctx.fillText(text, x, y);
   }
 
-  function draw() {
-    if (!view.size) {
-      return;
+  function drawField() {
+    var width = view.cols * view.size;
+    var height = view.rows * view.size;
+
+    ctx.fillStyle = "#dfe7ea";
+    ctx.fillRect(view.x, view.y, width, height);
+
+    ctx.strokeStyle = "rgba(34, 42, 47, 0.07)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (var col = 0; col <= view.cols; col += 1) {
+      ctx.moveTo(view.x + col * view.size, view.y);
+      ctx.lineTo(view.x + col * view.size, view.y + height);
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    drawField();
-    drawPath();
-    drawPortal();
-    drawBase();
-
-    /* Hover preview sits under the towers so it never hides them. */
-    if (!drag && hover && towers[hover]) {
-      var parts = hover.split(",");
-      var rect = tileRect(Number(parts[0]), Number(parts[1]));
-
-      drawRange(towers[hover], rect.x + rect.size / 2, rect.y + rect.size / 2);
+    for (var row = 0; row <= view.rows; row += 1) {
+      ctx.moveTo(view.x, view.y + row * view.size);
+      ctx.lineTo(view.x + width, view.y + row * view.size);
     }
 
-    Object.keys(towers).forEach(function (at) {
-      if (drag && drag.from === at) {
-        return;
-      }
+    ctx.stroke();
 
-      var parts = at.split(",");
-      var rect = tileRect(Number(parts[0]), Number(parts[1]));
-
-      drawTower(towers[at], rect.x, rect.y, rect.size);
+    ctx.fillStyle = "#b9c6cc";
+    view.path.forEach(function (tile) {
+      var rect = tileRect(tile[0], tile[1]);
+      ctx.fillRect(rect.x, rect.y, rect.size, rect.size);
     });
-
-    if (drag) {
-      drawRange(drag.tower, drag.x, drag.y);
-
-      var target = inSellZone(drag.x, drag.y) ? null : tileAt(drag.x, drag.y);
-
-      if (target) {
-        var rect = tileRect(target[0], target[1]);
-        var occupant = towers[key(target[0], target[1])];
-
-        ctx.strokeStyle = canMerge(drag.tower, occupant)
-          ? "#c9992b"
-          : buildable(target[0], target[1])
-            ? "#4f6a78"
-            : "rgba(157, 75, 69, 0.8)";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(rect.x + 1.5, rect.y + 1.5, rect.size - 3, rect.size - 3);
-      }
-
-      drawSellZone(drag.tower, drag.x, drag.y);
-
-      drawTower(
-        drag.tower,
-        drag.x - view.size / 2,
-        drag.y - view.size / 2,
-        view.size
-      );
-    }
-
-    /* Label last, so nothing is drawn over it. */
-    if (!drag && hover && towers[hover]) {
-      var at = hover.split(",");
-      drawRangeLabel(towers[hover], tileRect(Number(at[0]), Number(at[1])));
-    }
   }
 
-  /* =========================================================
-     Cash, base and the sell zone
-     ========================================================= */
+  function drawPortal() {
+    var centre = tileCentre(view.portal[0], view.portal[1]);
+    var radius = view.size * 0.42;
 
-  function refreshHud() {
-    cashDisplay.textContent = String(Math.floor(cash));
-    hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
+    ctx.beginPath();
+    ctx.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#3d3350";
+    ctx.fill();
 
-    /* The only way out of a run is losing the base. */
-    exitButton.disabled = baseHp > 0;
+    ctx.beginPath();
+    ctx.arc(centre.x, centre.y, radius * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = "#6f5f92";
+    ctx.fill();
   }
 
-  function damageBase(amount) {
-    baseHp = Math.max(0, baseHp - amount);
-    refreshHud();
-    draw();
-  }
+  function drawBase() {
+    var rect = tileRect(view.base[0], view.base[1]);
+    var inset = rect.size * 0.12;
 
-  function startRun() {
-    towers = {};
-    cash = stats.startingCash;
-    baseHp = BASE_HP;
-    drag = null;
-    hover = null;
-    refreshHud();
-  }
+    roundedPath(rect.x + inset, rect.y + inset, rect.size - inset * 2, rect.size - inset * 2, rect.size * 0.18);
+    ctx.fillStyle = "#4f6a78";
+    ctx.fill();
+    ctx.strokeStyle = "#2a3d47";
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
-  /* Sits above the HUD, only while something is being dragged. */
-  function sellZoneRect() {
-    var width = Math.min(260, window.innerWidth - 40);
-    var height = 62;
+    /* Health ring around the base. */
+    var fraction = baseHp / stats.baseHp;
 
-    return {
-      x: (window.innerWidth - width) / 2,
-      y: window.innerHeight - height - 96,
-      width: width,
-      height: height
-    };
-  }
-
-  function inSellZone(x, y) {
-    if (!sellZone) {
-      return false;
-    }
-
-    return (
-      x >= sellZone.x &&
-      x <= sellZone.x + sellZone.width &&
-      y >= sellZone.y &&
-      y <= sellZone.y + sellZone.height
+    ctx.beginPath();
+    ctx.arc(
+      rect.x + rect.size / 2,
+      rect.y + rect.size / 2,
+      rect.size * 0.62,
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * Math.max(0, fraction)
     );
+    ctx.strokeStyle = fraction > 0.3 ? "#4f6a78" : "#9d4b45";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  /* PLACEHOLDER enemy art: a coloured disc with a health bar.
+     Swap for enemies/<kind>.svg when the drawings land. */
+  function drawEnemy(enemy) {
+    var point = pathPoint(enemy.progress);
+    var radius = view.size * 0.3;
+    var definition = stats.enemies[enemy.kind];
+
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = definition.colour;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(15, 18, 16, 0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    var width = view.size * 0.7;
+    var fraction = Math.max(0, enemy.hp / enemy.maxHp);
+
+    ctx.fillStyle = "rgba(34, 42, 47, 0.25)";
+    ctx.fillRect(point.x - width / 2, point.y - radius - 7, width, 4);
+    ctx.fillStyle = fraction > 0.4 ? "#5f8a63" : "#9d4b45";
+    ctx.fillRect(point.x - width / 2, point.y - radius - 7, width * fraction, 4);
+  }
+
+  function drawShots() {
+    shots.forEach(function (shot) {
+      ctx.beginPath();
+      ctx.moveTo(shot.fromX, shot.fromY);
+      ctx.lineTo(shot.toX, shot.toY);
+      ctx.strokeStyle = "rgba(34, 42, 47, " + Math.max(0, shot.life * 4) + ")";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
   }
 
   function drawSellZone(tower, pointerX, pointerY) {
@@ -674,10 +583,324 @@
     ctx.fillText("Sell", rect.x + rect.width / 2, rect.y + 20);
 
     ctx.font = "500 12px 'IBM Plex Mono', monospace";
-    ctx.fillText(
-      "+" + Math.floor(value) + " cash",
-      rect.x + rect.width / 2,
-      rect.y + 42
+    ctx.fillText("+" + Math.floor(value) + " cash", rect.x + rect.width / 2, rect.y + 42);
+  }
+
+  function draw() {
+    if (!view.size) {
+      return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawField();
+    drawPortal();
+    drawBase();
+
+    if (!drag && !placing && hover && towers[hover]) {
+      var at = hover.split(",");
+      var centre = tileCentre(Number(at[0]), Number(at[1]));
+      drawRange(towers[hover], centre.x, centre.y);
+    }
+
+    Object.keys(towers).forEach(function (position) {
+      if (drag && drag.from === position) {
+        return;
+      }
+
+      var parts = position.split(",");
+      var rect = tileRect(Number(parts[0]), Number(parts[1]));
+
+      drawTower(towers[position], rect.x, rect.y, rect.size);
+    });
+
+    enemies.forEach(drawEnemy);
+    drawShots();
+
+    /* Ghost of the tower waiting to be committed. */
+    if (placing) {
+      var tile = tileAt(pointer.x, pointer.y);
+      var ghost = { key: placing, level: 1 };
+
+      if (tile) {
+        var target = tileRect(tile[0], tile[1]);
+        var allowed = buildable(tile[0], tile[1]) && !towers[key(tile[0], tile[1])];
+
+        drawRange(ghost, target.x + target.size / 2, target.y + target.size / 2);
+
+        ctx.globalAlpha = 0.55;
+        drawTower(ghost, target.x, target.y, target.size);
+        ctx.globalAlpha = 1;
+
+        ctx.strokeStyle = allowed ? "#4f6a78" : "rgba(157, 75, 69, 0.85)";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(target.x + 1.5, target.y + 1.5, target.size - 3, target.size - 3);
+      }
+    }
+
+    if (drag) {
+      drawRange(drag.tower, drag.x, drag.y);
+
+      var dropTile = inSellZone(drag.x, drag.y) ? null : tileAt(drag.x, drag.y);
+
+      if (dropTile) {
+        var dropRect = tileRect(dropTile[0], dropTile[1]);
+        var occupant = towers[key(dropTile[0], dropTile[1])];
+
+        ctx.strokeStyle = canMerge(drag.tower, occupant)
+          ? "#c9992b"
+          : buildable(dropTile[0], dropTile[1])
+            ? "#4f6a78"
+            : "rgba(157, 75, 69, 0.8)";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(dropRect.x + 1.5, dropRect.y + 1.5, dropRect.size - 3, dropRect.size - 3);
+      }
+
+      drawSellZone(drag.tower, drag.x, drag.y);
+      drawTower(drag.tower, drag.x - view.size / 2, drag.y - view.size / 2, view.size);
+    }
+
+    if (!drag && !placing && hover && towers[hover]) {
+      var labelAt = hover.split(",");
+      drawRangeLabel(towers[hover], tileRect(Number(labelAt[0]), Number(labelAt[1])));
+    }
+  }
+
+  /* =========================================================
+     Waves and combat
+     ========================================================= */
+
+  function startWave() {
+    if (waveActive || baseHp <= 0) {
+      return;
+    }
+
+    wave += 1;
+    waveActive = true;
+    spawnTimer = 0;
+    spawnQueue = [];
+
+    var pool = stats.wavePool(wave);
+    var count = stats.waveCount(wave);
+
+    for (var i = 0; i < count; i += 1) {
+      spawnQueue.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+
+    refreshHud();
+  }
+
+  function spawn(kind) {
+    var hp = stats.waveEnemyHp(kind, wave);
+
+    enemies.push({
+      kind: kind,
+      hp: hp,
+      maxHp: hp,
+      progress: 0,
+      speed: stats.enemies[kind].speed
+    });
+  }
+
+  function enemyAt(enemy) {
+    return pathPoint(enemy.progress);
+  }
+
+  /* Towers shoot the enemy furthest along the path, which is the
+     one closest to the base. */
+  function fire(position, tower, delta) {
+    var definition = stats.towers[tower.key];
+
+    if (!definition.attack) {
+      return;
+    }
+
+    tower.cooldown = (tower.cooldown || 0) - delta;
+
+    if (tower.cooldown > 0 || !enemies.length) {
+      return;
+    }
+
+    var parts = position.split(",");
+    var origin = tileCentre(Number(parts[0]), Number(parts[1]));
+    var reach = (stats.range(tower.key, tower.level, 0) / stats.rangePerTile) * view.size;
+    var attack = definition.attack;
+
+    var inRange = enemies.filter(function (enemy) {
+      var point = enemyAt(enemy);
+      var dx = point.x - origin.x;
+      var dy = point.y - origin.y;
+
+      return Math.sqrt(dx * dx + dy * dy) <= reach;
+    });
+
+    if (!inRange.length) {
+      return;
+    }
+
+    inRange.sort(function (a, b) {
+      return b.progress - a.progress;
+    });
+
+    var primary = inRange[0];
+    var aim = enemyAt(primary);
+
+    /* Face the target: the plan view rotates to match. */
+    tower.angle = Math.atan2(aim.y - origin.y, aim.x - origin.x) + Math.PI / 2;
+    tower.cooldown = stats.cooldown(tower.key);
+
+    var targets = attack.shape === "single" ? [primary] : inRange;
+
+    targets.forEach(function (enemy) {
+      var point = enemyAt(enemy);
+      var dx = point.x - origin.x;
+      var dy = point.y - origin.y;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+
+      /* Cones only hit what is inside the arc. */
+      if (attack.shape === "cone") {
+        var angle = Math.atan2(dy, dx);
+
+        if (!stats.inArc(tower.key, Math.atan2(aim.y - origin.y, aim.x - origin.x), angle)) {
+          return;
+        }
+      }
+
+      var statDistance = (distance / view.size) * stats.rangePerTile;
+
+      enemy.hp -= stats.damageAtDistance(tower.key, tower.level, 0, statDistance);
+    });
+
+    shots.push({
+      fromX: origin.x,
+      fromY: origin.y,
+      toX: aim.x,
+      toY: aim.y,
+      life: 0.12
+    });
+  }
+
+  function earn(delta) {
+    /* Farms pay out per wave; approximate it as income over the
+       wave so cash arrives while you are playing. */
+    Object.keys(towers).forEach(function (position) {
+      var tower = towers[position];
+      var perWave = stats.coins(tower.key, tower.level, 0);
+
+      if (perWave > 0 && waveActive) {
+        cash += (perWave / 12) * delta;
+      }
+    });
+  }
+
+  function update(delta) {
+    if (baseHp <= 0) {
+      return;
+    }
+
+    /* Spawning. */
+    if (waveActive && spawnQueue.length) {
+      spawnTimer -= delta;
+
+      if (spawnTimer <= 0) {
+        spawn(spawnQueue.shift());
+        spawnTimer = stats.wave.spawnGap;
+      }
+    }
+
+    /* Movement, then anything that reached the base. */
+    var end = view.path.length - 1;
+
+    enemies.forEach(function (enemy) {
+      enemy.progress += enemy.speed * delta;
+    });
+
+    enemies = enemies.filter(function (enemy) {
+      if (enemy.hp <= 0) {
+        cash += stats.waveBounty(enemy.kind, wave);
+        return false;
+      }
+
+      if (enemy.progress >= end) {
+        baseHp = Math.max(0, baseHp - stats.enemies[enemy.kind].damage);
+        return false;
+      }
+
+      return true;
+    });
+
+    Object.keys(towers).forEach(function (position) {
+      fire(position, towers[position], delta);
+    });
+
+    earn(delta);
+
+    shots = shots.filter(function (shot) {
+      shot.life -= delta;
+      return shot.life > 0;
+    });
+
+    /* Wave clears when everything is spawned and dead. */
+    if (waveActive && !spawnQueue.length && !enemies.length) {
+      waveActive = false;
+      wavesBeaten = wave;
+    }
+
+    if (baseHp <= 0) {
+      endRun();
+    }
+
+    refreshHud();
+  }
+
+  function loop(timestamp) {
+    if (!running) {
+      return;
+    }
+
+    var delta = Math.min((timestamp - lastFrame) / 1000, 0.05);
+
+    lastFrame = timestamp;
+
+    update(delta);
+    draw();
+
+    window.requestAnimationFrame(loop);
+  }
+
+  /* =========================================================
+     Cash, base, selling
+     ========================================================= */
+
+  function refreshHud() {
+    cashDisplay.textContent = String(Math.floor(cash));
+    hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
+    waveDisplay.textContent = String(wave);
+    exitButton.disabled = baseHp > 0;
+    startButton.disabled = waveActive || baseHp <= 0;
+    refreshHotbar();
+  }
+
+  function sellZoneRect() {
+    var width = Math.min(260, window.innerWidth - 40);
+    var height = 62;
+
+    return {
+      x: (window.innerWidth - width) / 2,
+      y: window.innerHeight - height - 110,
+      width: width,
+      height: height
+    };
+  }
+
+  function inSellZone(x, y) {
+    if (!sellZone) {
+      return false;
+    }
+
+    return (
+      x >= sellZone.x && x <= sellZone.x + sellZone.width &&
+      y >= sellZone.y && y <= sellZone.y + sellZone.height
     );
   }
 
@@ -694,86 +917,70 @@
   }
 
   /* =========================================================
-     Placing and merging
+     Hotbar
      ========================================================= */
 
-  function canMerge(source, target) {
-    return Boolean(
-      source &&
-        target &&
-        source.key === target.key &&
-        source.level === target.level &&
-        source.level < MAX_LEVEL
-    );
-  }
+  function buildHotbar() {
+    hotbar.textContent = "";
 
-  function drop(from, target) {
-    var tower = towers[from];
+    TOWER_KEYS.forEach(function (name) {
+      var button = document.createElement("button");
 
-    if (!target || !buildable(target[0], target[1])) {
-      return;
-    }
+      button.className = "hotbar__slot";
+      button.type = "button";
+      button.dataset.tower = name;
 
-    var to = key(target[0], target[1]);
+      var icon = document.createElement("img");
+      icon.className = "hotbar__icon";
+      icon.src = "towers/" + name + "/1.svg";
+      icon.alt = stats.towers[name].label;
+      button.appendChild(icon);
 
-    if (to === from) {
-      return;
-    }
+      var price = document.createElement("span");
+      price.className = "hotbar__cost";
+      price.textContent = String(stats.cost(name));
+      button.appendChild(price);
 
-    var occupant = towers[to];
+      button.addEventListener("click", function () {
+        placing = placing === name ? null : name;
+        refreshHotbar();
+        draw();
+      });
 
-    /* Dropping onto an identical tower merges without asking. */
-    if (canMerge(tower, occupant)) {
-      towers[to] = { key: tower.key, level: tower.level + 1 };
-      delete towers[from];
-      return;
-    }
-
-    if (!occupant) {
-      towers[to] = tower;
-      delete towers[from];
-      return;
-    }
-
-    towers[to] = tower;
-    towers[from] = occupant;
-  }
-
-  function freeTile() {
-    for (var attempt = 0; attempt < 400; attempt += 1) {
-      var col = Math.floor(Math.random() * view.cols);
-      var row = Math.floor(Math.random() * view.rows);
-
-      if (buildable(col, row) && !towers[key(col, row)]) {
-        return [col, row];
-      }
-    }
-
-    return null;
-  }
-
-  function addTower() {
-    var tile = freeTile();
-
-    if (!tile) {
-      return;
-    }
-
-    /* Only towers the player can actually pay for. */
-    var affordable = TOWER_KEYS.filter(function (name) {
-      return stats.cost(name) <= cash;
+      hotbar.appendChild(button);
     });
+  }
 
-    if (!affordable.length) {
+  function refreshHotbar() {
+    Array.prototype.forEach.call(hotbar.children, function (button) {
+      var name = button.dataset.tower;
+
+      button.disabled = stats.cost(name) > cash;
+      button.classList.toggle("is-selected", placing === name);
+    });
+  }
+
+  function place(tile) {
+    if (!tile || !placing) {
       return;
     }
 
-    var name = affordable[Math.floor(Math.random() * affordable.length)];
+    var at = key(tile[0], tile[1]);
 
-    cash -= stats.cost(name);
-    towers[key(tile[0], tile[1])] = { key: name, level: 1 };
+    if (!buildable(tile[0], tile[1]) || towers[at]) {
+      return;
+    }
+
+    var price = stats.cost(placing);
+
+    if (price > cash) {
+      return;
+    }
+
+    cash -= price;
+    towers[at] = { key: placing, level: 1, cooldown: 0, angle: 0 };
+    placing = null;
     refreshHud();
-    draw();
   }
 
   /* =========================================================
@@ -783,6 +990,13 @@
   canvas.addEventListener("pointerdown", function (event) {
     var point = pointerPosition(event);
     var tile = tileAt(point.x, point.y);
+
+    /* Second click commits the tower being positioned. */
+    if (placing) {
+      place(tile);
+      draw();
+      return;
+    }
 
     if (!tile) {
       return;
@@ -803,6 +1017,8 @@
   canvas.addEventListener("pointermove", function (event) {
     var point = pointerPosition(event);
 
+    pointer = point;
+
     if (drag) {
       drag.x = point.x;
       drag.y = point.y;
@@ -810,20 +1026,16 @@
       return;
     }
 
-    /* Hovering a tower previews its range. Only redraw when the
-       tile under the pointer actually changes. */
+    if (placing) {
+      draw();
+      return;
+    }
+
     var tile = tileAt(point.x, point.y);
     var next = tile ? key(tile[0], tile[1]) : null;
 
     if (next !== hover) {
       hover = next;
-      draw();
-    }
-  });
-
-  canvas.addEventListener("pointerleave", function () {
-    if (hover !== null) {
-      hover = null;
       draw();
     }
   });
@@ -852,9 +1064,100 @@
     draw();
   });
 
+  canvas.addEventListener("pointerleave", function () {
+    if (hover !== null) {
+      hover = null;
+      draw();
+    }
+  });
+
+  /* Escape cancels a pending placement. */
+  window.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && placing) {
+      placing = null;
+      refreshHotbar();
+      draw();
+    }
+  });
+
   /* =========================================================
-     Open and close
+     Placing and merging
      ========================================================= */
+
+  function canMerge(source, target) {
+    return Boolean(
+      source && target &&
+      source.key === target.key &&
+      source.level === target.level &&
+      source.level < MAX_LEVEL
+    );
+  }
+
+  function drop(from, target) {
+    var tower = towers[from];
+
+    if (!target || !buildable(target[0], target[1])) {
+      return;
+    }
+
+    var to = key(target[0], target[1]);
+
+    if (to === from) {
+      return;
+    }
+
+    var occupant = towers[to];
+
+    if (canMerge(tower, occupant)) {
+      towers[to] = {
+        key: tower.key,
+        level: tower.level + 1,
+        cooldown: 0,
+        angle: tower.angle || 0
+      };
+      delete towers[from];
+      return;
+    }
+
+    if (!occupant) {
+      towers[to] = tower;
+      delete towers[from];
+      return;
+    }
+
+    towers[to] = tower;
+    towers[from] = occupant;
+  }
+
+  /* =========================================================
+     Run lifecycle
+     ========================================================= */
+
+  function startRun() {
+    towers = {};
+    enemies = [];
+    shots = [];
+    spawnQueue = [];
+    cash = stats.startingCash;
+    baseHp = stats.baseHp;
+    wave = 0;
+    wavesBeaten = 0;
+    waveActive = false;
+    placing = null;
+    drag = null;
+    hover = null;
+    gameover.hidden = true;
+    refreshHud();
+  }
+
+  function endRun() {
+    running = false;
+    waveActive = false;
+
+    gameoverWaves.textContent = String(wavesBeaten);
+    gameoverCoins.textContent = String(stats.runReward(wavesBeaten));
+    gameover.hidden = false;
+  }
 
   function open() {
     root.hidden = false;
@@ -863,14 +1166,19 @@
     if (layout()) {
       draw();
     }
+
+    running = true;
+    lastFrame = window.performance.now();
+    window.requestAnimationFrame(loop);
   }
 
-  /* Only reachable once the base is gone. */
   function close() {
     if (baseHp > 0) {
       return;
     }
 
+    running = false;
+    gameover.hidden = true;
     root.hidden = true;
   }
 
@@ -880,8 +1188,7 @@
 
   function applyView(mode) {
     viewMode = mode === "3d" ? "3d" : "top";
-    viewButton.textContent =
-      viewMode === "3d" ? "View: 3D - beta" : "View: Top";
+    viewButton.textContent = viewMode === "3d" ? "View: 3D - beta" : "View: Top";
 
     try {
       localStorage.setItem(VIEW_KEY, viewMode);
@@ -909,16 +1216,20 @@
   }
 
   exitButton.addEventListener("click", close);
-  addButton.addEventListener("click", addTower);
+  gameoverLeave.addEventListener("click", close);
+  startButton.addEventListener("click", startWave);
 
   viewButton.addEventListener("click", function () {
     applyView(viewMode === "top" ? "3d" : "top");
   });
 
-  /* Nothing attacks the base yet, so without this a run could never
-     end and the player would be stuck in the match. */
+  /* Nothing else can finish a run early, and without this the
+     player would be stuck once they stop pressing Start wave. */
   forfeitButton.addEventListener("click", function () {
-    damageBase(BASE_HP);
+    baseHp = 0;
+    endRun();
+    refreshHud();
+    draw();
   });
 
   window.addEventListener("resize", function () {
@@ -927,6 +1238,7 @@
     }
   });
 
+  buildHotbar();
   restoreView();
   loadSprites();
 })();
