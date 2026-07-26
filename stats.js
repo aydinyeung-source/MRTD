@@ -9,8 +9,9 @@
        merge level  1-10, per match, resets every run
        evolution    0-10, permanent, bought with duplicates
 
-     A tower's ROLE decides what evolution improves. Merge
-     scaling is the same for everyone.
+     A tower's ROLE decides what evolution improves, and a role
+     may improve more than one stat. Merge scaling is the same
+     for everyone.
 
      Currencies are separate and never convert automatically:
        match coins  earned by farms during a run, spent in-run
@@ -23,27 +24,40 @@
     damage: Math.sqrt(5), // 2.2360
     range: Math.sqrt(2),  // 1.4142
     coins: Math.sqrt(5),  // 2.2360
-    health: Math.sqrt(5)  // PLACEHOLDER — merge scaling for spawners unspecified
+    health: Math.sqrt(5), // PLACEHOLDER — spawner merge scaling unspecified
+    boost: 1              // PLACEHOLDER — see note below
   };
 
-  /* What one evolution does, by role.
-     "multiply" compounds per evolution; "add" is flat per evolution. */
+  /* Boost is a percentage others receive, so it cannot use the x5
+     curve: a level 10 booster would grant 1397x. Left flat until
+     you decide how merging should improve it. */
+
+  /* What one evolution does, by role. Each effect is either
+     "multiply" (compounds per evolution) or "add" (flat per
+     evolution). percent: true means the value is itself a
+     percentage, so it reads as points rather than a factor. */
   var ROLES = {
-    damage: { stat: "damage", mode: "multiply", rate: 0.175 },
-    spawner: { stat: "health", mode: "multiply", rate: 0.15 },
-    booster: { stat: "range", mode: "add", amount: 5 },
-    economy: { stat: "coins", mode: "multiply", rate: 0.1 }
+    damage: [{ stat: "damage", mode: "multiply", rate: 0.175 }],
+    spawner: [{ stat: "health", mode: "multiply", rate: 0.15 }],
+    booster: [
+      { stat: "boost", mode: "add", amount: 3, percent: true },
+      { stat: "range", mode: "add", amount: 2.5 }
+    ],
+    economy: [{ stat: "coins", mode: "multiply", rate: 0.1 }]
   };
 
   var MAX_MERGE = 10;
   var MAX_EVOLUTION = 10;
 
   /* PLACEHOLDER base values — level 1, evolution 0. Only the farm's
-     100 coins is real; damage, range, health and cooldown are
-     guesses waiting to be tuned.
+     100 coins is real; everything else is a guess waiting to be
+     tuned. Cooldown is fixed for the life of a tower: it never
+     changes with merge level or evolution.
 
-     Cooldown is fixed for the life of a tower: it never changes
-     with merge level or evolution. */
+     A booster starts at 6% boost and would look like:
+       { label: "...", role: "booster", boost: 6, range: 120, cooldown: 0 }
+     A spawner like:
+       { label: "...", role: "spawner", health: 50, range: 0, cooldown: 3 } */
   var TOWERS = {
     blender: { label: "Blender", role: "damage", damage: 12, range: 90, cooldown: 0.6 },
     dagger: { label: "Dagger", role: "damage", damage: 8, range: 70, cooldown: 0.35 },
@@ -56,88 +70,60 @@
     return TOWERS[key] || null;
   }
 
-  function roleOf(key) {
+  function effectsFor(key) {
     var tower = base(key);
 
-    return tower ? ROLES[tower.role] : null;
+    return tower ? ROLES[tower.role] || [] : [];
   }
 
-  /* The evolution contribution for one stat. Returns a multiplier
-     for "multiply" roles and a flat amount for "add" roles, or the
-     neutral value when this role does not touch that stat. */
-  function evolutionFactor(key, stat, evolution) {
-    var role = roleOf(key);
+  function effectOn(key, stat) {
+    return effectsFor(key).filter(function (effect) {
+      return effect.stat === stat;
+    })[0];
+  }
+
+  /* value = base * mergeCurve * evolutionMultiplier + evolutionFlat */
+  function statValue(key, stat, level, evolution) {
+    var tower = base(key);
+
+    if (!tower || tower[stat] === undefined) {
+      return 0;
+    }
+
     var steps = evolution || 0;
+    var curve = MERGE[stat] === undefined ? 1 : MERGE[stat];
+    var value = tower[stat] * Math.pow(curve, (level || 1) - 1);
+    var effect = effectOn(key, stat);
 
-    if (!role || role.stat !== stat) {
-      return role && role.mode === "add" ? 0 : 1;
+    if (!effect || !steps) {
+      return value;
     }
 
-    if (role.mode === "add") {
-      return role.amount * steps;
-    }
-
-    return Math.pow(1 + role.rate, steps);
+    return effect.mode === "add"
+      ? value + effect.amount * steps
+      : value * Math.pow(1 + effect.rate, steps);
   }
 
   function damage(key, level, evolution) {
-    var tower = base(key);
-
-    if (!tower) {
-      return 0;
-    }
-
-    return (
-      tower.damage *
-      Math.pow(MERGE.damage, level - 1) *
-      (roleOf(key).stat === "damage" ? evolutionFactor(key, "damage", evolution) : 1)
-    );
+    return statValue(key, "damage", level, evolution);
   }
 
-  /* Boosters add flat range per evolution; everyone else only
-     gains range from merging. */
   function range(key, level, evolution) {
-    var tower = base(key);
-
-    if (!tower) {
-      return 0;
-    }
-
-    var scaled = tower.range * Math.pow(MERGE.range, level - 1);
-    var role = roleOf(key);
-
-    return role.stat === "range" && role.mode === "add"
-      ? scaled + evolutionFactor(key, "range", evolution)
-      : scaled;
+    return statValue(key, "range", level, evolution);
   }
 
   function health(key, level, evolution) {
-    var tower = base(key);
-
-    if (!tower || !tower.health) {
-      return 0;
-    }
-
-    return (
-      tower.health *
-      Math.pow(MERGE.health, level - 1) *
-      (roleOf(key).stat === "health" ? evolutionFactor(key, "health", evolution) : 1)
-    );
+    return statValue(key, "health", level, evolution);
   }
 
   /* Match coins per wave. Only economy towers earn. */
   function coins(key, level, evolution) {
-    var tower = base(key);
+    return statValue(key, "coins", level, evolution);
+  }
 
-    if (!tower || !tower.coins) {
-      return 0;
-    }
-
-    return (
-      tower.coins *
-      Math.pow(MERGE.coins, level - 1) *
-      evolutionFactor(key, "coins", evolution)
-    );
+  /* Percentage a booster grants to the towers it affects. */
+  function boost(key, level, evolution) {
+    return statValue(key, "boost", level, evolution);
   }
 
   /* Set at spawn and never changed. */
@@ -147,25 +133,33 @@
     return tower ? tower.cooldown : 0;
   }
 
-  /* Human readable summary of what an evolution level is worth,
-     for the shop card. */
-  function evolutionSummary(key, evolution) {
-    var role = roleOf(key);
+  function describe(effect, evolution) {
+    if (effect.mode === "add") {
+      var amount = effect.amount * evolution;
 
-    if (!role || !evolution) {
-      return "";
-    }
-
-    if (role.mode === "add") {
-      return "+" + role.amount * evolution + " " + role.stat;
+      return "+" + amount + (effect.percent ? "% " : " ") + effect.stat;
     }
 
     return (
       "+" +
-      Math.round((Math.pow(1 + role.rate, evolution) - 1) * 100) +
+      Math.round((Math.pow(1 + effect.rate, evolution) - 1) * 100) +
       "% " +
-      role.stat
+      effect.stat
     );
+  }
+
+  /* Human readable summary for the shop card. Roles with several
+     effects list all of them. */
+  function evolutionSummary(key, evolution) {
+    if (!evolution) {
+      return "";
+    }
+
+    return effectsFor(key)
+      .map(function (effect) {
+        return describe(effect, evolution);
+      })
+      .join(" · ");
   }
 
   window.MRTD = window.MRTD || {};
@@ -179,6 +173,7 @@
     range: range,
     health: health,
     coins: coins,
+    boost: boost,
     cooldown: cooldown,
     evolutionSummary: evolutionSummary
   };
