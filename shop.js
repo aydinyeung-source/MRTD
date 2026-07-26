@@ -26,11 +26,6 @@
      sprite never changes with evolution — only the border does. */
   var ICON_LEVEL = 1;
 
-  /* The farm earns cash instead of dealing damage, so its card
-     reports the bonus it actually gets. */
-  function bonusKind(key) {
-    return key === "farm" ? "cash" : "damage";
-  }
 
   var rollPanel = document.getElementById("shop-roll");
   var rollButton = document.getElementById("shop-roll-button");
@@ -87,11 +82,10 @@
      Rendering
      ========================================================= */
 
+  /* Each role improves a different stat, so the card asks stats.js
+     what this tower's evolution is actually worth. */
   function bonusText(key, evolution) {
-    var kind = bonusKind(key);
-    var percent = window.MRTD.stats.evolutionBonus(kind, evolution);
-
-    return "+" + percent + "% " + kind;
+    return window.MRTD.stats.evolutionSummary(key, evolution);
   }
 
   function labelFor(key) {
