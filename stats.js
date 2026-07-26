@@ -26,7 +26,7 @@
      10 booster granting 1397x. It adds instead. */
   var MERGE = {
     damage: { mode: "multiply", factor: Math.sqrt(5) }, // 2.2360
-    range: { mode: "multiply", factor: Math.sqrt(2) },  // 1.4142
+    range: { mode: "multiply", factor: 1.1 },           // +10% per merge
     coins: { mode: "multiply", factor: Math.sqrt(5) },
     health: { mode: "multiply", factor: Math.sqrt(5) }, // PLACEHOLDER — unspecified
     boost: { mode: "add", amount: 2.5, percent: true }
@@ -64,11 +64,11 @@
        { label: "...", role: "spawner", health: 50, range: 0, cooldown: 3 } */
   var TOWERS = {
     blender: {
-      label: "Blender", role: "damage", damage: 12, range: 90, cooldown: 0.6,
+      label: "Blender", role: "damage", damage: 12, range: 20, cooldown: 0.6,
       attack: { shape: "single" }
     },
     dagger: {
-      label: "Dagger", role: "damage", damage: 8, range: 70, cooldown: 0.35,
+      label: "Dagger", role: "damage", damage: 8, range: 15, cooldown: 0.35,
       attack: { shape: "single" }
     },
     farm: {
@@ -76,13 +76,14 @@
       attack: null
     },
     shotgunner: {
-      label: "Shotgunner", role: "damage", damage: 20, range: 110, cooldown: 0.9,
+      /* 20 range is a 2 tile radius: radius in tiles is range / 10. */
+      label: "Shotgunner", role: "damage", damage: 20, range: 20, cooldown: 0.9,
       /* A 100 degree spread in front. Full damage at the muzzle,
          falling linearly to 30% at maximum range. */
       attack: { shape: "cone", angle: 100, falloffTo: 0.3 }
     },
     sniper: {
-      label: "Sniper", role: "damage", damage: 45, range: 260, cooldown: 1.6,
+      label: "Sniper", role: "damage", damage: 45, range: 60, cooldown: 1.6,
       attack: { shape: "single" }
     }
   };

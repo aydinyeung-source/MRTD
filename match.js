@@ -52,6 +52,10 @@
   var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [], portrait: false };
   var drag = null;
 
+  /* Tile key currently under the pointer, so its range can be
+     previewed without picking the tower up. */
+  var hover = null;
+
   /* =========================================================
      Map geometry
      ========================================================= */
@@ -311,7 +315,8 @@
     ctx.fillText(String(tower.level), x + size - 2, y + size - 1);
   }
 
-  /* Range is expressed in stat units, so it converts to tiles. */
+  /* Range is expressed in stat units, so it converts to tiles:
+     radius in tiles is range / rangePerTile. */
   function drawRange(tower, centreX, centreY) {
     var tiles = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
 
@@ -328,6 +333,32 @@
     ctx.stroke();
   }
 
+  /* Name and reach of the tower being hovered, drawn above it. */
+  function drawRangeLabel(tower, rect) {
+    var tiles = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
+    var text =
+      stats.towers[tower.key].label + " " + tower.level +
+      "  ·  " + (Math.round(tiles * 10) / 10) + " tiles";
+
+    ctx.font = "500 12px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    var width = ctx.measureText(text).width + 16;
+    var x = rect.x + rect.size / 2;
+    var y = rect.y - 14;
+
+    roundedPath(x - width / 2, y - 11, width, 22, 6);
+    ctx.fillStyle = "rgba(249, 251, 252, 0.94)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(34, 42, 47, 0.15)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "#222a2f";
+    ctx.fillText(text, x, y);
+  }
+
   function draw() {
     if (!view.size) {
       return;
@@ -339,6 +370,14 @@
     drawPath();
     drawPortal();
     drawBase();
+
+    /* Hover preview sits under the towers so it never hides them. */
+    if (!drag && hover && towers[hover]) {
+      var parts = hover.split(",");
+      var rect = tileRect(Number(parts[0]), Number(parts[1]));
+
+      drawRange(towers[hover], rect.x + rect.size / 2, rect.y + rect.size / 2);
+    }
 
     Object.keys(towers).forEach(function (at) {
       if (drag && drag.from === at) {
@@ -375,6 +414,12 @@
         drag.y - view.size / 2,
         view.size
       );
+    }
+
+    /* Label last, so nothing is drawn over it. */
+    if (!drag && hover && towers[hover]) {
+      var at = hover.split(",");
+      drawRangeLabel(towers[hover], tileRect(Number(at[0]), Number(at[1])));
     }
   }
 
@@ -474,15 +519,31 @@
   });
 
   canvas.addEventListener("pointermove", function (event) {
-    if (!drag) {
+    var point = pointerPosition(event);
+
+    if (drag) {
+      drag.x = point.x;
+      drag.y = point.y;
+      draw();
       return;
     }
 
-    var point = pointerPosition(event);
+    /* Hovering a tower previews its range. Only redraw when the
+       tile under the pointer actually changes. */
+    var tile = tileAt(point.x, point.y);
+    var next = tile ? key(tile[0], tile[1]) : null;
 
-    drag.x = point.x;
-    drag.y = point.y;
-    draw();
+    if (next !== hover) {
+      hover = next;
+      draw();
+    }
+  });
+
+  canvas.addEventListener("pointerleave", function () {
+    if (hover !== null) {
+      hover = null;
+      draw();
+    }
   });
 
   canvas.addEventListener("pointerup", function (event) {
