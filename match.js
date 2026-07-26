@@ -72,6 +72,7 @@
   var levels = document.getElementById("levels");
   var cashDisplay = document.getElementById("match-cash");
   var hpDisplay = document.getElementById("match-hp");
+  var placedDisplay = document.getElementById("match-placed");
   var waveDisplay = document.getElementById("match-wave");
   var gameover = document.getElementById("gameover");
   var gameoverWaves = document.getElementById("gameover-waves");
@@ -1034,9 +1035,22 @@
     return Boolean(window.MRTD && window.MRTD.dev);
   }
 
+  function upgradeLevel(name) {
+    return window.MRTD.upgrade ? window.MRTD.upgrade(name) : 0;
+  }
+
+  function placementLimit() {
+    return stats.placementLimit(upgradeLevel("placements"));
+  }
+
+  function placed() {
+    return Object.keys(towers).length;
+  }
+
   function refreshHud() {
     cashDisplay.textContent = isDev() ? "∞" : String(Math.floor(cash));
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
+    placedDisplay.textContent = placed() + " / " + placementLimit();
     waveDisplay.textContent = String(wave);
     exitButton.disabled = baseHp > 0;
 
@@ -1127,10 +1141,16 @@
       price.textContent = String(stats.cost(name));
       button.appendChild(price);
 
-      /* Tap selects a level 1. Hold opens the level picker. */
+      /* Tap selects a level 1. Hold opens the level picker, which
+         is the Quick buy upgrade. */
       button.addEventListener("pointerdown", function (event) {
         event.preventDefault();
         held = false;
+
+        if (!upgradeLevel("quick_buy")) {
+          return;
+        }
+
         holdTimer = window.setTimeout(function () {
           held = true;
           openLevels(name, button);
@@ -1165,6 +1185,10 @@
   }
 
   function affordable(name, level) {
+    if (placed() >= placementLimit()) {
+      return false;
+    }
+
     return isDev() || stats.buyCost(name, level) <= cash;
   }
 
@@ -1231,6 +1255,11 @@
     var at = key(tile[0], tile[1]);
 
     if (!buildable(tile[0], tile[1]) || towers[at]) {
+      return;
+    }
+
+    /* Merging never breaches the limit, only new placements do. */
+    if (placed() >= placementLimit()) {
       return;
     }
 
@@ -1431,7 +1460,7 @@
     enemies = [];
     shots = [];
     spawnQueue = [];
-    cash = stats.startingCash;
+    cash = stats.startingCashFor(upgradeLevel("starting_cash"));
     baseHp = stats.baseHp;
     wave = 0;
     wavesBeaten = 0;
@@ -1539,20 +1568,34 @@
   }
 
   if (playButton) {
-    playButton.addEventListener("click", open);
+    playButton.addEventListener("click", function () {
+      /* Deliberately unhurried: two to five seconds. */
+      var wait = 2000 + Math.floor(Math.random() * 3000);
+
+      window.MRTD.load("Preparing the field", wait, open);
+    });
   }
 
-  exitButton.addEventListener("click", close);
-  gameoverLeave.addEventListener("click", close);
+  function leave() {
+    close();
+    window.MRTD.load("Returning to lobby", 1400);
+  }
+
+  exitButton.addEventListener("click", leave);
+  gameoverLeave.addEventListener("click", leave);
   startButton.addEventListener("click", startWave);
 
   /* Skipping starts the next wave while stragglers are still on
      the path, which is the same call. */
   skipButton.addEventListener("click", startWave);
 
-  /* 10x is a developer speed — normal play cycles 1x and 2x. */
+  /* 2x is an upgrade, 10x is a developer speed. */
   function speedChoices() {
-    return isDev() ? [1, 2, 10] : [1, 2];
+    if (isDev()) {
+      return [1, 2, 10];
+    }
+
+    return upgradeLevel("game_speed") ? [1, 2] : [1];
   }
 
   function setSpeed(next) {

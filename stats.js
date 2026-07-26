@@ -43,6 +43,41 @@
 
   var BASE_HP = 1000;
 
+  /* Towers allowed on the field before any upgrade. */
+  var BASE_PLACEMENTS = 15;
+
+  /* What each upgrade level is worth. Prices live in the database. */
+  var UPGRADES = {
+    placements: {
+      label: "Placement limit",
+      note: "One more tower on the field",
+      max: 10
+    },
+    starting_cash: {
+      label: "Starting cash",
+      note: "+100 cash at the start of a run",
+      max: 10
+    },
+    quick_buy: {
+      label: "Quick buy",
+      note: "Hold a hotbar slot to buy a merged tower outright",
+      max: 1
+    },
+    game_speed: {
+      label: "2× speed",
+      note: "Fast forward a match",
+      max: 1
+    }
+  };
+
+  function placementLimit(level) {
+    return BASE_PLACEMENTS + (level || 0);
+  }
+
+  function startingCash(level) {
+    return STARTING_CASH + (level || 0) * 100;
+  }
+
   /* PLACEHOLDER enemies. Speed is tiles per second, bounty is match
      cash. There is no damage stat: an enemy that reaches the base
      takes its REMAINING hp off the base, so wounding something still
@@ -390,6 +425,10 @@
     maxEvolution: MAX_EVOLUTION,
     rangePerTile: RANGE_PER_TILE,
     startingCash: STARTING_CASH,
+    basePlacements: BASE_PLACEMENTS,
+    upgrades: UPGRADES,
+    placementLimit: placementLimit,
+    startingCashFor: startingCash,
     baseHp: BASE_HP,
     enemies: ENEMIES,
     wave: WAVE,

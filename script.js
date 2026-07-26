@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.12.1";
+  var VERSION = "1.13.0";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -250,6 +250,44 @@
       .catch(function () {
         /* Offline or expired token: leave the player alone. */
       });
+  }
+
+  /* =========================================================
+     Loading screen
+
+     Shown between the lobby and a match. The bar is an
+     indeterminate CSS animation, so the duration is simply how
+     long the panel stays up.
+     ========================================================= */
+
+  var loader = document.getElementById("loader");
+  var loaderTitle = document.getElementById("loader-title");
+  var loaderTip = document.getElementById("loader-tip");
+
+  var TIPS = [
+    "Two towers of the same type and level merge into one.",
+    "Drag a tower onto the Sell panel to refund half of what it cost.",
+    "A leaked enemy costs the base whatever health it had left.",
+    "Boosts do not stack — only the strongest one counts.",
+    "Farms pay out at the start of every wave.",
+    "The shotgunner hits hardest at point blank.",
+    "Snipers reach further than anything else. Mind the corners.",
+    "Skip a wave early to stack them on top of each other.",
+    "Selling a merged tower refunds half of every tower inside it."
+  ];
+
+  function showLoader(title, duration, done) {
+    loaderTitle.textContent = title;
+    loaderTip.textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+    loader.hidden = false;
+
+    window.setTimeout(function () {
+      loader.hidden = true;
+
+      if (done) {
+        done();
+      }
+    }, duration);
   }
 
   /* =========================================================
@@ -649,6 +687,7 @@
   window.MRTD.key = SUPABASE_ANON_KEY;
   window.MRTD.session = loadSession;
   window.MRTD.userId = userId;
+  window.MRTD.load = showLoader;
 
   setMode("login");
   restoreSession();

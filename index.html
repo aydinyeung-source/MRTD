@@ -142,6 +142,12 @@
 
       <section class="screen" id="screen-upgrades" data-screen="upgrades">
         <p class="placeholder">Player Upgrades</p>
+
+        <div class="upgrades">
+          <p class="upgrades__balance"><span id="upgrades-coins">0</span> coins</p>
+          <div class="upgrades__list" id="upgrades-list"></div>
+          <p class="upgrades__status" id="upgrades-status"></p>
+        </div>
       </section>
     </main>
 
@@ -157,6 +163,14 @@
       <button class="nav__tab" type="button" data-tab="shop">Shop</button>
       <button class="nav__tab" type="button" data-tab="upgrades">Player Upgrades</button>
     </nav>
+  </div>
+
+  <div class="loader" id="loader" hidden>
+    <div class="loader__panel">
+      <p class="loader__title" id="loader-title">Loading</p>
+      <div class="loader__bar"><span class="loader__stripe"></span></div>
+      <p class="loader__tip" id="loader-tip"></p>
+    </div>
   </div>
 
   <div class="broadcast" id="broadcast" hidden>
@@ -179,6 +193,7 @@
     <div class="match__hud">
       <p class="match__stat"><span id="match-cash">0</span> cash</p>
       <p class="match__stat"><span id="match-hp">0</span> hp</p>
+      <p class="match__stat"><span id="match-placed">0 / 15</span></p>
 
       <div class="hotbar" id="hotbar"></div>
       <div class="levels" id="levels" hidden></div>
@@ -204,6 +219,7 @@
   <script src="stats.js"></script>
   <script src="script.js"></script>
   <script src="loadout.js"></script>
+  <script src="upgrades.js"></script>
   <script src="shop.js"></script>
   <script src="admin.js"></script>
   <script src="match.js"></script>
