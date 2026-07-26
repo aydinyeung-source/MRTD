@@ -15,10 +15,31 @@
 
   var GRID = { cols: 26, rows: 15 };
 
-  /* Corners of the path in landscape tiles. Portal first, base last. */
+  /* Corners of the path in landscape tiles. Portal first, base last.
+
+     Spawn on the left, base on the right, with a wide circuit
+     across the top and a coil through the middle. Runs sit two to
+     three tiles apart in several places, so a long ranged tower
+     parked between them covers more than one lane. */
   var WAYPOINTS = [
-    [0, 2], [21, 2], [21, 6], [4, 6], [4, 10], [22, 10], [22, 13], [1, 13]
+    [0, 6],
+    [6, 6],
+    [6, 1],
+    [20, 1],
+    [20, 4],
+    [11, 4],
+    [11, 8],
+    [22, 8],
+    [22, 11],
+    [4, 11],
+    [4, 13],
+    [25, 13]
   ];
+
+  /* How far buildable ground reaches from the path. Produces an
+     irregular island hugging the route instead of a full
+     rectangle of buildable tiles. */
+  var LAND_REACH = 3;
 
   var MAX_LEVEL = 10;
   var TOWER_KEYS = ["dagger", "blender", "shotgunner", "sniper", "farm"];
@@ -174,7 +195,39 @@
       view.pathSet[key(tile[0], tile[1])] = true;
     });
 
+    buildLand();
+
     return true;
+  }
+
+  /* Ground is anything within reach of the path. Corners get
+     clipped so the coastline is ragged rather than a rounded
+     rectangle. */
+  function buildLand() {
+    view.landSet = {};
+
+    view.path.forEach(function (tile) {
+      for (var dx = -LAND_REACH; dx <= LAND_REACH; dx += 1) {
+        for (var dy = -LAND_REACH; dy <= LAND_REACH; dy += 1) {
+          var col = tile[0] + dx;
+          var row = tile[1] + dy;
+
+          if (!inBounds(col, row)) {
+            continue;
+          }
+
+          if (Math.abs(dx) + Math.abs(dy) > LAND_REACH + 1) {
+            continue;
+          }
+
+          view.landSet[key(col, row)] = true;
+        }
+      }
+    });
+  }
+
+  function isLand(col, row) {
+    return Boolean(view.landSet && view.landSet[key(col, row)]);
   }
 
   function isPath(col, row) {
@@ -185,8 +238,9 @@
     return col >= 0 && col < view.cols && row >= 0 && row < view.rows;
   }
 
+  /* Only the island is buildable, and never the path itself. */
   function buildable(col, row) {
-    return inBounds(col, row) && !isPath(col, row);
+    return inBounds(col, row) && isLand(col, row) && !isPath(col, row);
   }
 
   function tileRect(col, row) {
@@ -469,37 +523,70 @@
   }
 
   function drawField() {
-    var width = view.cols * view.size;
-    var height = view.rows * view.size;
-
+    /* Only the island is drawn, so the map reads as terrain rather
+       than a grid that happens to have a path on it. */
     ctx.fillStyle = "#dfe7ea";
-    ctx.fillRect(view.x, view.y, width, height);
 
+    Object.keys(view.landSet).forEach(function (position) {
+      var parts = position.split(",");
+      var rect = tileRect(Number(parts[0]), Number(parts[1]));
+
+      ctx.fillRect(rect.x, rect.y, rect.size, rect.size);
+    });
+
+    /* Grid lines, clipped to the island. */
     ctx.strokeStyle = "rgba(34, 42, 47, 0.07)";
     ctx.lineWidth = 1;
-    ctx.beginPath();
 
-    for (var col = 0; col <= view.cols; col += 1) {
-      ctx.moveTo(view.x + col * view.size, view.y);
-      ctx.lineTo(view.x + col * view.size, view.y + height);
-    }
+    Object.keys(view.landSet).forEach(function (position) {
+      var parts = position.split(",");
+      var rect = tileRect(Number(parts[0]), Number(parts[1]));
 
-    for (var row = 0; row <= view.rows; row += 1) {
-      ctx.moveTo(view.x, view.y + row * view.size);
-      ctx.lineTo(view.x + width, view.y + row * view.size);
-    }
-
-    ctx.stroke();
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.size - 1, rect.size - 1);
+    });
 
     ctx.fillStyle = "#b9c6cc";
     view.path.forEach(function (tile) {
       var rect = tileRect(tile[0], tile[1]);
       ctx.fillRect(rect.x, rect.y, rect.size, rect.size);
     });
+
+    /* Dark kerb along the path edges, as in the reference. */
+    ctx.strokeStyle = "rgba(45, 54, 60, 0.55)";
+    ctx.lineWidth = 2;
+
+    view.path.forEach(function (tile) {
+      var rect = tileRect(tile[0], tile[1]);
+
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (step) {
+        if (isPath(tile[0] + step[0], tile[1] + step[1])) {
+          return;
+        }
+
+        ctx.beginPath();
+
+        if (step[0] === 1) {
+          ctx.moveTo(rect.x + rect.size, rect.y);
+          ctx.lineTo(rect.x + rect.size, rect.y + rect.size);
+        } else if (step[0] === -1) {
+          ctx.moveTo(rect.x, rect.y);
+          ctx.lineTo(rect.x, rect.y + rect.size);
+        } else if (step[1] === 1) {
+          ctx.moveTo(rect.x, rect.y + rect.size);
+          ctx.lineTo(rect.x + rect.size, rect.y + rect.size);
+        } else {
+          ctx.moveTo(rect.x, rect.y);
+          ctx.lineTo(rect.x + rect.size, rect.y);
+        }
+
+        ctx.stroke();
+      });
+    });
   }
 
   function drawPortal() {
     var centre = tileCentre(view.portal[0], view.portal[1]);
+    /* Green at the spawn, red at the base, as in the reference. */
     var radius = view.size * 0.42;
 
     ctx.beginPath();

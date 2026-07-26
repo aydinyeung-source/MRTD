@@ -27,8 +27,6 @@
   var ICON_LEVEL = 1;
 
 
-  var rollPanel = document.getElementById("shop-roll");
-  var rollButton = document.getElementById("shop-roll-button");
   var status = document.getElementById("shop-status");
   var collection = document.getElementById("shop-collection");
   var coinsDisplay = document.getElementById("shop-coins");
@@ -39,6 +37,10 @@
   if (!collection) {
     return;
   }
+
+  /* The one free summon rides on the single draw button, which
+     reverts to the paid version once it has been used. */
+  var freeRollAvailable = false;
 
   /* =========================================================
      Supabase
@@ -167,16 +169,23 @@
   }
 
   function render(profile, rows) {
-    rollPanel.hidden = Boolean(profile.free_roll_used);
     collection.textContent = "";
 
     var coins = Number(profile.coins || 0);
     var dev = Boolean(window.MRTD.dev);
 
+    freeRollAvailable = !profile.free_roll_used;
+
     /* Developers spend nothing — the server skips the charge too,
        so this is not just a display trick. */
     coinsDisplay.textContent = dev ? "∞" : String(coins);
-    buyOne.disabled = !dev && coins < 100;
+
+    buyOne.textContent = freeRollAvailable
+      ? "Summon ×1 — free"
+      : "Summon ×1 — 100";
+    buyOne.classList.toggle("is-free", freeRollAvailable);
+    buyOne.disabled = !freeRollAvailable && !dev && coins < 100;
+
     buyTen.disabled = !dev && coins < 900;
 
     if (!rows.length) {
@@ -287,8 +296,8 @@
   }
 
   function roll() {
-    rollButton.disabled = true;
-    setStatus("Rolling...");
+    buyOne.disabled = true;
+    setStatus("Summoning...");
 
     api("/rest/v1/rpc/claim_free_roll", { method: "POST", body: {} })
       .then(function (key) {
@@ -297,7 +306,7 @@
       })
       .catch(function (error) {
         setStatus(error.message, true);
-        rollButton.disabled = false;
+        buyOne.disabled = false;
       });
   }
 
@@ -326,9 +335,14 @@
       });
   }
 
-  rollButton.addEventListener("click", roll);
-
+  /* Same button, two jobs: the free summon while one is owed,
+     the paid single draw afterwards. */
   buyOne.addEventListener("click", function () {
+    if (freeRollAvailable) {
+      roll();
+      return;
+    }
+
     openChest(1, buyOne);
   });
 

@@ -537,51 +537,6 @@ body::after {
   max-width: 720px;
 }
 
-.shop__roll {
-  padding: 22px 24px;
-  border: 1px solid var(--rule);
-  border-radius: 16px;
-  background-color: var(--paper-raised);
-}
-
-.shop__roll-label {
-  margin: 0 0 14px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
-
-.shop__roll-button {
-  padding: 13px 24px;
-  border: none;
-  border-radius: 10px;
-  background-color: var(--glacier);
-  font-family: var(--rounded);
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--paper-raised);
-  cursor: pointer;
-  transition: background-color 320ms var(--ease-soft);
-}
-
-.shop__roll-button:hover:not(:disabled) {
-  background-color: var(--ink);
-}
-
-.shop__roll-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.shop__roll-note {
-  margin: 12px 0 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-muted);
-}
-
 .shop__status {
   margin: 16px 0 0;
   min-height: 1.4em;
@@ -1027,6 +982,18 @@ body::after {
 .shop__buy:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* The one free summon, before it is spent. */
+.shop__buy.is-free {
+  border-color: #b07404;
+  background-color: #b07404;
+  color: var(--paper-raised);
+}
+
+.shop__buy.is-free:hover:not(:disabled) {
+  border-color: var(--ink);
+  background-color: var(--ink);
 }
 
 .shop__odds {
