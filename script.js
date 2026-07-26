@@ -16,8 +16,12 @@
      is never shown and never receives mail. */
   var USERNAME_DOMAIN = "mrtd.local";
 
-  /* Single source of truth for the build number — bump it here. */
-  var VERSION = "1.0.0";
+  /* Single source of truth for the build number.
+
+     major  reserved — only on request
+     minor  a new system or screen
+     patch  fixes, balance numbers, styling */
+  var VERSION = "1.10.0";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
