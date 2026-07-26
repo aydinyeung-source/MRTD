@@ -188,17 +188,24 @@
      account is an admin. */
   function reveal() {
     var session = window.MRTD.session();
+    var id = window.MRTD.userId();
 
-    if (!session || !session.access_token) {
+    if (!session || !session.access_token || !id) {
       return;
     }
 
-    fetch(window.MRTD.url + "/rest/v1/profiles?select=is_dev,username", {
-      headers: {
-        apikey: window.MRTD.key,
-        Authorization: "Bearer " + session.access_token
+    /* Filtered to your own row: profiles are readable by everyone,
+       so an unfiltered query returns a stranger. */
+    fetch(
+      window.MRTD.url +
+        "/rest/v1/profiles?select=is_dev,username&id=eq." + id + "&limit=1",
+      {
+        headers: {
+          apikey: window.MRTD.key,
+          Authorization: "Bearer " + session.access_token
+        }
       }
-    })
+    )
       .then(function (response) {
         return response.ok ? response.json() : [];
       })

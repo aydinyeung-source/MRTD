@@ -70,8 +70,18 @@
     });
   }
 
+  /* Every logged in player can read the profiles table, so this
+     has to filter to your own row or it reads a stranger's. */
   function loadProfile() {
-    return api("/rest/v1/profiles?select=free_roll_used,coins").then(function (rows) {
+    var id = window.MRTD.userId();
+
+    if (!id) {
+      return Promise.resolve({ free_roll_used: true, coins: 0 });
+    }
+
+    return api(
+      "/rest/v1/profiles?select=free_roll_used,coins&id=eq." + id + "&limit=1"
+    ).then(function (rows) {
       return rows[0] || { free_roll_used: true, coins: 0 };
     });
   }

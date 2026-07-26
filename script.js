@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.10.1";
+  var VERSION = "1.10.2";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -350,7 +350,7 @@
 
   /* Only the flagged account ever sees the button. */
   function checkDeveloper() {
-    authed("/rest/v1/profiles?select=is_dev")
+    ownProfile("is_dev")
       .then(function (rows) {
         var allowed = rows.length && rows[0].is_dev;
 
@@ -385,6 +385,28 @@
     } catch (error) {
       return null;
     }
+  }
+
+  /* Profiles are readable by every logged in player so that friend
+     lists and leaderboards work, which means a query without a
+     filter returns everyone. Any read of your OWN profile has to
+     say so explicitly. */
+  function userId() {
+    var session = loadSession();
+
+    return session && session.user ? session.user.id : null;
+  }
+
+  function ownProfile(columns) {
+    var id = userId();
+
+    if (!id) {
+      return Promise.resolve([]);
+    }
+
+    return authed(
+      "/rest/v1/profiles?select=" + columns + "&id=eq." + id + "&limit=1"
+    );
   }
 
   function clearSession() {
@@ -626,6 +648,7 @@
   window.MRTD.url = SUPABASE_URL;
   window.MRTD.key = SUPABASE_ANON_KEY;
   window.MRTD.session = loadSession;
+  window.MRTD.userId = userId;
 
   setMode("login");
   restoreSession();
