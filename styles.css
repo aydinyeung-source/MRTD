@@ -784,6 +784,14 @@ body::after {
   color: #9d4b45;
 }
 
+.updates__stamp {
+  margin: -4px 0 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+}
+
 .handbook__close {
   width: 100%;
   padding: 12px;

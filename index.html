@@ -155,7 +155,7 @@
               <button class="shop__buy" id="shop-buy-all" type="button">Summon all — 100 each</button>
               <button class="shop__buy" id="shop-evolve-all" type="button">Evolve all</button>
             </div>
-            <p class="shop__odds-label">Contents</p>
+            <p class="shop__odds-label" id="shop-odds-label">Contents</p>
             <div class="shop__odds" id="shop-odds"></div>
           </div>
 
@@ -177,6 +177,7 @@
     </main>
 
     <div class="corner">
+      <button class="corner__dev" id="updates-open" type="button">Updates</button>
       <button class="corner__dev" id="friends-open" type="button">Friends</button>
       <button class="corner__dev" id="handbook-open" type="button">Handbook</button>
       <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
@@ -194,6 +195,16 @@
 
   <!-- Visible from the first paint, so the login panel never
        flashes up for a player who is already signed in. -->
+  <div class="handbook" id="updates" hidden>
+    <div class="handbook__panel">
+      <h2 class="handbook__title">Update log</h2>
+      <div id="updates-list"></div>
+      <button class="handbook__close" id="updates-close" type="button">
+        Close
+      </button>
+    </div>
+  </div>
+
   <div class="handbook" id="friends" hidden>
     <div class="handbook__panel">
       <h2 class="handbook__title">Friends</h2>
@@ -394,6 +405,7 @@
   <script src="shop.js"></script>
   <script src="admin.js"></script>
   <script src="friends.js"></script>
+  <script src="updates.js"></script>
   <script src="match.js"></script>
 </body>
 </html>

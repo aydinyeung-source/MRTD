@@ -36,6 +36,7 @@
   var buyAll = document.getElementById("shop-buy-all");
   var evolveAllButton = document.getElementById("shop-evolve-all");
   var oddsLine = document.getElementById("shop-odds");
+  var oddsLabel = document.getElementById("shop-odds-label");
 
   if (!collection) {
     return;
@@ -92,12 +93,29 @@
   }
 
   function loadOdds() {
-    return api(
-      "/rest/v1/chest_odds?select=tower_key,weight,rarity&order=weight.desc"
-    )
+    /* The line-up rotates every half hour, so the chest is asked
+       what is in it now rather than reading the whole table. */
+    return api("/rest/v1/rpc/active_chest", { method: "POST", body: {} })
+      .then(function (rows) {
+        return (rows || []).sort(function (a, b) {
+          return b.weight - a.weight;
+        });
+      })
       .catch(function () {
         return [];
       });
+  }
+
+  /* Same half hour boundary the database uses, so the countdown
+     agrees with the rotation without asking. */
+  function untilRotation() {
+    var slot = 1800000;
+    var next = (Math.floor(Date.now() / slot) + 1) * slot;
+    var left = Math.max(0, Math.round((next - Date.now()) / 1000));
+    var minutes = Math.floor(left / 60);
+    var seconds = left % 60;
+
+    return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
   }
 
   function loadCollection() {
@@ -269,6 +287,10 @@
      the database rather than written here. */
   function renderOdds(rows) {
     oddsLine.textContent = "";
+
+    if (oddsLabel) {
+      oddsLabel.textContent = "Contents · rotates in " + untilRotation();
+    }
 
     if (!rows || !rows.length) {
       return;
@@ -463,6 +485,22 @@
 
   document.addEventListener("mrtd:dev", refresh);
   document.addEventListener("mrtd:granted", refresh);
+
+  /* Keeps the countdown honest, and pulls the new line-up in when
+     the half hour turns over. */
+  window.setInterval(function () {
+    if (!oddsLabel) {
+      return;
+    }
+
+    var wasEnding = oddsLabel.textContent.indexOf("0:0") >= 0;
+
+    oddsLabel.textContent = "Contents · rotates in " + untilRotation();
+
+    if (wasEnding && untilRotation().indexOf("29:") === 0) {
+      refresh();
+    }
+  }, 1000);
 
   document.addEventListener("mrtd:locked", function () {
     collection.textContent = "";
