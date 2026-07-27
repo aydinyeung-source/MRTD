@@ -176,14 +176,14 @@
   var TOWERS = {
     blender: {
       label: "Blender", role: "damage",
-      damage: 60, range: 15, cooldown: 0.5, cost: 300, // 120 dps
+      damage: 45, range: 15, cooldown: 0.5, cost: 300, // 90 dps, 0.30 per cash
       attack: { shape: "circle", angle: 360 }
     },
     dagger: {
-      /* The cheap opener. Deliberately poor value per coin — it is
-         what you can afford at wave 1, not what you build on. */
+      /* Best value per coin by a distance, paid for with a one
+         tile reach — it only works where the path comes to it. */
       label: "Dagger", role: "damage",
-      damage: 35, range: 20, cooldown: 0.4, cost: 100, // 87.5 dps
+      damage: 100, range: 10, cooldown: 1, cost: 100, // 100 dps, 1.00 per cash
       attack: { shape: "single" }
     },
     farm: {
@@ -193,14 +193,15 @@
     },
     shotgunner: {
       label: "Shotgunner", role: "damage",
-      damage: 600, range: 30, cooldown: 2.5, cost: 600, // 240 dps point blank
-      /* 100 degree spread in front. 600 at the muzzle falling
-         linearly to 60 at maximum range, so falloffTo is 0.1. */
-      attack: { shape: "cone", angle: 100, falloffTo: 0.1 }
+      damage: 750, range: 30, cooldown: 2.5, cost: 600, // 300 dps, 0.50 per cash
+      /* 100 degree spread in front. Never drops below half damage,
+         so where in the cone something is caught matters far less
+         than that it is caught at all. */
+      attack: { shape: "cone", angle: 100, falloffTo: 0.5 }
     },
     sniper: {
       label: "Sniper", role: "damage",
-      damage: 1200, range: 60, cooldown: 3, cost: 600, // 400 dps
+      damage: 900, range: 60, cooldown: 3, cost: 600, // 300 dps, 0.50 per cash
       attack: { shape: "single" }
     }
   };
