@@ -150,6 +150,10 @@
      stays on screen while you read it. */
   var inspected = null;
 
+  /* Which way the map is currently laid out, so a flip can be
+     detected and the board turned with it. */
+  var portraitMode = null;
+
   /* The tower waiting to be positioned, as { key, level }. Shown
      semi-opaque until a second click commits it. */
   var placing = null;
@@ -199,8 +203,38 @@
     return tiles;
   }
 
+  /* The map is transposed in portrait, so anything already placed
+     has to turn with it — otherwise a block of towers keeps its
+     old shape on a grid that has swapped axes and ends up sitting
+     on the path. */
+  function transposeTowers() {
+    var turned = {};
+
+    Object.keys(towers).forEach(function (position) {
+      var parts = position.split(",");
+
+      turned[key(Number(parts[1]), Number(parts[0]))] = towers[position];
+    });
+
+    towers = turned;
+
+    /* These all point at a tile by name and would now be wrong. */
+    hover = null;
+    inspected = null;
+    drag = null;
+    sellZone = null;
+    closeInspect();
+  }
+
   function layout() {
     var portrait = window.innerHeight > window.innerWidth;
+
+    if (portraitMode !== null && portrait !== portraitMode) {
+      transposeTowers();
+    }
+
+    portraitMode = portrait;
+
     var cols = portrait ? GRID.rows : GRID.cols;
     var rows = portrait ? GRID.cols : GRID.rows;
     var width = window.innerWidth;
@@ -2259,6 +2293,7 @@
     projectiles = [];
     particles = [];
     spawnQueue = [];
+    portraitMode = null;
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
     baseHp = stats.baseHp;
     wave = 0;
