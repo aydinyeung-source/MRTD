@@ -1370,20 +1370,38 @@
   function payWave() {
     var total = WAVE_BONUS;
     var farmed = 0;
+    var maxed = [];
+    var rest = [];
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
       var income = stats.coins(tower.key, tower.level, evolutionFor(tower));
 
-      if (!income) {
+      if (income <= 0) {
         return;
       }
 
-      /* Every farm pays; the board already caps how many of each
-         level can exist. */
-      total += income;
-      farmed += income;
-      spendParticles(position);
+      var earner = { position: position, income: income };
+
+      /* A fully merged farm always earns, however many there are. */
+      if (tower.level >= MAX_LEVEL) {
+        maxed.push(earner);
+      } else {
+        rest.push(earner);
+      }
+    });
+
+    /* Shuffled before sorting, so farms tied on level are picked
+       at random rather than by whichever tile came first. */
+    shuffle(rest);
+    rest.sort(function (a, b) {
+      return b.income - a.income;
+    });
+
+    maxed.concat(rest.slice(0, PAYING_FARMS)).forEach(function (earner) {
+      total += earner.income;
+      farmed += earner.income;
+      spendParticles(earner.position);
     });
 
     cash += total;
@@ -1979,10 +1997,11 @@
       return;
     }
 
-    /* Merging never breaches the limit, only new placements do. */
+    /* Merging never breaches either limit, only new placements do. */
     if (placed() >= placementLimit()) {
       return;
     }
+
 
     var price = stats.buyCost(placing.key, placing.level);
 
@@ -2002,7 +2021,6 @@
       angle: 0
     };
     placing = null;
-    resolveFarms();
     refreshHud();
   }
 
@@ -2154,44 +2172,22 @@
      Placing and merging
      ========================================================= */
 
-  /* At most two farms of any one level may stand on the board. A
-     third folds two of them into the next level up, cascading if
-     that lands on a full level too. */
-  var FARMS_PER_LEVEL = 2;
+  /* Only the three best unmaxed farms earn. Build as many as you
+     like — a ladder of lower levels is how merges are staged —
+     but the rest are stock, not income. Fully merged farms are
+     exempt and always pay. */
+  var PAYING_FARMS = 3;
 
-  function resolveFarms() {
-    var merged = true;
+  function shuffle(list) {
+    for (var i = list.length - 1; i > 0; i -= 1) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var swap = list[i];
 
-    while (merged) {
-      merged = false;
-
-      var byLevel = {};
-
-      Object.keys(towers).forEach(function (position) {
-        var tower = towers[position];
-
-        if (tower.key !== "farm") {
-          return;
-        }
-
-        byLevel[tower.level] = byLevel[tower.level] || [];
-        byLevel[tower.level].push(position);
-      });
-
-      var levels = Object.keys(byLevel);
-
-      for (var i = 0; i < levels.length; i += 1) {
-        var level = Number(levels[i]);
-        var group = byLevel[level];
-
-        if (group.length > FARMS_PER_LEVEL && level < MAX_LEVEL) {
-          towers[group[0]].level = level + 1;
-          delete towers[group[1]];
-          merged = true;
-          break;
-        }
-      }
+      list[i] = list[j];
+      list[j] = swap;
     }
+
+    return list;
   }
 
   function canMerge(source, target) {
@@ -2227,7 +2223,6 @@
         angle: tower.angle || 0
       };
       delete towers[from];
-      resolveFarms();
       return;
     }
 
