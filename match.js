@@ -313,6 +313,10 @@
      Sprites
      ========================================================= */
 
+  /* The turning piece, if a tower has one drawn. Bases stay flat
+     and this is laid over them. */
+  var tops = {};
+
   function loadSprites() {
     TOWER_KEYS.forEach(function (name) {
       sprites[name] = {};
@@ -320,7 +324,23 @@
       for (var level = 1; level <= MAX_LEVEL; level += 1) {
         loadSprite(name, level);
       }
+
+      loadTop(name);
     });
+  }
+
+  function loadTop(name) {
+    var image = new Image();
+
+    image.onload = function () {
+      tops[name] = image;
+    };
+
+    image.onerror = function () {
+      tops[name] = null;
+    };
+
+    image.src = "towers/" + name + "/top.svg";
   }
 
   /* The largest costume a tower has, so the others can be drawn in
@@ -511,11 +531,31 @@
     ctx.restore();
   }
 
-  /* The barrel the artwork does not have: a stub that turns to
-     show where the tower is aiming. Drawn over the base, and it
-     lengthens as the tower merges. */
+  /* The turning piece. Uses the tower's own top.svg when one has
+     been drawn, and falls back to a plain barrel when it has not,
+     so aim is always visible. */
   function drawBarrel(tower, x, y, size) {
     if (!stats.attack(tower.key)) {
+      return;
+    }
+
+    var top = tops[tower.key];
+
+    if (top) {
+      var reference = spriteScale[tower.key] || Math.max(top.width, top.height);
+      var scale = size / reference;
+
+      ctx.save();
+      ctx.translate(x + size / 2, y + size / 2);
+      ctx.rotate(tower.angle || 0);
+      ctx.drawImage(
+        top,
+        (-top.width * scale) / 2,
+        (-top.height * scale) / 2,
+        top.width * scale,
+        top.height * scale
+      );
+      ctx.restore();
       return;
     }
 
