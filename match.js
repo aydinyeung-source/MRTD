@@ -70,6 +70,7 @@
   var autoButton = document.getElementById("match-auto");
   var hotbar = document.getElementById("hotbar");
   var levels = document.getElementById("levels");
+  var inspect = document.getElementById("inspect");
   var cashDisplay = document.getElementById("match-cash");
   var hpDisplay = document.getElementById("match-hp");
   var placedDisplay = document.getElementById("match-placed");
@@ -1242,6 +1243,103 @@
     levels.hidden = true;
   }
 
+  /* =========================================================
+     Inspect panel — right click a placed tower
+     ========================================================= */
+
+  function describeAttack(name) {
+    var attack = stats.attack(name);
+
+    if (!attack) {
+      return "None";
+    }
+
+    if (attack.shape === "cone") {
+      return attack.angle + "° cone, falls to " +
+        Math.round(attack.falloffTo * 100) + "% at max range";
+    }
+
+    if (attack.shape === "circle") {
+      return "All targets in range";
+    }
+
+    return "Single target";
+  }
+
+  function statLine(label, value) {
+    var row = document.createElement("p");
+
+    row.className = "inspect__row";
+
+    var name = document.createElement("span");
+    name.textContent = label;
+    row.appendChild(name);
+
+    var amount = document.createElement("span");
+    amount.className = "inspect__value";
+    amount.textContent = value;
+    row.appendChild(amount);
+
+    return row;
+  }
+
+  function round(value) {
+    return Math.round(value * 10) / 10;
+  }
+
+  function openInspect(tower, x, y) {
+    var definition = stats.towers[tower.key];
+    var damage = stats.damage(tower.key, tower.level, 0);
+    var cooldown = stats.cooldown(tower.key);
+    var reach = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
+
+    inspect.textContent = "";
+
+    var title = document.createElement("p");
+    title.className = "inspect__title";
+    title.textContent = definition.label + "  ·  Level " + tower.level;
+    inspect.appendChild(title);
+
+    if (damage > 0) {
+      inspect.appendChild(statLine("Damage", String(Math.round(damage))));
+      inspect.appendChild(statLine("Cooldown", cooldown + "s"));
+      inspect.appendChild(
+        statLine("DPS", String(Math.round(damage / cooldown)))
+      );
+    }
+
+    var coins = stats.coins(tower.key, tower.level, 0);
+
+    if (coins > 0) {
+      inspect.appendChild(
+        statLine("Cash per wave", String(Math.round(coins)))
+      );
+    }
+
+    inspect.appendChild(statLine("Range", round(reach) + " tiles"));
+    inspect.appendChild(statLine("Attack", describeAttack(tower.key)));
+    inspect.appendChild(
+      statLine("Worth", String(Math.round(stats.buyCost(tower.key, tower.level))))
+    );
+    inspect.appendChild(
+      statLine("Sells for", String(Math.round(stats.sellValue(tower.key, tower.level))))
+    );
+
+    inspect.hidden = false;
+
+    /* Kept inside the window whichever corner it is opened in. */
+    var box = inspect.getBoundingClientRect();
+    var left = Math.min(x + 14, window.innerWidth - box.width - 12);
+    var top = Math.min(y + 14, window.innerHeight - box.height - 12);
+
+    inspect.style.left = Math.max(12, left) + "px";
+    inspect.style.top = Math.max(12, top) + "px";
+  }
+
+  function closeInspect() {
+    inspect.hidden = true;
+  }
+
   function refreshHotbar() {
     Array.prototype.forEach.call(hotbar.children, function (button) {
       var name = button.dataset.tower;
@@ -1300,9 +1398,27 @@
      Input
      ========================================================= */
 
+  /* Right click a placed tower to read everything about it. */
+  canvas.addEventListener("contextmenu", function (event) {
+    event.preventDefault();
+
+    var point = pointerPosition(event);
+    var tile = tileAt(point.x, point.y);
+    var tower = tile && towers[key(tile[0], tile[1])];
+
+    if (!tower) {
+      closeInspect();
+      return;
+    }
+
+    openInspect(tower, event.clientX, event.clientY);
+  });
+
   canvas.addEventListener("pointerdown", function (event) {
     var point = pointerPosition(event);
     var tile = tileAt(point.x, point.y);
+
+    closeInspect();
 
     /* Second click commits the tower being positioned. */
     if (placing) {
@@ -1387,6 +1503,11 @@
   /* Escape cancels a pending placement. */
   window.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") {
+      return;
+    }
+
+    if (!inspect.hidden) {
+      closeInspect();
       return;
     }
 
