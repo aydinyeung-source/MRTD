@@ -218,8 +218,10 @@
     }
 
     if (attack.shape === "cone") {
-      return attack.angle + "° cone, falls to " +
-        Math.round(attack.falloffTo * 100) + "% at range";
+      return attack.falloffTo === undefined
+        ? attack.angle + "° cone, full damage"
+        : attack.angle + "° cone, falls to " +
+            Math.round(attack.falloffTo * 100) + "% at range";
     }
 
     return attack.shape === "circle" ? "All in range" : "Single target";

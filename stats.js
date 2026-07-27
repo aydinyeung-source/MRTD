@@ -185,7 +185,7 @@
   var TOWERS = {
     blender: {
       label: "Blender", role: "damage",
-      damage: 45, range: 15, cooldown: 0.5, cost: 300, // 90 dps, 0.30 per cash
+      damage: 45, range: 15, cooldown: 0.5, cost: 900, // 90 dps, 0.10 per cash
       attack: { shape: "circle", angle: 360 }
     },
     dagger: {
@@ -203,10 +203,9 @@
     shotgunner: {
       label: "Shotgunner", role: "damage",
       damage: 750, range: 30, cooldown: 2.5, cost: 600, // 300 dps, 0.50 per cash
-      /* 100 degree spread in front. Never drops below half damage,
-         so where in the cone something is caught matters far less
-         than that it is caught at all. */
-      attack: { shape: "cone", angle: 100, falloffTo: 0.5 }
+      /* 100 degree spread in front, full damage anywhere inside
+         it. No falloff, so all that matters is being in the arc. */
+      attack: { shape: "cone", angle: 100 }
     },
     sniper: {
       label: "Sniper", role: "damage",

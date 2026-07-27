@@ -1256,27 +1256,7 @@
     return pathPoint(enemy.progress);
   }
 
-  function distanceTo(origin, progress) {
-    var point = pathPoint(progress);
-    var dx = point.x - origin.x;
-    var dy = point.y - origin.y;
 
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  /* True once an enemy has stopped closing on the tower — it is at
-     the nearest point of its walk, or already moving away.
-
-     Cone towers wait for this instead of firing the moment
-     something clips their range, so the point blank multiplier
-     lands on the lead enemy rather than being wasted at maximum
-     distance for a tenth of the damage. */
-  function atClosestApproach(origin, enemy) {
-    var now = distanceTo(origin, enemy.progress);
-    var soon = distanceTo(origin, enemy.progress + enemy.speed * 0.2);
-
-    return soon >= now;
-  }
 
   /* Towers shoot the enemy furthest along the path, which is the
      one closest to the base. */
@@ -1320,16 +1300,7 @@
     var primary = inRange[0];
     var aim = enemyAt(primary);
 
-    /* Always face the lead enemy, even while holding fire. */
     tower.angle = Math.atan2(aim.y - origin.y, aim.x - origin.x) + Math.PI / 2;
-
-    /* Cones hold until the lead enemy is at point blank. The
-       cooldown is left ready so the shot goes off the instant it
-       arrives. */
-    if (attack.shape === "cone" && !atClosestApproach(origin, primary)) {
-      return;
-    }
-
     tower.cooldown = stats.cooldown(tower.key);
 
     var targets = attack.shape === "single" ? [primary] : inRange;
@@ -1907,8 +1878,10 @@
     }
 
     if (attack.shape === "cone") {
-      return attack.angle + "° cone, falls to " +
-        Math.round(attack.falloffTo * 100) + "% at max range";
+      return attack.falloffTo === undefined
+        ? attack.angle + "° cone, full damage"
+        : attack.angle + "° cone, falls to " +
+            Math.round(attack.falloffTo * 100) + "% at max range";
     }
 
     if (attack.shape === "circle") {
