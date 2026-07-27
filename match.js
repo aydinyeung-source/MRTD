@@ -44,7 +44,7 @@
   var MAX_LEVEL = 10;
   var TOWER_KEYS = [
     "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner",
-    "beacon", "forge", "metronome", "djtv"
+    "beacon", "forge", "metronome", "djtv", "quantum"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -65,7 +65,8 @@
     beacon: { body: "#3f5a7a", accent: "#8fb7e2", plan: "aura" },
     forge: { body: "#7a4038", accent: "#e0895f", plan: "aura" },
     metronome: { body: "#6a5a7f", accent: "#b79ce0", plan: "aura" },
-    djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" }
+    djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" },
+    quantum: { body: "#1b2b3a", accent: "#5fe3d0", plan: "orbit" }
   };
 
   var root = document.getElementById("match");
@@ -712,9 +713,43 @@
     });
   }
 
+  /* Quantum: a core with particles orbiting it, one more each
+     merge, on a tilted ring. */
+  function planOrbit(token, radius, level) {
+    var particles = 3 + level;
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.06);
+
+    ctx.save();
+    ctx.rotate(-0.4);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.25, radius * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < particles; i += 1) {
+      var angle = (i / particles) * Math.PI * 2;
+
+      ctx.beginPath();
+      ctx.arc(
+        Math.cos(angle) * radius * 1.25,
+        Math.sin(angle) * radius * 0.55,
+        radius * 0.11,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
   var PLANS = {
     aura: planAura,
     decks: planDecks,
+    orbit: planOrbit,
     blades: planBlades,
     arm: planArm,
     axes: planAxes,

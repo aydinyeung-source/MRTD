@@ -1,14 +1,14 @@
 -- ============================================================
 -- MRTD chest: seven towers on a rotating line-up.
 --
---   common     dagger, axe                52%
---   rare       farm, sniper, shotgunner   27%
---   epic       blender, spawner           18%
---   legendary  beacon, forge, metronome    2%
---   mythic     djtv                        1%
+--   common     dagger, axe                51.3%
+--   rare       farm, sniper, shotgunner   26.7%
+--   epic       blender, spawner           18.0%
+--   legendary  beacon, forge, metronome    3.0%
+--   mythic     djtv, quantum               1.0%
 --
--- Legendary takes what is left after the others, so adding the
--- 1% mythic moved it from 3 to 2.
+-- Weights are per mille rather than percent, because 51.3 is not
+-- a whole number and the column is an integer. They add to 1000.
 --
 -- One tower from each rarity is in the chest at a time. The
 -- line-up changes every half hour and is worked out from the
@@ -24,19 +24,18 @@
 -- ============================================================
 
 insert into public.chest_odds (tower_key, weight, rarity) values
-  ('dagger',     52, 'common'),
-  ('axe',        52, 'common'),
-  ('farm',       27, 'rare'),
-  ('sniper',     27, 'rare'),
-  ('shotgunner', 27, 'rare'),
-  ('blender',    18, 'epic'),
-  ('spawner',    18, 'epic'),
-  -- The three boosters share the 3% legendary slot, one up at a
-  -- time like every other rarity.
-  ('beacon',      2, 'legendary'),
-  ('forge',       2, 'legendary'),
-  ('metronome',   2, 'legendary'),
-  ('djtv',        1, 'mythic')
+  ('dagger',     513, 'common'),
+  ('axe',        513, 'common'),
+  ('farm',       267, 'rare'),
+  ('sniper',     267, 'rare'),
+  ('shotgunner', 267, 'rare'),
+  ('blender',    180, 'epic'),
+  ('spawner',    180, 'epic'),
+  ('beacon',      30, 'legendary'),
+  ('forge',       30, 'legendary'),
+  ('metronome',   30, 'legendary'),
+  ('djtv',        10, 'mythic'),
+  ('quantum',     10, 'mythic')
 on conflict (tower_key) do update
   set weight = excluded.weight, rarity = excluded.rarity;
 

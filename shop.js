@@ -315,7 +315,12 @@
 
       var chance = document.createElement("p");
       chance.className = "chestitem__chance";
-      chance.textContent = Math.round((row.weight / total) * 100) + "%";
+      /* One decimal, because the shares are not all whole
+         numbers, but no trailing ".0" when they are. */
+      var percent = (row.weight / total) * 100;
+
+      chance.textContent =
+        (percent < 10 ? percent.toFixed(1) : Math.round(percent * 10) / 10) + "%";
       item.appendChild(chance);
 
       var icon = document.createElement("img");

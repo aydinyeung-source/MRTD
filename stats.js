@@ -257,6 +257,15 @@
       boost: 6, range: 25,
       attack: null
     },
+    quantum: {
+      /* 1500 dps to everything in reach at once. Four times the
+         blender's efficiency per coin with nearly three times the
+         radius — it is meant to be the best thing in the chest,
+         and it is priced and gated accordingly. */
+      label: "Quantum", role: "damage",
+      damage: 150, range: 42, cooldown: 0.1, cost: 5000, // 1500 dps, 0.30 per cash
+      attack: { shape: "circle", angle: 360 }
+    },
     djtv: {
       /* Does all three boosters' jobs at once, at the same
          strength each. One of these replaces a Beacon, a Forge
