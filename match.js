@@ -74,6 +74,7 @@
   var hpDisplay = document.getElementById("match-hp");
   var placedDisplay = document.getElementById("match-placed");
   var waveDisplay = document.getElementById("match-wave");
+  var timeDisplay = document.getElementById("match-time");
   var aliveDisplay = document.getElementById("match-alive");
   var beatenDisplay = document.getElementById("match-beaten");
   var payoutDisplay = document.getElementById("match-payout");
@@ -128,6 +129,11 @@
 
   /* The in-flight bank_run call, so leaving waits for it. */
   var banking = null;
+
+  /* Time the RUN has experienced, not wall clock. It advances with
+     the simulation, so 2x and 10x speed it up exactly as they do
+     everything else. */
+  var elapsed = 0;
 
 
   /* Simulation is advanced in fixed slices. Without this, 10x
@@ -1461,6 +1467,8 @@
       return;
     }
 
+    elapsed += delta;
+
     /* Spawning. */
     if (waveActive && spawnQueue.length) {
       spawnTimer -= delta;
@@ -1649,6 +1657,12 @@
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
     placedDisplay.textContent = placed() + " / " + placementLimit();
     waveDisplay.textContent = String(wave);
+
+    var minutes = Math.floor(elapsed / 60);
+    var seconds = Math.floor(elapsed % 60);
+
+    timeDisplay.textContent =
+      minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
 
     /* Everything on the path, including whatever is still queued
        to spawn this wave. */
@@ -2257,6 +2271,7 @@
     particles = [];
     spawnQueue = [];
     portraitMode = null;
+    elapsed = 0;
     killTotal = 0;
 
     if (killTotalDisplay) {
@@ -2306,41 +2321,46 @@
      Whatever happens is reported on the panel — a run that pays
      nothing should say why rather than look broken. */
   function bankRun(waves) {
-    var session = window.MRTD.session();
-
     if (isDev()) {
       return Promise.resolve();
     }
 
-    if (!session || !session.access_token) {
-      gameoverNote.textContent = "Not signed in — nothing banked";
-      return Promise.resolve();
-    }
+    /* A long run can outlive the access token, so it is renewed
+       before the one call that must not fail. */
+    return (window.MRTD.freshen
+      ? window.MRTD.freshen()
+      : Promise.resolve(window.MRTD.session())
+    ).then(function (session) {
+      if (!session || !session.access_token) {
+        gameoverNote.textContent = "Not signed in — nothing banked";
+        return null;
+      }
 
-    return fetch(window.MRTD.url + "/rest/v1/rpc/bank_run", {
-      method: "POST",
-      headers: {
-        apikey: window.MRTD.key,
-        Authorization: "Bearer " + session.access_token,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ waves_beaten: waves, sandbox: false })
-    })
-      .then(function (response) {
-        return response.json().then(function (data) {
-          if (!response.ok) {
-            throw new Error(data.message || data.msg || "Request failed");
-          }
+      return fetch(window.MRTD.url + "/rest/v1/rpc/bank_run", {
+        method: "POST",
+        headers: {
+          apikey: window.MRTD.key,
+          Authorization: "Bearer " + session.access_token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ waves_beaten: waves, sandbox: false })
+      })
+        .then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok) {
+              throw new Error(data.message || data.msg || "Request failed");
+            }
 
-          return data;
+            return data;
+          });
+        })
+        .then(function (balance) {
+          gameoverNote.textContent = "Banked · " + balance + " coins total";
+        })
+        .catch(function (error) {
+          gameoverNote.textContent = "Could not bank: " + error.message;
         });
-      })
-      .then(function (balance) {
-        gameoverNote.textContent = "Banked · " + balance + " coins total";
-      })
-      .catch(function (error) {
-        gameoverNote.textContent = "Could not bank: " + error.message;
-      });
+    });
   }
 
   function open() {

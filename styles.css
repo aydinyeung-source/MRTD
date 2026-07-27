@@ -387,6 +387,14 @@ body::after {
   color: var(--ink);
 }
 
+.match__stat--time {
+  padding: 5px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: rgba(249, 251, 252, 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
 .match__stat--alive {
   padding: 5px 11px;
   border: 1px solid var(--rule);

@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.25.5";
+  var VERSION = "1.25.6";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -224,9 +224,41 @@
     setMessage("Signed out — this account was used on another device.", true);
   }
 
-  /* One call does two jobs: refreshes this player's presence stamp
-     so the admin panel can count who is online, and returns the
-     session that currently owns the account. */
+  /* Access tokens last an hour. A long match outlives one, and
+     every authenticated call then fails — including banking the
+     run. The heartbeat renews it well before that happens, which
+     keeps the stored session valid for every other module too. */
+  var REFRESH_MARGIN_MS = 10 * 60 * 1000;
+
+  function freshenToken() {
+    var session = loadSession();
+
+    if (!session || !session.refresh_token) {
+      return Promise.resolve(session);
+    }
+
+    var expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+
+    if (expiresAt && expiresAt - Date.now() > REFRESH_MARGIN_MS) {
+      return Promise.resolve(session);
+    }
+
+    return refresh(session.refresh_token)
+      .then(function (renewed) {
+        saveSession(renewed);
+        return renewed;
+      })
+      .catch(function () {
+        /* The refresh token itself has gone; the next call will
+           fail and the player is asked to sign in again. */
+        return session;
+      });
+  }
+
+  /* One call does three jobs: keeps the token alive, refreshes
+     this player's presence stamp so the admin panel can count who
+     is online, and returns the session that currently owns the
+     account. */
   function checkDevice() {
     var mine = deviceToken();
 
@@ -234,7 +266,10 @@
       return;
     }
 
-    authed("/rest/v1/rpc/heartbeat", { method: "POST", body: {} })
+    freshenToken()
+      .then(function () {
+        return authed("/rest/v1/rpc/heartbeat", { method: "POST", body: {} });
+      })
       .then(function (result) {
         if (!result) {
           return;
@@ -732,6 +767,7 @@
   window.MRTD.session = loadSession;
   window.MRTD.userId = userId;
   window.MRTD.load = showLoader;
+  window.MRTD.freshen = freshenToken;
   window.MRTD.settings = settings;
 
   window.MRTD.feature = function (name) {
