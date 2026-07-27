@@ -74,6 +74,7 @@
   var hpDisplay = document.getElementById("match-hp");
   var placedDisplay = document.getElementById("match-placed");
   var waveDisplay = document.getElementById("match-wave");
+  var aliveDisplay = document.getElementById("match-alive");
   var beatenDisplay = document.getElementById("match-beaten");
   var payoutDisplay = document.getElementById("match-payout");
   var gameover = document.getElementById("gameover");
@@ -115,6 +116,9 @@
 
   /* The in-flight bank_run call, so leaving waits for it. */
   var banking = null;
+
+  /* Enemies that reached the base during the current wave. */
+  var leaked = 0;
 
   /* Simulation is advanced in fixed slices. Without this, 10x
      would take one huge step per frame and cooldowns would drift —
@@ -1089,6 +1093,7 @@
     breakLeft = 0;
     spawnTimer = 0;
     spawnQueue = [];
+    leaked = 0;
 
     var pool = stats.wavePool(wave);
     var count = stats.waveCount(wave);
@@ -1287,9 +1292,11 @@
       }
 
       /* A leak costs the base whatever hp the enemy had left, so
-         damage done on the way still counts for something. */
+         damage done on the way still counts for something. It pays
+         no bounty and does not count as a kill. */
       if (enemy.progress >= end) {
         baseHp = Math.max(0, baseHp - enemy.hp);
+        leaked += 1;
         return false;
       }
 
@@ -1305,10 +1312,17 @@
       return shot.life > 0;
     });
 
-    /* Wave clears when everything is spawned and dead. */
+    /* The wave ends once nothing is left on the path, but it only
+       counts as BEATEN if every enemy was killed. Letting them walk
+       into the base is not a win, so it earns no credit and no
+       coins at the end of the run. */
     if (waveActive && !spawnQueue.length && !enemies.length) {
       waveActive = false;
-      wavesBeaten = wave;
+
+      if (!leaked) {
+        wavesBeaten = wave;
+      }
+
       breakLeft = BREAK_SECONDS;
 
       /* The intermission belongs to the wave ahead, so it pays
@@ -1402,9 +1416,13 @@
     placedDisplay.textContent = placed() + " / " + placementLimit();
     waveDisplay.textContent = String(wave);
 
+    /* Everything on the path, including whatever is still queued
+       to spawn this wave. */
+    aliveDisplay.textContent = String(enemies.length + spawnQueue.length);
+
     /* What the run is worth if it ended right now. A wave only
-       counts once it has been cleared, so this rises when the wave
-       ends rather than when it starts. */
+       counts once every enemy in it has been killed, so leaking
+       does not move this. */
     beatenDisplay.textContent = String(wavesBeaten);
     payoutDisplay.textContent = isDev()
       ? "0"

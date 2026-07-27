@@ -387,6 +387,17 @@ body::after {
   color: var(--ink);
 }
 
+.match__stat--alive {
+  padding: 5px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: rgba(249, 251, 252, 0.9);
+}
+
+.match__stat--alive span {
+  color: #9d4b45;
+}
+
 /* What the run is currently worth. */
 .match__stat--reward {
   padding: 5px 11px;
