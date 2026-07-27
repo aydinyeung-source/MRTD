@@ -98,7 +98,7 @@
   var cash = 0;
   var baseHp = 0;
   var wave = 0;
-  var wavesBeaten = 0;
+  var wavesSurvived = 0;
   var spawnQueue = [];
   var spawnTimer = 0;
   var waveActive = false;
@@ -117,8 +117,6 @@
   /* The in-flight bank_run call, so leaving waits for it. */
   var banking = null;
 
-  /* Enemies that reached the base during the current wave. */
-  var leaked = 0;
 
   /* Simulation is advanced in fixed slices. Without this, 10x
      would take one huge step per frame and cooldowns would drift —
@@ -1093,7 +1091,6 @@
     breakLeft = 0;
     spawnTimer = 0;
     spawnQueue = [];
-    leaked = 0;
 
     var pool = stats.wavePool(wave);
     var count = stats.waveCount(wave);
@@ -1293,10 +1290,9 @@
 
       /* A leak costs the base whatever hp the enemy had left, so
          damage done on the way still counts for something. It pays
-         no bounty and does not count as a kill. */
+         no bounty, but the wave still counts as survived. */
       if (enemy.progress >= end) {
         baseHp = Math.max(0, baseHp - enemy.hp);
-        leaked += 1;
         return false;
       }
 
@@ -1312,17 +1308,12 @@
       return shot.life > 0;
     });
 
-    /* The wave ends once nothing is left on the path, but it only
-       counts as BEATEN if every enemy was killed. Letting them walk
-       into the base is not a win, so it earns no credit and no
-       coins at the end of the run. */
+    /* A wave counts once nothing is left on the path, however it
+       got there. Tanking a wave with the base is a valid way to
+       survive it — the cost is the health, not the credit. */
     if (waveActive && !spawnQueue.length && !enemies.length) {
       waveActive = false;
-
-      if (!leaked) {
-        wavesBeaten = wave;
-      }
-
+      wavesSurvived = wave;
       breakLeft = BREAK_SECONDS;
 
       /* The intermission belongs to the wave ahead, so it pays
@@ -1420,13 +1411,12 @@
        to spawn this wave. */
     aliveDisplay.textContent = String(enemies.length + spawnQueue.length);
 
-    /* What the run is worth if it ended right now. A wave only
-       counts once every enemy in it has been killed, so leaking
-       does not move this. */
-    beatenDisplay.textContent = String(wavesBeaten);
+    /* What the run is worth if it ended right now. Surviving a
+       wave is enough — tanking one with the base still counts. */
+    beatenDisplay.textContent = String(wavesSurvived);
     payoutDisplay.textContent = isDev()
       ? "0"
-      : String(stats.runReward(wavesBeaten));
+      : String(stats.runReward(wavesSurvived));
     exitButton.disabled = baseHp > 0;
 
     /* Skip is offered once the wave has finished spawning and
@@ -1985,7 +1975,7 @@
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
     baseHp = stats.baseHp;
     wave = 0;
-    wavesBeaten = 0;
+    wavesSurvived = 0;
     waveActive = false;
 
     /* The same breather as between waves, so there is time to
@@ -2005,17 +1995,17 @@
     running = false;
     waveActive = false;
 
-    gameoverWaves.textContent = String(wavesBeaten);
+    gameoverWaves.textContent = String(wavesSurvived);
     gameoverCoins.textContent = isDev()
       ? "0"
-      : String(stats.runReward(wavesBeaten));
+      : String(stats.runReward(wavesSurvived));
     gameoverNote.hidden = false;
     gameoverNote.textContent = isDev()
       ? "Dev mode — nothing banked"
       : "Banking...";
     gameover.hidden = false;
 
-    banking = bankRun(wavesBeaten);
+    banking = bankRun(wavesSurvived);
   }
 
   /* Credit the coins server side. The reward is recalculated in
