@@ -222,7 +222,10 @@
     },
     shotgunner: {
       label: "Shotgunner", role: "damage",
-      damage: 750, range: 20, cooldown: 2.5, cost: 600, // 300 dps, 0.50 per cash
+      /* Pinned at three times the blender's output. Both scale on
+         the same curves, so the ratio holds at every merge level
+         and every evolution. */
+      damage: 675, range: 20, cooldown: 2.5, cost: 600, // 270 dps, 0.45 per cash
       /* 100 degree spread in front, full damage anywhere inside
          it. No falloff, so all that matters is being in the arc. */
       attack: { shape: "cone", angle: 100 }
