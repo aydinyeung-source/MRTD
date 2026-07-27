@@ -235,6 +235,18 @@
   window.MRTD.loadout = function () {
     return equipped.slice();
   };
+
+  /* The evolution a tower fights at: the best copy owned, or the
+     ceiling in developer mode. */
+  window.MRTD.evolutionOf = function (name) {
+    if (window.MRTD.dev) {
+      return window.MRTD.stats.maxEvolution;
+    }
+
+    var entry = ownedEntry(name);
+
+    return entry ? entry.evolution : 0;
+  };
   window.MRTD.refreshLoadout = refresh;
 
   document.addEventListener("mrtd:unlocked", refresh);

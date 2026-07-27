@@ -503,7 +503,9 @@
   }
 
   function drawRange(tower, centreX, centreY) {
-    var tiles = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
+    var tiles =
+      stats.range(tower.key, tower.level, evolutionFor(tower)) /
+      stats.rangePerTile;
 
     if (tiles <= 0) {
       return;
@@ -519,7 +521,9 @@
   }
 
   function drawRangeLabel(tower, rect) {
-    var tiles = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
+    var tiles =
+      stats.range(tower.key, tower.level, evolutionFor(tower)) /
+      stats.rangePerTile;
     var text =
       stats.towers[tower.key].label + " " + tower.level +
       "  ·  " + (Math.round(tiles * 10) / 10) + " tiles";
@@ -862,7 +866,10 @@
 
     var parts = position.split(",");
     var origin = tileCentre(Number(parts[0]), Number(parts[1]));
-    var reach = (stats.range(tower.key, tower.level, 0) / stats.rangePerTile) * view.size;
+    var evolution = evolutionFor(tower);
+    var reach =
+      (stats.range(tower.key, tower.level, evolution) / stats.rangePerTile) *
+      view.size;
     var attack = definition.attack;
 
     var inRange = enemies.filter(function (enemy) {
@@ -907,7 +914,12 @@
 
       var statDistance = (distance / view.size) * stats.rangePerTile;
 
-      enemy.hp -= stats.damageAtDistance(tower.key, tower.level, 0, statDistance);
+      enemy.hp -= stats.damageAtDistance(
+        tower.key,
+        tower.level,
+        evolution,
+        statDistance
+      );
     });
 
     shots.push({
@@ -931,7 +943,7 @@
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
 
-      total += stats.coins(tower.key, tower.level, 0);
+      total += stats.coins(tower.key, tower.level, evolutionFor(tower));
     });
 
     cash += total;
@@ -1053,6 +1065,18 @@
 
   function upgradeLevel(name) {
     return window.MRTD.upgrade ? window.MRTD.upgrade(name) : 0;
+  }
+
+  /* Permanent progression, read once when a tower is placed and
+     carried on the tower itself so it survives merges. */
+  function evolutionOf(name) {
+    return window.MRTD.evolutionOf ? window.MRTD.evolutionOf(name) : 0;
+  }
+
+  function evolutionFor(tower) {
+    return tower.evolution === undefined
+      ? evolutionOf(tower.key)
+      : tower.evolution;
   }
 
   function placementLimit() {
@@ -1309,15 +1333,19 @@
 
   function openInspect(tower, x, y) {
     var definition = stats.towers[tower.key];
-    var damage = stats.damage(tower.key, tower.level, 0);
+    var evolution = evolutionFor(tower);
+    var damage = stats.damage(tower.key, tower.level, evolution);
     var cooldown = stats.cooldown(tower.key);
-    var reach = stats.range(tower.key, tower.level, 0) / stats.rangePerTile;
+    var reach =
+      stats.range(tower.key, tower.level, evolution) / stats.rangePerTile;
 
     inspect.textContent = "";
 
     var title = document.createElement("p");
     title.className = "inspect__title";
-    title.textContent = definition.label + "  ·  Level " + tower.level;
+    title.textContent =
+      definition.label + "  ·  Level " + tower.level +
+      (evolution ? "  ·  Evo " + evolution : "");
     inspect.appendChild(title);
 
     if (damage > 0) {
@@ -1328,7 +1356,7 @@
       );
     }
 
-    var coins = stats.coins(tower.key, tower.level, 0);
+    var coins = stats.coins(tower.key, tower.level, evolution);
 
     if (coins > 0) {
       inspect.appendChild(
@@ -1407,6 +1435,7 @@
     towers[at] = {
       key: placing.key,
       level: placing.level,
+      evolution: evolutionOf(placing.key),
       cooldown: 0,
       angle: 0
     };
@@ -1588,6 +1617,7 @@
       towers[to] = {
         key: tower.key,
         level: tower.level + 1,
+        evolution: evolutionFor(tower),
         cooldown: 0,
         angle: tower.angle || 0
       };
