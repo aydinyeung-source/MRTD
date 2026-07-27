@@ -312,6 +312,50 @@
     }
   };
 
+  /* =========================================================
+     Rarity
+
+     The chest_odds table is where rarity really lives, and the
+     shop reads it from there so the colours can never disagree
+     with the odds they describe. This copy exists because the
+     collection has to sort towers by rarity before any network
+     call has come back — and because a player can hold a tower
+     that has since been taken out of the chest entirely.
+
+     If the two ever disagree, the database wins.
+     ========================================================= */
+
+  /* Best first. Anything unlisted sorts last. */
+  var RARITY_ORDER = ["godly", "mythic", "legendary", "epic", "rare", "common"];
+
+  var RARITY = {
+    quantum: "godly",
+    djtv: "mythic",
+    icecannon: "mythic",
+    beacon: "legendary",
+    forge: "legendary",
+    metronome: "legendary",
+    blender: "epic",
+    spawner: "epic",
+    farm: "rare",
+    sniper: "rare",
+    shotgunner: "rare",
+    dagger: "common",
+    axe: "common"
+  };
+
+  function rarityOf(name) {
+    return RARITY[name] || "common";
+  }
+
+  /* Lower is rarer, so a plain ascending sort puts the best at
+     the top. Unknown rarities land after everything known. */
+  function rarityRank(rarity) {
+    var index = RARITY_ORDER.indexOf(rarity);
+
+    return index < 0 ? RARITY_ORDER.length : index;
+  }
+
   /* Allies scale on the same curves as everything else: root 5 per
      merge, 10% per evolution, applied to both health and damage. */
   var ALLY = { merge: Math.sqrt(5), evolution: 0.1 };
@@ -580,6 +624,9 @@
   window.MRTD.stats = {
     towers: TOWERS,
     roles: ROLES,
+    rarityOrder: RARITY_ORDER,
+    rarityOf: rarityOf,
+    rarityRank: rarityRank,
     merge: MERGE,
     maxMerge: MAX_MERGE,
     maxEvolution: MAX_EVOLUTION,

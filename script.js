@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.33.1";
+  var VERSION = "1.34.0";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";

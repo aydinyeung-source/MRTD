@@ -143,6 +143,21 @@
         </div>
       </section>
 
+      <section class="screen" id="screen-collection" data-screen="collection">
+        <p class="placeholder">Collection</p>
+
+        <div class="collection">
+          <div class="collection__bar">
+            <input class="collection__search" id="collection-search" type="search"
+                   placeholder="Search a tower..." autocomplete="off" spellcheck="false">
+            <button class="collection__evolve-all" id="collection-evolve-all" type="button">Merge all</button>
+          </div>
+
+          <p class="collection__status" id="collection-status"></p>
+          <div class="collection__list" id="collection-list"></div>
+        </div>
+      </section>
+
       <section class="screen" id="screen-shop" data-screen="shop">
         <p class="placeholder">Shop</p>
 
@@ -153,15 +168,12 @@
               <button class="shop__buy" id="shop-buy-1" type="button">Summon ×1 — 100</button>
               <button class="shop__buy" id="shop-buy-10" type="button">Summon ×10 — 900</button>
               <button class="shop__buy" id="shop-buy-all" type="button">Summon all — 100 each</button>
-              <button class="shop__buy" id="shop-evolve-all" type="button">Evolve all</button>
             </div>
             <p class="shop__odds-label" id="shop-odds-label">Contents</p>
             <div class="shop__odds" id="shop-odds"></div>
           </div>
 
           <p class="shop__status" id="shop-status"></p>
-
-          <div class="shop__collection" id="shop-collection"></div>
         </div>
       </section>
 
@@ -188,6 +200,7 @@
     <nav class="nav">
       <button class="nav__tab is-active" type="button" data-tab="play">Play</button>
       <button class="nav__tab" type="button" data-tab="towers">Towers</button>
+      <button class="nav__tab" type="button" data-tab="collection">Collection</button>
       <button class="nav__tab" type="button" data-tab="shop">Shop</button>
       <button class="nav__tab" type="button" data-tab="upgrades">Player Upgrades</button>
     </nav>
@@ -263,8 +276,9 @@
         <h3>Evolutions</h3>
         <p>
           Duplicate cards from chests merge into evolutions, two of a level
-          making one of the next. Evolutions are
-          <strong>permanent</strong> — they apply to every run from then on.
+          making one of the next, on the <strong>Collection</strong> tab.
+          Evolutions are <strong>permanent</strong> — they apply to every run
+          from then on.
         </p>
         <p>
           Every evolution adds <strong>10%</strong>, compounding, so a fully
@@ -294,6 +308,25 @@
         <p>
           Selling refunds <strong>half</strong> of everything spent building a
           tower, so a level 5 gives back eight towers' worth.
+        </p>
+      </section>
+
+      <section class="handbook__section">
+        <h3>Controls</h3>
+        <p>
+          <strong>1</strong> to <strong>5</strong> pick a hotbar slot.
+          <strong>F</strong> places the selected tower under the pointer;
+          <strong>E</strong> places it and keeps the tower selected, so a row
+          goes down without returning to the hotbar between each one.
+        </p>
+        <p>
+          Clicking still does everything the keys do. <strong>Right click</strong>
+          reads a placed tower's full stats, or puts down whatever you are
+          holding. <strong>Esc</strong> cancels.
+        </p>
+        <p>
+          Hold a hotbar slot to buy a merged tower outright, once
+          <strong>Quick buy</strong> is unlocked.
         </p>
       </section>
 
@@ -407,6 +440,7 @@
   <script src="stats.js"></script>
   <script src="script.js"></script>
   <script src="loadout.js"></script>
+  <script src="collection.js"></script>
   <script src="upgrades.js"></script>
   <script src="shop.js"></script>
   <script src="admin.js"></script>

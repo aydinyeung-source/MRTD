@@ -51,11 +51,18 @@
      Collection
      ========================================================= */
 
+  /* Resolves to null when the collection could not be read, and
+     only to an array when it genuinely came back. The difference
+     matters: this used to answer [] for a failed request as well
+     as for an empty collection, and the caller could not tell
+     them apart — so a request that failed after a match looked
+     like the player owning nothing, and the saved loadout was
+     pruned down to nothing and written back. */
   function fetchOwned() {
     var session = window.MRTD.session();
 
     if (!session || !session.access_token) {
-      return Promise.resolve([]);
+      return Promise.resolve(null);
     }
 
     return fetch(
@@ -69,10 +76,10 @@
       }
     )
       .then(function (response) {
-        return response.ok ? response.json() : [];
+        return response.ok ? response.json() : null;
       })
       .catch(function () {
-        return [];
+        return null;
       });
   }
 
@@ -327,9 +334,19 @@
     }
 
     return fetchOwned().then(function (rows) {
+      /* The read failed. Keep showing what we had and, above all,
+         do not write a pruned loadout over a good one — a blip
+         here is not evidence that anything was lost. */
+      if (rows === null) {
+        equipped = load();
+        render();
+        return;
+      }
+
       owned = condense(rows);
 
-      /* Drop anything no longer owned. */
+      /* Drop anything genuinely no longer owned — traded away,
+         or merged into a higher evolution. */
       equipped = load().filter(function (name) {
         return ownedEntry(name);
       });

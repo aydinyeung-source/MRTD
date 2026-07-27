@@ -499,6 +499,24 @@ body::after {
   cursor: default;
 }
 
+/* The key that selects this slot. Small and set back — it is a
+   reminder, not a label. */
+.hotbar__key {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.hotbar__slot.is-selected .hotbar__key {
+  color: var(--glacier-deep, var(--ink-soft));
+}
+
 .hotbar__icon {
   display: block;
   width: 100%;
@@ -960,25 +978,136 @@ body::after {
   color: #9d4b45;
 }
 
-.shop__empty {
+/* =========================================================
+   Collection
+
+   Every tower owned, rarest first, grouped by tower with one
+   card per evolution tier held.
+   ========================================================= */
+
+.collection {
+  margin-top: 24px;
+}
+
+.collection__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.collection__search {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background-color: var(--paper-raised);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.collection__search::placeholder {
+  color: var(--ink-muted);
+}
+
+.collection__search:focus {
+  outline: none;
+  border-color: var(--ink-soft);
+}
+
+.collection__evolve-all {
+  padding: 11px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background-color: var(--paper-raised);
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.collection__evolve-all:hover:not(:disabled) {
+  background-color: var(--paper);
+  border-color: var(--ink-soft);
+}
+
+.collection__evolve-all:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.collection__status {
+  margin: 14px 0 0;
+  min-height: 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.collection__status.is-error {
+  color: #9d4b45;
+}
+
+.collection__empty {
   margin: 20px 0 0;
   font-family: var(--mono);
   font-size: 12px;
   color: var(--ink-muted);
 }
 
-.shop__group {
-  margin-top: 28px;
+.collection__group {
+  margin-top: 26px;
+  padding-top: 18px;
+  /* A hairline in the rarity's colour, so scanning down the page
+     reads as tiers without shouting. */
+  border-top: 2px solid var(--rarity, var(--rule));
 }
 
-.shop__group-title {
-  margin: 0 0 12px;
+.collection__group-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.collection__group-title {
+  margin: 0;
   font-family: var(--rounded);
   font-weight: 700;
   font-size: 17px;
 }
 
-.shop__tiers {
+.collection__group-rarity {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--rarity, var(--ink-muted));
+}
+
+.collection__group-count {
+  margin: 0 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.collection__group[data-rarity="common"]    { --rarity: #5f6b71; }
+.collection__group[data-rarity="rare"]      { --rarity: #3f6e8c; }
+.collection__group[data-rarity="epic"]      { --rarity: #6b4b91; }
+.collection__group[data-rarity="legendary"] { --rarity: #8a6a12; }
+.collection__group[data-rarity="mythic"]    { --rarity: #a82c5e; }
+.collection__group[data-rarity="godly"]     { --rarity: #2fa896; }
+
+.collection__tiers {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;

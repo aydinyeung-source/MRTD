@@ -1735,27 +1735,6 @@
      dies.
      ========================================================= */
 
-  /* The point on the path closest to a tower, so its allies stand
-     where enemies will actually meet them. */
-  function nearestPathProgress(origin) {
-    var best = 0;
-    var bestDistance = Infinity;
-
-    for (var i = 0; i < view.path.length; i += 1) {
-      var centre = tileCentre(view.path[i][0], view.path[i][1]);
-      var dx = centre.x - origin.x;
-      var dy = centre.y - origin.y;
-      var distance = dx * dx + dy * dy;
-
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = i;
-      }
-    }
-
-    return best;
-  }
-
   function spawnAllies(position, tower, delta) {
     var definition = stats.towers[tower.key];
 
@@ -1773,8 +1752,6 @@
 
     tower.spawnTimer = definition.spawnEvery;
 
-    var parts = position.split(",");
-    var origin = tileCentre(Number(parts[0]), Number(parts[1]));
     var hp = stats.allyHealth(tower.key, tower.level, evolution);
 
     allies.push({
@@ -1788,7 +1765,13 @@
       speed: definition.allySpeed,
       /* Never scales — only a booster can widen it. */
       range: definition.allyRange,
-      progress: nearestPathProgress(origin)
+
+      /* Allies march out of the base, not out of the tower that
+         sent them. Progress counts tiles walked from the portal,
+         so the far end of the path is the base. Where the spawner
+         itself sits makes no difference to where its allies
+         appear — it only decides how often. */
+      progress: view.path.length - 1
     });
   }
 
@@ -2211,12 +2194,19 @@
     hotbar.textContent = "";
     closeLevels();
 
-    loadoutKeys().forEach(function (name) {
+    loadoutKeys().forEach(function (name, index) {
       var button = document.createElement("button");
 
       button.className = "hotbar__slot";
       button.type = "button";
       button.dataset.tower = name;
+
+      /* The key that selects this slot, on the slot — a shortcut
+         nobody knows about is not a shortcut. */
+      var shortcut = document.createElement("span");
+      shortcut.className = "hotbar__key";
+      shortcut.textContent = String(index + 1);
+      button.appendChild(shortcut);
 
       var icon = document.createElement("img");
       icon.className = "hotbar__icon";
@@ -2529,9 +2519,12 @@
      Input
      ========================================================= */
 
-  /* Right click a placed tower to read everything about it — or,
-     while positioning one, to drop it and keep the ghost so a run
-     of towers can be laid down without reselecting each time. */
+  /* Right click a placed tower to read everything about it.
+
+     Laying a run of towers used to live here too, which meant
+     right click did one of two unrelated things depending on
+     hidden state. That job is the E key now, and right click
+     while positioning simply puts the ghost down. */
   canvas.addEventListener("contextmenu", function (event) {
     event.preventDefault();
 
@@ -2539,20 +2532,8 @@
     var tile = tileAt(point.x, point.y);
 
     if (placing) {
-      var repeat = placing;
-
-      place(tile);
-
-      /* Stay armed while there is still money and room for
-         another; otherwise the ghost clears itself. */
-      if (
-        (isDev() || stats.buyCost(repeat.key, repeat.level) <= cash) &&
-        placed() < placementLimit()
-      ) {
-        placing = repeat;
-      }
-
-      refreshHud();
+      placing = null;
+      refreshHotbar();
       draw();
       return;
     }
@@ -2655,26 +2636,116 @@
     }
   });
 
-  /* Escape cancels a pending placement. */
+  /* =========================================================
+     Keyboard
+
+     Everything here is a shortcut for something the mouse can
+     already do — the point is not having to travel back to the
+     hotbar between placements.
+
+       1-5  select that hotbar slot
+       F    place at the pointer
+       E    place at the pointer and stay armed
+       Esc  put the ghost down
+     ========================================================= */
+
+  /* Drops the tower under the pointer. Keeping the ghost is what
+     separates E from F: with `again` set the selection survives
+     the placement, so a row of towers goes down without going
+     back to the hotbar each time. */
+  function placeAtPointer(again) {
+    if (!placing || !pointer) {
+      return;
+    }
+
+    var repeat = placing;
+
+    place(tileAt(pointer.x, pointer.y));
+
+    /* Stay armed only while another is actually affordable and
+       there is room for it, so the ghost never lingers on a
+       placement that cannot happen. */
+    if (
+      again &&
+      !placing &&
+      (isDev() || stats.buyCost(repeat.key, repeat.level) <= cash) &&
+      placed() < placementLimit()
+    ) {
+      placing = repeat;
+    }
+
+    refreshHud();
+    draw();
+  }
+
+  /* A number key belongs to whoever is typing, not to the hotbar
+     — the wave jump box is a number input sitting right there. */
+  function typing(target) {
+    if (!target) {
+      return false;
+    }
+
+    var tag = target.tagName;
+
+    return (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "SELECT" ||
+      target.isContentEditable
+    );
+  }
+
   window.addEventListener("keydown", function (event) {
-    if (event.key !== "Escape") {
+    if (event.key === "Escape") {
+      if (!inspect.hidden) {
+        closeInspect();
+        return;
+      }
+
+      if (!levels.hidden) {
+        closeLevels();
+        return;
+      }
+
+      if (placing) {
+        placing = null;
+        refreshHotbar();
+        draw();
+      }
+
       return;
     }
 
-    if (!inspect.hidden) {
-      closeInspect();
+    /* Nothing below should fire off-screen, over a text field, or
+       on top of a browser shortcut. */
+    if (root.hidden || typing(event.target)) {
       return;
     }
 
-    if (!levels.hidden) {
-      closeLevels();
+    if (event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
 
-    if (placing) {
-      placing = null;
-      refreshHotbar();
-      draw();
+    var slot = "12345".indexOf(event.key);
+
+    if (slot >= 0) {
+      var button = hotbar.children[slot];
+
+      if (button) {
+        event.preventDefault();
+        select(button.dataset.tower, 1);
+      }
+
+      return;
+    }
+
+    var pressed = event.key.toLowerCase();
+
+    if (pressed === "f" || pressed === "e") {
+      if (placing) {
+        event.preventDefault();
+        placeAtPointer(pressed === "e");
+      }
     }
   });
 

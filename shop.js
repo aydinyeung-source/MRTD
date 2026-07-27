@@ -2,25 +2,15 @@
   "use strict";
 
   /* =========================================================
-     Shop and collection.
+     The Shop: the chest, and nothing else.
 
-     Rolling and evolving both run as Postgres functions, not as
-     writes from here — the browser can ask for a roll but cannot
-     grant itself one.
+     What you own and what you can merge live on the Collection
+     tab now — this screen only sells.
 
-     Evolution is meta progression and persists. It is separate
-     from the merge levels inside a match.
+     Rolling runs as a Postgres function, not as a write from
+     here: the browser can ask for a roll but cannot grant itself
+     one.
      ========================================================= */
-
-  var TOWERS = [
-    { key: "blender", label: "Blender" },
-    { key: "dagger", label: "Dagger" },
-    { key: "farm", label: "Farm" },
-    { key: "shotgunner", label: "Shotgunner" },
-    { key: "sniper", label: "Sniper" }
-  ];
-
-  var MAX_EVOLUTION = 10;
 
   /* Fallback only — the card normally shows the fully merged
      top view. The art never changes with evolution; only the
@@ -29,16 +19,14 @@
 
 
   var status = document.getElementById("shop-status");
-  var collection = document.getElementById("shop-collection");
   var coinsDisplay = document.getElementById("shop-coins");
   var buyOne = document.getElementById("shop-buy-1");
   var buyTen = document.getElementById("shop-buy-10");
   var buyAll = document.getElementById("shop-buy-all");
-  var evolveAllButton = document.getElementById("shop-evolve-all");
   var oddsLine = document.getElementById("shop-odds");
   var oddsLabel = document.getElementById("shop-odds-label");
 
-  if (!collection) {
+  if (!status) {
     return;
   }
 
@@ -118,85 +106,22 @@
     return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
   }
 
-  function loadCollection() {
-    return api(
-      "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0"
-    );
-  }
-
   /* =========================================================
      Rendering
      ========================================================= */
 
-  /* Each role improves a different stat, so the card asks stats.js
-     what this tower's evolution is actually worth. */
-  function bonusText(key, evolution) {
-    return window.MRTD.stats.evolutionSummary(key, evolution);
-  }
-
+  /* stats.js is the only tower list that is guaranteed complete.
+     The local one this file used to keep had five towers in it,
+     so everything added since — the axe, the boosters, Quantum —
+     came out of the chest showing its raw key instead of a name. */
   function labelFor(key) {
-    var match = TOWERS.filter(function (tower) {
-      return tower.key === key;
-    })[0];
+    var tower = window.MRTD.stats.towers[key];
 
-    return match ? match.label : key;
+    return tower ? tower.label : key;
   }
 
-  function element(tag, className, text) {
-    var node = document.createElement(tag);
 
-    node.className = className;
-
-    if (text !== undefined) {
-      node.textContent = text;
-    }
-
-    return node;
-  }
-
-  function buildCard(row) {
-    var card = element("article", "tower-card");
-    card.dataset.evolution = String(row.evolution);
-
-    var icon = document.createElement("img");
-    icon.className = "tower-card__icon";
-    /* The tower as it looks fully merged, matching the board. */
-    icon.src = window.MRTD.towerArt
-      ? window.MRTD.towerArt(row.tower_key)
-      : "towers/" + row.tower_key + "/" + ICON_LEVEL + ".svg";
-    icon.alt = labelFor(row.tower_key);
-    card.appendChild(icon);
-
-    card.appendChild(element("p", "tower-card__name", labelFor(row.tower_key)));
-
-    var meta =
-      row.evolution === 0
-        ? "Base"
-        : "Evolution " + row.evolution + " · " +
-          bonusText(row.tower_key, row.evolution);
-    card.appendChild(element("p", "tower-card__meta", meta));
-
-    card.appendChild(element("p", "tower-card__count", "×" + row.copies));
-
-    if (row.copies >= 2 && row.evolution < MAX_EVOLUTION) {
-      var button = element("button", "tower-card__evolve", "Evolve 2 →");
-      button.type = "button";
-
-      button.addEventListener("click", function () {
-        evolve(row.tower_key, row.evolution, button);
-      });
-
-      card.appendChild(button);
-    } else if (row.evolution >= MAX_EVOLUTION) {
-      card.appendChild(element("p", "tower-card__maxed", "Fully evolved"));
-    }
-
-    return card;
-  }
-
-  function render(profile, rows) {
-    collection.textContent = "";
-
+  function render(profile) {
     var coins = Number(profile.coins || 0);
     var dev = Boolean(window.MRTD.dev);
 
@@ -217,45 +142,6 @@
     buyAll.textContent = dev
       ? "Summon all — free"
       : "Summon all — " + Math.floor(coins / 100) + "×";
-
-    if (!rows.length) {
-      collection.appendChild(
-        element(
-          "p",
-          "shop__empty",
-          profile.free_roll_used
-            ? "No towers yet."
-            : "Open your free roll to get your first tower."
-        )
-      );
-      return;
-    }
-
-    /* Group by tower, then show each evolution tier held. */
-    TOWERS.forEach(function (tower) {
-      var owned = rows
-        .filter(function (row) {
-          return row.tower_key === tower.key;
-        })
-        .sort(function (a, b) {
-          return a.evolution - b.evolution;
-        });
-
-      if (!owned.length) {
-        return;
-      }
-
-      var group = element("section", "shop__group");
-      group.appendChild(element("h3", "shop__group-title", tower.label));
-
-      var list = element("div", "shop__tiers");
-      owned.forEach(function (row) {
-        list.appendChild(buildCard(row));
-      });
-
-      group.appendChild(list);
-      collection.appendChild(group);
-    });
   }
 
   function setStatus(text, isError) {
@@ -268,12 +154,16 @@
      ========================================================= */
 
   function refresh() {
-    return Promise.all([loadProfile(), loadCollection(), loadOdds()])
+    return Promise.all([loadProfile(), loadOdds()])
       .then(function (results) {
-        render(results[0], results[1]);
-        renderOdds(results[2]);
+        render(results[0]);
+        renderOdds(results[1]);
 
-        /* The Towers tab reads the same collection. */
+        /* A pull changes what the other two tabs are showing. */
+        if (window.MRTD.refreshCollection) {
+          window.MRTD.refreshCollection();
+        }
+
         if (window.MRTD.refreshLoadout) {
           window.MRTD.refreshLoadout();
         }
@@ -407,31 +297,6 @@
       });
   }
 
-  function evolve(key, evolution, button) {
-    button.disabled = true;
-    setStatus("Evolving...");
-
-    api("/rest/v1/rpc/evolve_tower", {
-      method: "POST",
-      body: {
-        target_key: key,
-        from_evolution: evolution,
-        sandbox: Boolean(window.MRTD.dev)
-      }
-    })
-      .then(function (next) {
-        setStatus(
-          labelFor(key) + " reached evolution " + next +
-            " · " + bonusText(key, next)
-        );
-        return refresh();
-      })
-      .catch(function (error) {
-        setStatus(error.message, true);
-        button.disabled = false;
-      });
-  }
-
   /* Same button, two jobs: the free summon while one is owed,
      the paid single draw afterwards. */
   buyOne.addEventListener("click", function () {
@@ -455,32 +320,6 @@
       { p_sandbox: Boolean(window.MRTD.dev) },
       buyAll
     );
-  });
-
-  /* Runs every evolution the collection can pay for, lowest tier
-     first so pairs cascade upward. */
-  evolveAllButton.addEventListener("click", function () {
-    evolveAllButton.disabled = true;
-    setStatus("Evolving...");
-
-    api("/rest/v1/rpc/evolve_all", {
-      method: "POST",
-      body: { p_sandbox: Boolean(window.MRTD.dev) }
-    })
-      .then(function (count) {
-        setStatus(
-          count
-            ? count + " evolution" + (count === 1 ? "" : "s") + " done."
-            : "Nothing to evolve — you need two of a tier."
-        );
-        return refresh();
-      })
-      .catch(function (error) {
-        setStatus(error.message, true);
-      })
-      .then(function () {
-        evolveAllButton.disabled = false;
-      });
   });
 
   document.addEventListener("mrtd:unlocked", function () {
@@ -507,9 +346,11 @@
     }
   }, 1000);
 
+  /* This used to clear a panel that no longer exists, which threw
+     on every sign out. */
   document.addEventListener("mrtd:locked", function () {
-    collection.textContent = "";
-    rollPanel.hidden = true;
+    oddsLine.textContent = "";
+    coinsDisplay.textContent = "0";
     setStatus("");
   });
 })();
