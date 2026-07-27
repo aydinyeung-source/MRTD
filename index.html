@@ -299,6 +299,36 @@
     </div>
   </div>
 
+  <div class="tradewindow" id="tradewindow" hidden>
+    <div class="tradewindow__panel">
+      <h2 class="tradewindow__title">Trading with <span id="trade-who">…</span></h2>
+
+      <div class="tradewindow__sides">
+        <section class="tradeside">
+          <p class="tradeside__label">You give <span id="trade-mine-lock"></span></p>
+          <div id="trade-mine"></div>
+          <div class="tradeside__add">
+            <select class="admin__input" id="trade-tower"></select>
+            <input class="admin__input" id="trade-count" type="number" value="1" min="1">
+            <button class="friends__button" id="trade-put" type="button">Put in</button>
+          </div>
+        </section>
+
+        <section class="tradeside">
+          <p class="tradeside__label">They give <span id="trade-theirs-lock"></span></p>
+          <div id="trade-theirs"></div>
+        </section>
+      </div>
+
+      <p class="tradewindow__status" id="trade-status"></p>
+
+      <div class="tradewindow__actions">
+        <button class="handbook__close" id="trade-lock" type="button">Lock in</button>
+        <button class="friends__button" id="trade-cancel" type="button">Cancel trade</button>
+      </div>
+    </div>
+  </div>
+
   <div class="traderequest" id="traderequest" hidden>
     <p class="traderequest__text" id="traderequest-text"></p>
     <div class="traderequest__actions" id="traderequest-actions"></div>
