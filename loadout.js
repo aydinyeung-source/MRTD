@@ -15,6 +15,7 @@
   var slotsHost = document.getElementById("loadout-slots");
   var ownedHost = document.getElementById("loadout-owned");
   var status = document.getElementById("loadout-status");
+  var detail = document.getElementById("loadout-detail");
 
   if (!slotsHost) {
     return;
@@ -161,15 +162,10 @@
 
     owned.forEach(function (entry) {
       var card = towerCard(entry, "loadout__card");
-      var isEquipped = equipped.indexOf(entry.key) >= 0;
 
-      card.classList.toggle("is-equipped", isEquipped);
+      card.classList.toggle("is-equipped", equipped.indexOf(entry.key) >= 0);
       card.addEventListener("click", function () {
-        if (isEquipped) {
-          unequip(entry.key);
-        } else {
-          equip(entry.key);
-        }
+        showDetail(entry);
       });
 
       ownedHost.appendChild(card);
@@ -182,6 +178,108 @@
     } else {
       status.textContent = equipped.length + " of " + SLOTS + " slots filled.";
     }
+  }
+
+  /* =========================================================
+     Card detail — every stat, at the evolution you own
+     ========================================================= */
+
+  function statRow(label, value) {
+    var row = document.createElement("p");
+
+    row.className = "inspect__row";
+
+    var name = document.createElement("span");
+    name.textContent = label;
+    row.appendChild(name);
+
+    var amount = document.createElement("span");
+    amount.className = "inspect__value";
+    amount.textContent = value;
+    row.appendChild(amount);
+
+    return row;
+  }
+
+  function describeAttack(name) {
+    var attack = window.MRTD.stats.attack(name);
+
+    if (!attack) {
+      return "None";
+    }
+
+    if (attack.shape === "cone") {
+      return attack.angle + "° cone, falls to " +
+        Math.round(attack.falloffTo * 100) + "% at range";
+    }
+
+    return attack.shape === "circle" ? "All in range" : "Single target";
+  }
+
+  function showDetail(entry) {
+    var stats = window.MRTD.stats;
+    var name = entry.key;
+    var evolution = entry.evolution;
+    var damage = stats.damage(name, 1, evolution);
+    var cooldown = stats.cooldown(name);
+    var coins = stats.coins(name, 1, evolution);
+    var reach = stats.range(name, 1, evolution) / stats.rangePerTile;
+
+    detail.textContent = "";
+
+    var title = document.createElement("p");
+    title.className = "inspect__title";
+    title.textContent =
+      stats.towers[name].label +
+      (evolution ? "  ·  Evo " + evolution : "  ·  Base");
+    detail.appendChild(title);
+
+    var note = document.createElement("p");
+    note.className = "inspect__note";
+    note.textContent = "At merge level 1. Merging multiplies these.";
+    detail.appendChild(note);
+
+    if (damage > 0) {
+      detail.appendChild(statRow("Damage", String(Math.round(damage))));
+      detail.appendChild(statRow("Cooldown", cooldown + "s"));
+      detail.appendChild(statRow("DPS", String(Math.round(damage / cooldown))));
+    }
+
+    if (coins > 0) {
+      detail.appendChild(statRow("Cash per wave", String(Math.round(coins))));
+    }
+
+    detail.appendChild(statRow("Range", Math.round(reach * 10) / 10 + " tiles"));
+    detail.appendChild(statRow("Attack", describeAttack(name)));
+    detail.appendChild(statRow("Cost", String(stats.cost(name))));
+    detail.appendChild(statRow("Copies held", String(entry.copies)));
+
+    if (evolution) {
+      detail.appendChild(
+        statRow("Evolution", stats.evolutionSummary(name, evolution))
+      );
+    }
+
+    var action = document.createElement("button");
+    var isEquipped = equipped.indexOf(name) >= 0;
+
+    action.className = "inspect__action";
+    action.type = "button";
+    action.textContent = isEquipped ? "Unequip" : "Equip";
+    action.disabled = !isEquipped && equipped.length >= SLOTS;
+
+    action.addEventListener("click", function () {
+      if (isEquipped) {
+        unequip(name);
+      } else {
+        equip(name);
+      }
+
+      showDetail(entry);
+    });
+
+    detail.appendChild(action);
+    detail.hidden = false;
   }
 
   function equip(name) {
@@ -251,9 +349,31 @@
 
   document.addEventListener("mrtd:unlocked", refresh);
   document.addEventListener("mrtd:dev", refresh);
+
+  /* Handbook, opened from the lobby corner. */
+  var handbook = document.getElementById("handbook");
+  var handbookOpen = document.getElementById("handbook-open");
+  var handbookClose = document.getElementById("handbook-close");
+
+  if (handbook) {
+    handbookOpen.addEventListener("click", function () {
+      handbook.hidden = false;
+    });
+
+    handbookClose.addEventListener("click", function () {
+      handbook.hidden = true;
+    });
+
+    handbook.addEventListener("click", function (event) {
+      if (event.target === handbook) {
+        handbook.hidden = true;
+      }
+    });
+  }
   document.addEventListener("mrtd:locked", function () {
     owned = [];
     equipped = [];
+    detail.hidden = true;
     render();
   });
 

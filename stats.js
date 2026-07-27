@@ -139,7 +139,9 @@
      evolution). percent: true means the value is itself a
      percentage, so it reads as points rather than a factor. */
   var ROLES = {
-    damage: [{ stat: "damage", mode: "multiply", rate: 0.175 }],
+    /* 10% a level, so evolution 10 is x2.59 — the same shape as
+       range and farm coins. */
+    damage: [{ stat: "damage", mode: "multiply", rate: 0.1 }],
     spawner: [{ stat: "health", mode: "multiply", rate: 0.15 }],
     booster: [
       { stat: "boost", mode: "add", amount: 3, percent: true },

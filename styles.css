@@ -550,6 +550,123 @@ body::after {
   color: var(--ink);
 }
 
+/* Same panel, sitting in the Towers tab rather than floating. */
+.inspect--inline {
+  position: static;
+  width: min(300px, 100%);
+  margin-top: 20px;
+}
+
+.inspect__note {
+  margin: -6px 0 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.inspect__action {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: transparent;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--glacier);
+  cursor: pointer;
+  transition: border-color 240ms var(--ease-soft),
+              background-color 240ms var(--ease-soft);
+}
+
+.inspect__action:hover:not(:disabled) {
+  border-color: var(--glacier);
+  background-color: var(--paper);
+}
+
+.inspect__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* =========================================================
+   Handbook
+   ========================================================= */
+
+.handbook {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background-color: rgba(34, 42, 47, 0.55);
+}
+
+.handbook__panel {
+  width: min(560px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 30px 32px 26px;
+  border-radius: 20px;
+  background-color: var(--paper-raised);
+  animation: rise 420ms var(--ease-soft) both;
+}
+
+.handbook__title {
+  margin: 0 0 22px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 24px;
+}
+
+.handbook__section {
+  margin-bottom: 26px;
+}
+
+.handbook__section h3 {
+  margin: 0 0 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--glacier);
+}
+
+.handbook__section p {
+  margin: 0 0 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.handbook__section strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.handbook__close {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--glacier);
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--paper-raised);
+  cursor: pointer;
+}
+
+.handbook__close:hover {
+  background-color: var(--ink);
+}
+
 /* ---- Game over ---- */
 
 .gameover {

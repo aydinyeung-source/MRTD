@@ -118,6 +118,7 @@
           <p class="loadout__label">Owned</p>
           <p class="loadout__status" id="loadout-status"></p>
           <div class="loadout__owned" id="loadout-owned"></div>
+          <div class="inspect inspect--inline" id="loadout-detail" hidden></div>
         </div>
       </section>
 
@@ -152,6 +153,7 @@
     </main>
 
     <div class="corner">
+      <button class="corner__dev" id="handbook-open" type="button">Handbook</button>
       <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
       <button class="corner__signout" id="signout" type="button">Sign out</button>
       <p class="version" id="version"></p>
@@ -167,6 +169,73 @@
 
   <!-- Visible from the first paint, so the login panel never
        flashes up for a player who is already signed in. -->
+  <div class="handbook" id="handbook" hidden>
+    <div class="handbook__panel">
+      <h2 class="handbook__title">Handbook</h2>
+
+      <section class="handbook__section">
+        <h3>Merging</h3>
+        <p>
+          Drop a tower onto another of the <strong>same type and the same
+          level</strong> and they become one tower a level higher. Anything
+          else swaps places.
+        </p>
+        <p>
+          Each merge multiplies damage by <strong>×2.24</strong> and range by
+          <strong>×1.1</strong>. Cooldown never changes, so damage per second
+          rises with damage alone. A level 10 tower hits
+          <strong>1,397× harder</strong> than a level 1 — and costs 512 of
+          them, so merging always beats spreading out.
+        </p>
+        <p>
+          Merge levels last for one match. They are gone when the run ends.
+        </p>
+      </section>
+
+      <section class="handbook__section">
+        <h3>Evolutions</h3>
+        <p>
+          Duplicate cards from chests merge into evolutions, two of a level
+          making one of the next. Evolutions are
+          <strong>permanent</strong> — they apply to every run from then on.
+        </p>
+        <p>
+          Every evolution adds <strong>10%</strong>, compounding, so a fully
+          evolved tower is <strong>×2.59</strong>. What it improves depends on
+          the tower: damage towers gain damage, farms gain cash, spawners gain
+          health, boosters gain a flat +3% boost and +5 range. Range grows
+          10% per evolution for everyone.
+        </p>
+        <p>
+          Evolution 10 needs <strong>1,024 copies</strong> of one tower, so
+          treat it as a long chase rather than a target.
+        </p>
+      </section>
+
+      <section class="handbook__section">
+        <h3>Money and leaks</h3>
+        <p>
+          A cleared wave pays <strong>100</strong> plus every farm's output as
+          the intermission opens, so there is time to spend it. Wave 1 pays
+          nothing — you start with your starting cash only.
+        </p>
+        <p>
+          An enemy that reaches the base costs it <strong>whatever health it
+          had left</strong>. Wounding something still counts even if it gets
+          through.
+        </p>
+        <p>
+          Selling refunds <strong>half</strong> of everything spent building a
+          tower, so a level 5 gives back eight towers' worth.
+        </p>
+      </section>
+
+      <button class="handbook__close" id="handbook-close" type="button">
+        Close
+      </button>
+    </div>
+  </div>
+
   <div class="loader" id="loader">
     <div class="loader__panel">
       <p class="loader__title" id="loader-title">Loading</p>
