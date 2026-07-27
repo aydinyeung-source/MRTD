@@ -55,7 +55,7 @@
     },
     starting_cash: {
       label: "Starting cash",
-      note: "+100 cash at the start of a run",
+      note: "+25 cash at the start of a run",
       max: 10
     },
     quick_buy: {
@@ -75,7 +75,7 @@
   }
 
   function startingCash(level) {
-    return STARTING_CASH + (level || 0) * 100;
+    return STARTING_CASH + (level || 0) * 25;
   }
 
   /* PLACEHOLDER enemies. Speed is tiles per second, bounty is match

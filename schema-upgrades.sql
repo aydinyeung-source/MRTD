@@ -45,7 +45,7 @@ insert into public.upgrade_costs (upgrade_key, level, cost) values
   ('placements',  7, 2300), ('placements',  8, 3400), ('placements',  9, 5100),
   ('placements', 10, 7700),
 
-  -- Starting cash: +100 per level, 100 to 1100.
+  -- Starting cash: +25 per level, 100 to 350.
   ('starting_cash',  1,  250), ('starting_cash',  2,  350), ('starting_cash',  3,  500),
   ('starting_cash',  4,  700), ('starting_cash',  5, 1000), ('starting_cash',  6, 1400),
   ('starting_cash',  7, 2000), ('starting_cash',  8, 2800), ('starting_cash',  9, 3900),
