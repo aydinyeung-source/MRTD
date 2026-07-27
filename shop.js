@@ -299,14 +299,14 @@
       .join(", ");
   }
 
+  /* The body is passed through untouched: the two functions name
+     their sandbox argument differently, and sending both makes
+     PostgREST look for a signature that does not exist. */
   function pull(path, body, button) {
     var sandbox = Boolean(window.MRTD.dev);
 
     button.disabled = true;
     setStatus("Opening...");
-
-    body.sandbox = sandbox;
-    body.p_sandbox = sandbox;
 
     api(path, { method: "POST", body: body })
       .then(function (result) {
@@ -325,7 +325,11 @@
   }
 
   function openChest(draws, button) {
-    pull("/rest/v1/rpc/open_chest", { draws: draws }, button);
+    pull(
+      "/rest/v1/rpc/open_chest",
+      { draws: draws, sandbox: Boolean(window.MRTD.dev) },
+      button
+    );
   }
 
   function roll() {
@@ -383,9 +387,14 @@
     openChest(10, buyTen);
   });
 
-  /* Every coin, at the single draw price — convenience over value. */
+  /* Every coin, at the single draw price — convenience over value.
+     This one names its argument p_sandbox, not sandbox. */
   buyAll.addEventListener("click", function () {
-    pull("/rest/v1/rpc/open_chest_all", {}, buyAll);
+    pull(
+      "/rest/v1/rpc/open_chest_all",
+      { p_sandbox: Boolean(window.MRTD.dev) },
+      buyAll
+    );
   });
 
   /* Runs every evolution the collection can pay for, lowest tier
