@@ -1803,19 +1803,49 @@ body::after {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 84px;
-  padding: 10px 6px 8px;
+  width: 88px;
+  padding: 8px 6px;
   border: 1px solid var(--rule);
   border-radius: 12px;
   background-color: var(--paper);
 }
+
+/* ---- Rarity, straight from the drop table ---- */
+
+.chestitem[data-rarity="common"] {
+  border-color: #b9c2c7;
+  background-color: #e7ebed;
+}
+
+.chestitem[data-rarity="rare"] {
+  border-color: #6f9bb5;
+  background-color: #d6e6ef;
+}
+
+.chestitem[data-rarity="epic"] {
+  border-color: #8b6bb1;
+  background-color: #e7dcf3;
+}
+
+.chestitem__rarity {
+  margin: 0 0 2px;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.chestitem[data-rarity="common"] .chestitem__rarity { color: #5f6b71; }
+.chestitem[data-rarity="rare"]   .chestitem__rarity { color: #3f6e8c; }
+.chestitem[data-rarity="epic"]   .chestitem__rarity { color: #6b4b91; }
 
 .chestitem__chance {
   margin: 0;
   font-family: var(--rounded);
   font-weight: 700;
   font-size: 15px;
-  color: #b07404;
+  color: var(--ink);
 }
 
 .chestitem__icon {

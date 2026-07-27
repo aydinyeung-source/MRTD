@@ -92,7 +92,9 @@
   }
 
   function loadOdds() {
-    return api("/rest/v1/chest_odds?select=tower_key,weight&order=weight.desc")
+    return api(
+      "/rest/v1/chest_odds?select=tower_key,weight,rarity&order=weight.desc"
+    )
       .catch(function () {
         return [];
       });
@@ -280,6 +282,14 @@
       var item = document.createElement("article");
 
       item.className = "chestitem";
+      /* Rarity comes from the database, so the colours cannot
+         drift from the odds they describe. */
+      item.dataset.rarity = row.rarity || "common";
+
+      var rarity = document.createElement("p");
+      rarity.className = "chestitem__rarity";
+      rarity.textContent = row.rarity || "common";
+      item.appendChild(rarity);
 
       var chance = document.createElement("p");
       chance.className = "chestitem__chance";
