@@ -44,12 +44,16 @@
   var MAX_LEVEL = 10;
   var TOWER_KEYS = ["dagger", "blender", "shotgunner", "sniper", "farm"];
 
+  /* Towers with drawn top down artwork. Everything else uses the
+     plan views below, which are built in code. */
+  var ART_TOWERS = ["sniper"];
+
   /* Fallback plan designs, drawn in code. Used only for a tower
      whose artwork has not loaded, so the board still reads while
      a sprite is missing. */
   var TOKENS = {
     blender: { body: "#8e8e8e", accent: "#ff140a", plan: "blades" },
-    dagger: { body: "#949494", accent: "#bb0000", plan: "blades" },
+    dagger: { body: "#949494", accent: "#bb0000", plan: "knives" },
     farm: { body: "#eae484", accent: "#b8ae4a", plan: "field" },
     shotgunner: { body: "#656565", accent: "#8c8c8c", plan: "barrels" },
     sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" }
@@ -318,7 +322,7 @@
   var tops = {};
 
   function loadSprites() {
-    TOWER_KEYS.forEach(function (name) {
+    ART_TOWERS.forEach(function (name) {
       sprites[name] = {};
 
       for (var level = 1; level <= MAX_LEVEL; level += 1) {
@@ -388,8 +392,14 @@
     ctx.rect(x, y, width, height);
   }
 
+  /* Every plan changes on every merge — one more blade, one more
+     knife, one more crop row, a longer barrel — so an upgrade is
+     always visible on the board and not only in the number. */
+
+  /* Blender: a disc of blades that gains one per merge. */
   function planBlades(token, radius, level) {
-    var count = 3 + Math.floor((level - 1) / 2);
+    var count = 3 + (level - 1);
+    var reach = radius * (1.32 + level * 0.02);
 
     ctx.fillStyle = token.accent;
 
@@ -397,20 +407,58 @@
       ctx.save();
       ctx.rotate((i / count) * Math.PI * 2);
       ctx.beginPath();
-      ctx.moveTo(-radius * 0.16, 0);
-      ctx.lineTo(0, -radius * 1.45);
-      ctx.lineTo(radius * 0.16, 0);
+      ctx.moveTo(-radius * 0.15, 0);
+      ctx.lineTo(0, -reach);
+      ctx.lineTo(radius * 0.15, 0);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
     }
   }
 
+  /* Dagger: nothing radial. A forward fan of straight blades over
+     a diamond body, so it reads as thrown knives rather than a
+     spinning disc. */
+  function planKnives(token, radius, level) {
+    var count = 2 + Math.floor(level / 2);
+    var length = radius * (1.15 + level * 0.055);
+    var spread = 0.16 + level * 0.012;
+
+    for (var i = 0; i < count; i += 1) {
+      var offset = (i - (count - 1) / 2) * spread;
+
+      ctx.save();
+      ctx.rotate(offset);
+
+      /* Blade. */
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.075, -radius * 0.2);
+      ctx.lineTo(0, -length);
+      ctx.lineTo(radius * 0.075, -radius * 0.2);
+      ctx.closePath();
+      ctx.fillStyle = "#d2d2d2";
+      ctx.fill();
+
+      /* Tip. */
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.075, -length * 0.72);
+      ctx.lineTo(0, -length);
+      ctx.lineTo(radius * 0.075, -length * 0.72);
+      ctx.closePath();
+      ctx.fillStyle = token.accent;
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  /* Farm: crop rows, plus silos as it grows. */
   function planField(token, radius, level) {
     var rows = 2 + Math.floor(level / 2);
+    var silos = Math.floor(level / 4);
 
     ctx.strokeStyle = token.accent;
-    ctx.lineWidth = Math.max(1, radius * 0.1);
+    ctx.lineWidth = Math.max(1, radius * 0.09);
     ctx.beginPath();
 
     for (var i = 1; i <= rows; i += 1) {
@@ -420,19 +468,45 @@
     }
 
     ctx.stroke();
+
+    ctx.fillStyle = "#8a7f3a";
+
+    for (var s = 0; s < silos; s += 1) {
+      ctx.beginPath();
+      ctx.arc(
+        -radius * 0.55 + s * radius * 0.55,
+        radius * 0.62,
+        radius * 0.16,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
   }
 
+  /* Shotgunner: barrels that widen and lengthen as it merges. */
   function planBarrels(token, radius, level) {
-    var count = level < 4 ? 2 : level < 8 ? 3 : 4;
-    var width = radius * 0.26;
+    var count = 2 + Math.floor((level - 1) / 3);
+    var width = radius * 0.24;
+    var length = radius * (0.9 + level * 0.055);
     var span = width * (count - 1) * 1.5;
 
     ctx.fillStyle = token.accent;
 
     for (var i = 0; i < count; i += 1) {
       var offset = -span / 2 + i * width * 1.5;
-      ctx.fillRect(offset - width / 2, -radius * 1.5, width, radius * 1.1);
+
+      ctx.fillRect(offset - width / 2, -radius * 0.4 - length, width, length);
     }
+
+    /* Choke on the muzzle, thicker each merge. */
+    ctx.fillStyle = "#3a3f42";
+    ctx.fillRect(
+      -span / 2 - width,
+      -radius * 0.4 - length,
+      span + width * 2,
+      radius * (0.06 + level * 0.012)
+    );
   }
 
   function planBarrel(token, radius, level) {
@@ -448,6 +522,7 @@
 
   var PLANS = {
     blades: planBlades,
+    knives: planKnives,
     field: planField,
     barrels: planBarrels,
     barrel: planBarrel
@@ -460,8 +535,10 @@
       return;
     }
 
-    var radius = size * 0.32;
+    /* The footprint itself creeps up with every merge. */
+    var radius = size * 0.32 * (0.82 + tower.level * 0.02);
     var isField = token.plan === "field";
+    var isKnives = token.plan === "knives";
 
     ctx.save();
     ctx.translate(x + size / 2, y + size / 2);
@@ -475,6 +552,15 @@
 
     if (isField) {
       roundedPath(-radius, -radius, radius * 2, radius * 2, radius * 0.3);
+    } else if (isKnives) {
+      /* A diamond, so the dagger is not another disc. */
+      var half = radius * 0.78;
+
+      ctx.moveTo(0, -half);
+      ctx.lineTo(half, 0);
+      ctx.lineTo(0, half);
+      ctx.lineTo(-half, 0);
+      ctx.closePath();
     } else {
       ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
     }
