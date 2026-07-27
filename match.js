@@ -42,7 +42,9 @@
   var LAND_REACH = 3;
 
   var MAX_LEVEL = 10;
-  var TOWER_KEYS = ["dagger", "blender", "shotgunner", "sniper", "farm"];
+  var TOWER_KEYS = [
+    "dagger", "blender", "shotgunner", "sniper", "farm", "spawner"
+  ];
 
   /* Towers with drawn top down artwork. Everything else uses the
      plan views below, which are built in code. */
@@ -56,7 +58,8 @@
     dagger: { body: "#949494", accent: "#bb0000", plan: "knives" },
     farm: { body: "#eae484", accent: "#b8ae4a", plan: "field" },
     shotgunner: { body: "#656565", accent: "#8c8c8c", plan: "barrels" },
-    sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" }
+    sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" },
+    spawner: { body: "#4a6b6e", accent: "#7fc4c9", plan: "gate" }
   };
 
   var root = document.getElementById("match");
@@ -101,6 +104,13 @@
   /* Thrown daggers in flight, and coins drifting off a farm. */
   var projectiles = [];
   var particles = [];
+
+  /* Allies put on the path by spawner towers. They stand still,
+     block whatever reaches them, and fight back. */
+  var allies = [];
+
+  /* How close an enemy must be to an ally to be stopped by it. */
+  var BLOCK_TILES = 0.55;
 
   /* How fast a blender's blades turn at full spin, in radians per
      second, and how quickly spin and recoil fall away. */
@@ -579,12 +589,31 @@
     }
   }
 
+  /* Spawner: a gate with bars, gaining one per merge. */
+  function planGate(token, radius, level) {
+    var bars = 2 + Math.floor(level / 2);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1.5, radius * 0.14);
+    ctx.beginPath();
+
+    for (var i = 0; i < bars; i += 1) {
+      var x = -radius * 0.7 + (radius * 1.4 * i) / (bars - 1 || 1);
+
+      ctx.moveTo(x, -radius * 0.7);
+      ctx.lineTo(x, radius * 0.7);
+    }
+
+    ctx.stroke();
+  }
+
   var PLANS = {
     blades: planBlades,
     knives: planKnives,
     field: planField,
     barrels: planBarrels,
-    barrel: planBarrel
+    barrel: planBarrel,
+    gate: planGate
   };
 
   function drawTopTower(tower, x, y, size) {
@@ -962,6 +991,29 @@
     ctx.fillText(text, x, y);
   }
 
+  /* An ally holding its spot on the path. Squared off so it never
+     reads as an enemy. */
+  function drawAlly(ally) {
+    var point = allyAt(ally);
+    var size = view.size * 0.44;
+
+    roundedPath(point.x - size / 2, point.y - size / 2, size, size, size * 0.28);
+    ctx.fillStyle = "#4a6b6e";
+    ctx.fill();
+    ctx.strokeStyle = "#7fc4c9";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    var width = view.size * 0.6;
+    var fraction = Math.max(0, ally.hp / ally.maxHp);
+    var barY = point.y - size * 0.75;
+
+    ctx.fillStyle = "rgba(34, 42, 47, 0.25)";
+    ctx.fillRect(point.x - width / 2, barY, width, 3);
+    ctx.fillStyle = "#7fc4c9";
+    ctx.fillRect(point.x - width / 2, barY, width * fraction, 3);
+  }
+
   /* PLACEHOLDER enemy art: a coloured disc with a health bar.
      Swap for enemies/<kind>.svg when the drawings land. */
   function drawEnemy(enemy) {
@@ -1127,6 +1179,7 @@
       drawTower(towers[position], rect.x, rect.y, rect.size);
     });
 
+    allies.forEach(drawAlly);
     enemies.forEach(drawEnemy);
     drawShots();
     drawProjectiles();
@@ -1462,6 +1515,130 @@
     });
   }
 
+  /* =========================================================
+     Allies
+
+     A spawner drops one onto the nearest point of the path every
+     few seconds. Allies do not move: they hold that spot, stop
+     whatever walks into them, and trade damage until one side
+     dies.
+     ========================================================= */
+
+  /* The point on the path closest to a tower, so its allies stand
+     where enemies will actually meet them. */
+  function nearestPathProgress(origin) {
+    var best = 0;
+    var bestDistance = Infinity;
+
+    for (var i = 0; i < view.path.length; i += 1) {
+      var centre = tileCentre(view.path[i][0], view.path[i][1]);
+      var dx = centre.x - origin.x;
+      var dy = centre.y - origin.y;
+      var distance = dx * dx + dy * dy;
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
+      }
+    }
+
+    return best;
+  }
+
+  function spawnAllies(position, tower, delta) {
+    var definition = stats.towers[tower.key];
+
+    if (!definition.spawnEvery) {
+      return;
+    }
+
+    var evolution = evolutionFor(tower);
+
+    tower.spawnTimer = (tower.spawnTimer || 0) - delta;
+
+    if (tower.spawnTimer > 0) {
+      return;
+    }
+
+    tower.spawnTimer = definition.spawnEvery;
+
+    var mine = allies.filter(function (ally) {
+      return ally.from === position;
+    });
+
+    if (mine.length >= definition.allyCap) {
+      return;
+    }
+
+    var parts = position.split(",");
+    var origin = tileCentre(Number(parts[0]), Number(parts[1]));
+    var hp = stats.allyHealth(tower.key, tower.level, evolution);
+
+    allies.push({
+      from: position,
+      key: tower.key,
+      hp: hp,
+      maxHp: hp,
+      damage: stats.allyDamage(tower.key, tower.level, evolution),
+      cooldown: 0,
+      reload: definition.allyCooldown,
+      /* Never scales — only a booster can widen it. */
+      range: definition.allyRange,
+      progress: nearestPathProgress(origin)
+    });
+  }
+
+  function allyAt(ally) {
+    return pathPoint(ally.progress);
+  }
+
+  /* Allies shoot whatever is inside their fixed reach, and take
+     damage from anything standing on them. */
+  function fightAllies(delta) {
+    allies.forEach(function (ally) {
+      var here = allyAt(ally);
+      var reach = (ally.range / stats.rangePerTile) * view.size;
+
+      ally.cooldown -= delta;
+
+      var inRange = enemies.filter(function (enemy) {
+        var point = enemyAt(enemy);
+        var dx = point.x - here.x;
+        var dy = point.y - here.y;
+
+        return Math.sqrt(dx * dx + dy * dy) <= reach;
+      });
+
+      if (ally.cooldown <= 0 && inRange.length) {
+        inRange.sort(function (a, b) {
+          return b.progress - a.progress;
+        });
+
+        inRange[0].hp -= ally.damage;
+        ally.cooldown = ally.reload;
+      }
+    });
+
+    /* Anything touching an ally stops and hits it. */
+    var block = BLOCK_TILES;
+
+    enemies.forEach(function (enemy) {
+      enemy.blocked = false;
+
+      for (var i = 0; i < allies.length; i += 1) {
+        if (Math.abs(enemy.progress - allies[i].progress) <= block) {
+          enemy.blocked = true;
+          allies[i].hp -= stats.waveEnemyDps(enemy.kind, wave) * delta;
+          break;
+        }
+      }
+    });
+
+    allies = allies.filter(function (ally) {
+      return ally.hp > 0;
+    });
+  }
+
   function update(delta) {
     if (baseHp <= 0) {
       return;
@@ -1482,8 +1659,12 @@
     /* Movement, then anything that reached the base. */
     var end = view.path.length - 1;
 
+    fightAllies(delta);
+
     enemies.forEach(function (enemy) {
-      enemy.progress += enemy.speed * delta;
+      if (!enemy.blocked) {
+        enemy.progress += enemy.speed * delta;
+      }
     });
 
     enemies = enemies.filter(function (enemy) {
@@ -1508,6 +1689,7 @@
 
     Object.keys(towers).forEach(function (position) {
       fire(position, towers[position], delta);
+      spawnAllies(position, towers[position], delta);
     });
 
     shots = shots.filter(function (shot) {
@@ -1951,6 +2133,24 @@
       );
     }
 
+    var ally = stats.allyHealth(tower.key, tower.level, evolution);
+
+    if (ally > 0) {
+      inspect.appendChild(statLine("Ally health", formatHp(ally)));
+      inspect.appendChild(
+        statLine(
+          "Ally damage",
+          formatHp(stats.allyDamage(tower.key, tower.level, evolution))
+        )
+      );
+      inspect.appendChild(
+        statLine("Spawns", "every " + definition.spawnEvery + "s")
+      );
+      inspect.appendChild(
+        statLine("Ally reach", definition.allyRange / stats.rangePerTile + " tiles")
+      );
+    }
+
     var coins = stats.coins(tower.key, tower.level, evolution);
 
     if (coins > 0) {
@@ -2269,6 +2469,7 @@
     shots = [];
     projectiles = [];
     particles = [];
+    allies = [];
     spawnQueue = [];
     portraitMode = null;
     elapsed = 0;

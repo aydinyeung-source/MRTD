@@ -85,13 +85,15 @@
      takes its REMAINING hp off the base, so wounding something still
      counts even if it gets through. Colours stand in until the SVGs
      arrive. */
+  /* dps is what an enemy deals to an ally blocking its path. It
+     scales with the same wave curve as health. */
   var ENEMIES = {
     /* The opening fodder. Weak enough that the one dagger a player
        can afford at wave 1 actually kills things. */
-    crawler: { label: "Crawler", hp: 60, speed: 1, bounty: 12, colour: "#8a7f9c" },
-    grunt: { label: "Grunt", hp: 250, speed: 1.2, bounty: 25, colour: "#7a5c8a" },
-    runner: { label: "Runner", hp: 200, speed: 2.6, bounty: 20, colour: "#c98f6a" },
-    brute: { label: "Brute", hp: 1200, speed: 0.6, bounty: 120, colour: "#5a6b52" }
+    crawler: { label: "Crawler", hp: 60, speed: 1, dps: 12, bounty: 12, colour: "#8a7f9c" },
+    grunt: { label: "Grunt", hp: 250, speed: 1.2, dps: 50, bounty: 25, colour: "#7a5c8a" },
+    runner: { label: "Runner", hp: 200, speed: 2.6, dps: 40, bounty: 20, colour: "#c98f6a" },
+    brute: { label: "Brute", hp: 1200, speed: 0.6, dps: 240, bounty: 120, colour: "#5a6b52" }
   };
 
   /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
@@ -111,6 +113,12 @@
     var enemy = ENEMIES[kind];
 
     return enemy ? enemy.hp * Math.pow(WAVE.hpGrowth, wave - 1) : 0;
+  }
+
+  function waveEnemyDps(kind, wave) {
+    var enemy = ENEMIES[kind];
+
+    return enemy ? enemy.dps * Math.pow(WAVE.hpGrowth, wave - 1) : 0;
   }
 
   function waveBounty(kind, wave) {
@@ -215,8 +223,52 @@
       label: "Sniper", role: "damage",
       damage: 900, range: 60, cooldown: 3, cost: 600, // 300 dps, 0.50 per cash
       attack: { shape: "single" }
+    },
+    spawner: {
+      /* Builds nothing itself. Every 15 seconds it puts an ally on
+         the path, which blocks enemies and fights back. Allies are
+         where all its strength lives. */
+      label: "Spawner", role: "spawner",
+      damage: 0, range: 0, cooldown: 0, cost: 800,
+      attack: null,
+
+      allyHp: 60,
+      allyDamage: 60,
+      allyCooldown: 1,
+      /* Fixed at 1.5 tiles forever. Merging and evolving make an
+         ally tougher and stronger, never further reaching — only a
+         booster can change this. */
+      allyRange: 15,
+      spawnEvery: 15,
+      allyCap: 6
     }
   };
+
+  /* Allies scale on the same curves as everything else: root 5 per
+     merge, 10% per evolution, applied to both health and damage. */
+  var ALLY = { merge: Math.sqrt(5), evolution: 0.1 };
+
+  function allyStat(base, level, evolution) {
+    return (
+      base *
+      Math.pow(ALLY.merge, (level || 1) - 1) *
+      Math.pow(1 + ALLY.evolution, evolution || 0)
+    );
+  }
+
+  function allyHealth(key, level, evolution) {
+    var tower = base(key);
+
+    return tower && tower.allyHp ? allyStat(tower.allyHp, level, evolution) : 0;
+  }
+
+  function allyDamage(key, level, evolution) {
+    var tower = base(key);
+
+    return tower && tower.allyDamage
+      ? allyStat(tower.allyDamage, level, evolution)
+      : 0;
+  }
 
   function base(key) {
     return TOWERS[key] || null;
@@ -452,6 +504,9 @@
     enemies: ENEMIES,
     wave: WAVE,
     waveEnemyHp: waveEnemyHp,
+    waveEnemyDps: waveEnemyDps,
+    allyHealth: allyHealth,
+    allyDamage: allyDamage,
     waveBounty: waveBounty,
     waveCount: waveCount,
     wavePool: wavePool,
