@@ -1,9 +1,10 @@
 -- ============================================================
 -- MRTD chest: seven towers on a rotating line-up.
 --
---   common  dagger, axe                52%
---   rare    farm, sniper, shotgunner   36%
---   epic    blender, spawner           12%
+--   common     dagger, axe                52%
+--   rare       farm, sniper, shotgunner   27%
+--   epic       blender, spawner           18%
+--   legendary  (none yet)                  3%
 --
 -- One tower from each rarity is in the chest at a time. The
 -- line-up changes every half hour and is worked out from the
@@ -21,11 +22,14 @@
 insert into public.chest_odds (tower_key, weight, rarity) values
   ('dagger',     52, 'common'),
   ('axe',        52, 'common'),
-  ('farm',       36, 'rare'),
-  ('sniper',     36, 'rare'),
-  ('shotgunner', 36, 'rare'),
-  ('blender',    12, 'epic'),
-  ('spawner',    12, 'epic')
+  ('farm',       27, 'rare'),
+  ('sniper',     27, 'rare'),
+  ('shotgunner', 27, 'rare'),
+  ('blender',    18, 'epic'),
+  ('spawner',    18, 'epic')
+  -- Legendary is the 3% left over. Add towers here when there
+  -- are any, all carrying weight 3:
+  --   ('whatever', 3, 'legendary')
 on conflict (tower_key) do update
   set weight = excluded.weight, rarity = excluded.rarity;
 
