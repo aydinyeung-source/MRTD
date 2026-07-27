@@ -720,6 +720,51 @@ body::after {
   background-color: var(--ink);
 }
 
+/* ---- Money notifications ---- */
+
+.cashfeed {
+  position: absolute;
+  left: clamp(12px, 3vw, 28px);
+  bottom: 108px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.cashfeed__line {
+  margin: 0;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background-color: rgba(249, 251, 252, 0.94);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: #b07404;
+  box-shadow: 0 8px 20px -14px rgba(34, 42, 47, 0.7);
+  animation: cashrise 1800ms var(--ease-soft) both;
+}
+
+@keyframes cashrise {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  15% {
+    opacity: 1;
+    transform: none;
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
 /* ---- Game over ---- */
 
 .gameover {

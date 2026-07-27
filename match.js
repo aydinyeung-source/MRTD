@@ -82,6 +82,7 @@
   var gameoverCoins = document.getElementById("gameover-coins");
   var gameoverNote = document.getElementById("gameover-note");
   var gameoverLeave = document.getElementById("gameover-leave");
+  var cashfeed = document.getElementById("cashfeed");
   var playButton = document.getElementById("play");
 
   if (!canvas || !root) {
@@ -1368,7 +1369,7 @@
      Wave 1 pays nothing; you begin with starting cash only. */
   function payWave() {
     var total = WAVE_BONUS;
-    var counted = {};
+    var farmed = 0;
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
@@ -1378,20 +1379,20 @@
         return;
       }
 
-      /* Duplicated levels cannot survive resolveFarms, so this is
-         a guard rather than a rule. */
-      var id = tower.key + ":" + tower.level;
-
-      if (counted[id]) {
-        return;
-      }
-
-      counted[id] = true;
+      /* Every farm pays; the board already caps how many of each
+         level can exist. */
       total += income;
+      farmed += income;
       spendParticles(position);
     });
 
     cash += total;
+
+    notifyCash(WAVE_BONUS, "wave " + (wave + 1));
+
+    if (farmed > 0) {
+      notifyCash(farmed, "farms");
+    }
   }
 
   /* Spin, recoil, thrown daggers and farm coins all decay or
@@ -1450,7 +1451,10 @@
 
     enemies = enemies.filter(function (enemy) {
       if (enemy.hp <= 0) {
-        cash += stats.waveBounty(enemy.kind, wave);
+        var bounty = stats.waveBounty(enemy.kind, wave);
+
+        cash += bounty;
+        poolBounty(bounty);
         return false;
       }
 
@@ -1475,6 +1479,7 @@
     });
 
     advanceEffects(delta);
+    flushBounty(delta);
 
     /* A wave counts once nothing is left on the path, however it
        got there. Tanking a wave with the base is a valid way to
@@ -1569,6 +1574,58 @@
     return Object.keys(towers).length;
   }
 
+  /* =========================================================
+     Money notifications
+
+     Kills are pooled for a moment before being announced —
+     one line per enemy would be unreadable at 10x.
+     ========================================================= */
+
+  var BOUNTY_FLUSH = 0.9;
+
+  var bountyPool = 0;
+  var bountyTimer = 0;
+
+  function notifyCash(amount, reason) {
+    var rounded = Math.round(amount);
+
+    if (!rounded || !cashfeed) {
+      return;
+    }
+
+    var line = document.createElement("p");
+
+    line.className = "cashfeed__line";
+    line.textContent = "+" + rounded + "  " + reason;
+    cashfeed.appendChild(line);
+
+    window.setTimeout(function () {
+      if (line.parentNode) {
+        line.parentNode.removeChild(line);
+      }
+    }, 1800);
+  }
+
+  function poolBounty(amount) {
+    bountyPool += amount;
+  }
+
+  function flushBounty(delta) {
+    if (bountyPool <= 0) {
+      return;
+    }
+
+    bountyTimer += delta;
+
+    if (bountyTimer < BOUNTY_FLUSH) {
+      return;
+    }
+
+    notifyCash(bountyPool, "kills");
+    bountyPool = 0;
+    bountyTimer = 0;
+  }
+
   function refreshHud() {
     cashDisplay.textContent = isDev() ? "∞" : String(Math.floor(cash));
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
@@ -1633,7 +1690,10 @@
       return;
     }
 
-    cash += stats.sellValue(tower.key, tower.level);
+    var refund = stats.sellValue(tower.key, tower.level);
+
+    cash += refund;
+    notifyCash(refund, "sold");
     delete towers[from];
     refreshHud();
   }
@@ -2094,36 +2154,42 @@
      Placing and merging
      ========================================================= */
 
-  /* Only one farm of each level may stand on the board. Placing or
-     merging into a level that already exists folds the two
-     together, cascading upward if that collides too — so buying a
-     second level 1 gives you a level 2 rather than a duplicate. */
+  /* At most two farms of any one level may stand on the board. A
+     third folds two of them into the next level up, cascading if
+     that lands on a full level too. */
+  var FARMS_PER_LEVEL = 2;
+
   function resolveFarms() {
     var merged = true;
 
     while (merged) {
       merged = false;
 
-      var seen = {};
-      var positions = Object.keys(towers);
+      var byLevel = {};
 
-      for (var i = 0; i < positions.length; i += 1) {
-        var tower = towers[positions[i]];
+      Object.keys(towers).forEach(function (position) {
+        var tower = towers[position];
 
         if (tower.key !== "farm") {
-          continue;
+          return;
         }
 
-        var existing = seen[tower.level];
+        byLevel[tower.level] = byLevel[tower.level] || [];
+        byLevel[tower.level].push(position);
+      });
 
-        if (existing && tower.level < MAX_LEVEL) {
-          towers[existing].level += 1;
-          delete towers[positions[i]];
+      var levels = Object.keys(byLevel);
+
+      for (var i = 0; i < levels.length; i += 1) {
+        var level = Number(levels[i]);
+        var group = byLevel[level];
+
+        if (group.length > FARMS_PER_LEVEL && level < MAX_LEVEL) {
+          towers[group[0]].level = level + 1;
+          delete towers[group[1]];
           merged = true;
           break;
         }
-
-        seen[tower.level] = positions[i];
       }
     }
   }
@@ -2320,13 +2386,16 @@
      the path, and pays out as it goes. */
   skipButton.addEventListener("click", beginNextWave);
 
-  /* 2x is an upgrade, 10x is a developer speed. */
+  /* 2x is an upgrade. 10x only exists while an admin has switched
+     it on, so players see no trace of it until then. */
   function speedChoices() {
-    if (isDev()) {
-      return [1, 2, 10];
+    var choices = isDev() || upgradeLevel("game_speed") ? [1, 2] : [1];
+
+    if (isDev() || (window.MRTD.feature && window.MRTD.feature("speed10"))) {
+      choices.push(10);
     }
 
-    return upgradeLevel("game_speed") ? [1, 2] : [1];
+    return choices;
   }
 
   function setSpeed(next) {
@@ -2353,6 +2422,14 @@
   });
 
   /* Toggling developer mode mid match takes effect immediately. */
+  /* A switch turned off mid match must not leave the player on a
+     speed they no longer have. */
+  document.addEventListener("mrtd:settings", function () {
+    if (speedChoices().indexOf(speed) < 0) {
+      setSpeed(1);
+    }
+  });
+
   document.addEventListener("mrtd:dev", function () {
     /* Leaving developer mode while at 10x drops back to normal. */
     if (speedChoices().indexOf(speed) < 0) {

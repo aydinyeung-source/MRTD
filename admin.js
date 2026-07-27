@@ -165,6 +165,47 @@
     });
   });
 
+  /* Live events. Turning one on reaches every signed in player on
+     their next heartbeat, and it lapses by itself. */
+  var settingSelect = document.getElementById("admin-setting");
+  var minutesSelect = document.getElementById("admin-minutes");
+  var eventOn = document.getElementById("admin-event-on");
+  var eventOff = document.getElementById("admin-event-off");
+
+  function setEvent(enabled, button) {
+    var name = settingSelect.value;
+    var minutes = enabled ? Number(minutesSelect.value) : null;
+
+    button.disabled = true;
+
+    api("/rest/v1/rpc/admin_set_setting", {
+      p_key: name,
+      p_enabled: enabled,
+      p_minutes: minutes
+    })
+      .then(function () {
+        setStatus(
+          enabled
+            ? settingSelect.options[settingSelect.selectedIndex].text +
+                " on for " + minutes + " minutes."
+            : "Event stopped."
+        );
+        button.disabled = false;
+      })
+      .catch(function (error) {
+        fail(error);
+        button.disabled = false;
+      });
+  }
+
+  eventOn.addEventListener("click", function () {
+    setEvent(true, eventOn);
+  });
+
+  eventOff.addEventListener("click", function () {
+    setEvent(false, eventOff);
+  });
+
   sendMessage.addEventListener("click", function () {
     var body = messageInput.value.trim();
 

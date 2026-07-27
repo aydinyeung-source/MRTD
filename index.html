@@ -99,6 +99,27 @@
             <button class="admin__button" id="admin-send" type="button">Send</button>
           </div>
 
+          <div class="admin__row">
+            <label class="admin__field">
+              <span>Event</span>
+              <select class="admin__input" id="admin-setting">
+                <option value="speed10">10× speed for everyone</option>
+              </select>
+            </label>
+            <label class="admin__field">
+              <span>Minutes</span>
+              <select class="admin__input" id="admin-minutes">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="5" selected>5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+              </select>
+            </label>
+            <button class="admin__button" id="admin-event-on" type="button">Start</button>
+            <button class="admin__button" id="admin-event-off" type="button">Stop</button>
+          </div>
+
           <label class="admin__check">
             <input type="checkbox" id="admin-online-only" checked>
             <span>Online players only</span>
@@ -131,6 +152,7 @@
             <div class="shop__buys">
               <button class="shop__buy" id="shop-buy-1" type="button">Summon ×1 — 100</button>
               <button class="shop__buy" id="shop-buy-10" type="button">Summon ×10 — 900</button>
+              <button class="shop__buy" id="shop-evolve-all" type="button">Evolve all</button>
             </div>
             <p class="shop__odds" id="shop-odds"></p>
           </div>
@@ -279,6 +301,7 @@
     </div>
 
     <div class="inspect" id="inspect" hidden></div>
+    <div class="cashfeed" id="cashfeed"></div>
 
     <div class="gameover" id="gameover" hidden>
       <div class="gameover__panel">

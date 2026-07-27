@@ -33,6 +33,7 @@
   var coinsDisplay = document.getElementById("shop-coins");
   var buyOne = document.getElementById("shop-buy-1");
   var buyTen = document.getElementById("shop-buy-10");
+  var evolveAllButton = document.getElementById("shop-evolve-all");
   var oddsLine = document.getElementById("shop-odds");
 
   if (!collection) {
@@ -352,6 +353,32 @@
 
   buyTen.addEventListener("click", function () {
     openChest(10, buyTen);
+  });
+
+  /* Runs every evolution the collection can pay for, lowest tier
+     first so pairs cascade upward. */
+  evolveAllButton.addEventListener("click", function () {
+    evolveAllButton.disabled = true;
+    setStatus("Evolving...");
+
+    api("/rest/v1/rpc/evolve_all", {
+      method: "POST",
+      body: { p_sandbox: Boolean(window.MRTD.dev) }
+    })
+      .then(function (count) {
+        setStatus(
+          count
+            ? count + " evolution" + (count === 1 ? "" : "s") + " done."
+            : "Nothing to evolve — you need two of a tier."
+        );
+        return refresh();
+      })
+      .catch(function (error) {
+        setStatus(error.message, true);
+      })
+      .then(function () {
+        evolveAllButton.disabled = false;
+      });
   });
 
   document.addEventListener("mrtd:unlocked", function () {

@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.20.1";
+  var VERSION = "1.21.0";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -245,6 +245,7 @@
           return;
         }
 
+        applySettings(result.settings);
         showBroadcast(result.announcement);
       })
       .catch(function () {
@@ -296,6 +297,35 @@
         done();
       }
     }, duration);
+  }
+
+  /* =========================================================
+     Live settings
+
+     Switches an admin can flip for everyone. They arrive on the
+     heartbeat, so a change takes effect within seconds and
+     without a reload. Nothing is exposed to a player until it is
+     turned on.
+     ========================================================= */
+
+  var settings = {};
+
+  function applySettings(next) {
+    var changed = false;
+    var incoming = next || {};
+
+    Object.keys(incoming).forEach(function (name) {
+      if (settings[name] !== incoming[name]) {
+        changed = true;
+      }
+    });
+
+    settings = incoming;
+    window.MRTD.settings = settings;
+
+    if (changed) {
+      document.dispatchEvent(new CustomEvent("mrtd:settings"));
+    }
   }
 
   /* =========================================================
@@ -702,6 +732,11 @@
   window.MRTD.session = loadSession;
   window.MRTD.userId = userId;
   window.MRTD.load = showLoader;
+  window.MRTD.settings = settings;
+
+  window.MRTD.feature = function (name) {
+    return Boolean(settings[name]);
+  };
 
   setMode("login");
 

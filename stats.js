@@ -176,29 +176,31 @@
   var TOWERS = {
     blender: {
       label: "Blender", role: "damage",
-      damage: 60, range: 15, cooldown: 0.5, cost: 150, // 120 dps
+      damage: 60, range: 15, cooldown: 0.5, cost: 300, // 120 dps
       attack: { shape: "circle", angle: 360 }
     },
     dagger: {
+      /* The cheap opener. Deliberately poor value per coin — it is
+         what you can afford at wave 1, not what you build on. */
       label: "Dagger", role: "damage",
-      damage: 100, range: 20, cooldown: 0.4, cost: 100, // 250 dps
+      damage: 35, range: 20, cooldown: 0.4, cost: 100, // 87.5 dps
       attack: { shape: "single" }
     },
     farm: {
       label: "Farm", role: "economy",
-      damage: 0, range: 0, cooldown: 0, cost: 100, coins: 100,
+      damage: 0, range: 0, cooldown: 0, cost: 250, coins: 100,
       attack: null
     },
     shotgunner: {
       label: "Shotgunner", role: "damage",
-      damage: 600, range: 30, cooldown: 2.5, cost: 300, // 240 dps point blank
+      damage: 600, range: 30, cooldown: 2.5, cost: 600, // 240 dps point blank
       /* 100 degree spread in front. 600 at the muzzle falling
          linearly to 60 at maximum range, so falloffTo is 0.1. */
       attack: { shape: "cone", angle: 100, falloffTo: 0.1 }
     },
     sniper: {
       label: "Sniper", role: "damage",
-      damage: 1200, range: 60, cooldown: 3, cost: 300, // 400 dps
+      damage: 1200, range: 60, cooldown: 3, cost: 600, // 400 dps
       attack: { shape: "single" }
     }
   };
