@@ -111,6 +111,9 @@
   var speed = 1;
   var breakLeft = 0;
 
+  /* The in-flight bank_run call, so leaving waits for it. */
+  var banking = null;
+
   /* Simulation is advanced in fixed slices. Without this, 10x
      would take one huge step per frame and cooldowns would drift —
      a 0.4s tower would fire once per frame instead of several
@@ -1978,37 +1981,57 @@
     gameoverCoins.textContent = isDev()
       ? "0"
       : String(stats.runReward(wavesBeaten));
-    gameoverNote.hidden = !isDev();
+    gameoverNote.hidden = false;
+    gameoverNote.textContent = isDev()
+      ? "Dev mode — nothing banked"
+      : "Banking...";
     gameover.hidden = false;
 
-    bankRun(wavesBeaten);
+    banking = bankRun(wavesBeaten);
   }
 
   /* Credit the coins server side. The reward is recalculated in
      Postgres from the wave count, so the browser cannot name its
-     own figure. */
+     own figure.
+
+     Whatever happens is reported on the panel — a run that pays
+     nothing should say why rather than look broken. */
   function bankRun(waves) {
     var session = window.MRTD.session();
 
-    if (!session || !session.access_token) {
-      return;
+    if (isDev()) {
+      return Promise.resolve();
     }
 
-    fetch(window.MRTD.url + "/rest/v1/rpc/bank_run", {
+    if (!session || !session.access_token) {
+      gameoverNote.textContent = "Not signed in — nothing banked";
+      return Promise.resolve();
+    }
+
+    return fetch(window.MRTD.url + "/rest/v1/rpc/bank_run", {
       method: "POST",
       headers: {
         apikey: window.MRTD.key,
         Authorization: "Bearer " + session.access_token,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        waves_beaten: waves,
-        /* Developer runs pay nothing and leave no trace. */
-        sandbox: isDev()
+      body: JSON.stringify({ waves_beaten: waves, sandbox: false })
+    })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          if (!response.ok) {
+            throw new Error(data.message || data.msg || "Request failed");
+          }
+
+          return data;
+        });
       })
-    }).catch(function () {
-      /* Offline: the run still shows its reward on screen. */
-    });
+      .then(function (balance) {
+        gameoverNote.textContent = "Banked · " + balance + " coins total";
+      })
+      .catch(function (error) {
+        gameoverNote.textContent = "Could not bank: " + error.message;
+      });
   }
 
   function open() {
@@ -2046,11 +2069,14 @@
 
   /* The lobby is re-entered through a full reload, so a player
      coming out of a match always picks up whatever has been
-     deployed since they started it. */
+     deployed since they started it — but never before the coins
+     have finished banking. */
   function leave() {
     close();
     window.MRTD.load("Returning to lobby", 1400, function () {
-      window.location.reload();
+      Promise.resolve(banking).then(function () {
+        window.location.reload();
+      });
     });
   }
 
