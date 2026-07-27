@@ -237,7 +237,7 @@
          the path, which blocks enemies and fights back. Allies are
          where all its strength lives. */
       label: "Spawner", role: "spawner",
-      damage: 0, range: 0, cooldown: 0, cost: 800,
+      damage: 0, range: 0, cooldown: 0, cost: 1000,
       attack: null,
 
       allyHp: 60,
