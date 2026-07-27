@@ -52,9 +52,19 @@
     status.classList.toggle("is-error", Boolean(isError));
   }
 
+  /* Developer mode owns every upgrade outright, so the tab shows
+     them maxed rather than at the account's real levels. */
+  function levelOf(name) {
+    if (window.MRTD.dev) {
+      return window.MRTD.stats.upgrades[name].max;
+    }
+
+    return owned[name] || 0;
+  }
+
   /* Price of the NEXT level, or null when maxed. */
   function nextCost(name) {
-    var level = owned[name] || 0;
+    var level = levelOf(name);
     var table = costs[name] || {};
 
     return table[level + 1] === undefined ? null : table[level + 1];
@@ -103,7 +113,7 @@
 
   function row(name) {
     var definition = window.MRTD.stats.upgrades[name];
-    var level = owned[name] || 0;
+    var level = levelOf(name);
     var price = nextCost(name);
     var dev = Boolean(window.MRTD.dev);
 
@@ -223,13 +233,7 @@
 
   /* What the match asks for. Developer mode owns everything. */
   window.MRTD = window.MRTD || {};
-  window.MRTD.upgrade = function (name) {
-    if (window.MRTD.dev) {
-      return window.MRTD.stats.upgrades[name].max;
-    }
-
-    return owned[name] || 0;
-  };
+  window.MRTD.upgrade = levelOf;
   window.MRTD.refreshUpgrades = refresh;
 
   document.addEventListener("mrtd:unlocked", refresh);

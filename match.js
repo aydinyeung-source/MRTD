@@ -426,23 +426,11 @@
     }
 
     var radius = size * 0.32;
-    var attack = stats.attack(tower.key);
     var isField = token.plan === "field";
 
     ctx.save();
     ctx.translate(x + size / 2, y + size / 2);
     ctx.rotate(tower.angle || 0);
-
-    if (attack && attack.shape === "cone") {
-      var half = (attack.angle * Math.PI) / 360;
-
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.arc(0, 0, radius * 2, -Math.PI / 2 - half, -Math.PI / 2 + half);
-      ctx.closePath();
-      ctx.fillStyle = "rgba(34, 42, 47, 0.12)";
-      ctx.fill();
-    }
 
     if (!isField && PLANS[token.plan]) {
       PLANS[token.plan](token, radius, tower.level);
@@ -475,7 +463,43 @@
     ctx.fillText(String(tower.level), x + size / 2, y + size / 2);
   }
 
+  /* The firing arc, drawn out to the full range so it is obvious
+     what the tower actually covers. Cone towers only. */
+  function drawCone(tower, x, y, size) {
+    var attack = stats.attack(tower.key);
+
+    if (!attack || attack.shape !== "cone") {
+      return;
+    }
+
+    var reach =
+      (stats.range(tower.key, tower.level, evolutionFor(tower)) /
+        stats.rangePerTile) *
+      view.size;
+    var half = (attack.angle * Math.PI) / 360;
+
+    ctx.save();
+    ctx.translate(x + size / 2, y + size / 2);
+    ctx.rotate(tower.angle || 0);
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, reach, -Math.PI / 2 - half, -Math.PI / 2 + half);
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(79, 106, 120, 0.14)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(79, 106, 120, 0.4)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   function drawTower(tower, x, y, size) {
+    /* Drawn in both views, and under the tower itself. */
+    drawCone(tower, x, y, size);
+
     if (viewMode === "top") {
       drawTopTower(tower, x, y, size);
       return;
