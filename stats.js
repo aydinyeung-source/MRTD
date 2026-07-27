@@ -97,7 +97,11 @@
   /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
   var WAVE = {
     hpGrowth: 1.12,   // per wave, compounding
-    bountyGrowth: 1.04,
+
+    /* Deliberately far below hpGrowth. Bounty compounding anywhere
+       near enemy health means late waves pay out faster than there
+       is anything to spend it on. */
+    bountyGrowth: 1.015,
     countBase: 4,
     countPerWave: 1.5,
     spawnGap: 0.75    // seconds between spawns
@@ -202,7 +206,7 @@
     },
     shotgunner: {
       label: "Shotgunner", role: "damage",
-      damage: 750, range: 30, cooldown: 2.5, cost: 600, // 300 dps, 0.50 per cash
+      damage: 750, range: 20, cooldown: 2.5, cost: 600, // 300 dps, 0.50 per cash
       /* 100 degree spread in front, full damage anywhere inside
          it. No falloff, so all that matters is being in the arc. */
       attack: { shape: "cone", angle: 100 }
