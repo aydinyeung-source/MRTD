@@ -84,14 +84,14 @@
      counts even if it gets through. Colours stand in until the SVGs
      arrive. */
   var ENEMIES = {
-    grunt: { label: "Grunt", hp: 100, speed: 1.2, bounty: 15, colour: "#7a5c8a" },
-    runner: { label: "Runner", hp: 60, speed: 2.6, bounty: 12, colour: "#c98f6a" },
-    brute: { label: "Brute", hp: 700, speed: 0.6, bounty: 55, colour: "#5a6b52" }
+    grunt: { label: "Grunt", hp: 600, speed: 1.2, bounty: 25, colour: "#7a5c8a" },
+    runner: { label: "Runner", hp: 350, speed: 2.6, bounty: 20, colour: "#c98f6a" },
+    brute: { label: "Brute", hp: 4000, speed: 0.6, bounty: 120, colour: "#5a6b52" }
   };
 
   /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
   var WAVE = {
-    hpGrowth: 1.1,    // per wave, compounding
+    hpGrowth: 1.12,   // per wave, compounding
     bountyGrowth: 1.04,
     countBase: 5,
     countPerWave: 1.5,
@@ -187,9 +187,9 @@
     },
     shotgunner: {
       label: "Shotgunner", role: "damage",
-      damage: 1000, range: 30, cooldown: 2.5, cost: 300, // 400 dps point blank
-      /* 100 degree spread in front. 1000 at the muzzle falling
-         linearly to 100 at maximum range, so falloffTo is 0.1. */
+      damage: 600, range: 30, cooldown: 2.5, cost: 300, // 240 dps point blank
+      /* 100 degree spread in front. 600 at the muzzle falling
+         linearly to 60 at maximum range, so falloffTo is 0.1. */
       attack: { shape: "cone", angle: 100, falloffTo: 0.1 }
     },
     sniper: {
