@@ -95,6 +95,16 @@
   var enemies = [];
   var shots = [];
 
+  /* Thrown daggers in flight, and coins drifting off a farm. */
+  var projectiles = [];
+  var particles = [];
+
+  /* How fast a blender's blades turn at full spin, in radians per
+     second, and how quickly spin and recoil fall away. */
+  var SPIN_RATE = 16;
+  var SPIN_DECAY = 1.6;
+  var RECOIL_DECAY = 7;
+
   var cash = 0;
   var baseHp = 0;
   var wave = 0;
@@ -551,6 +561,16 @@
     ctx.translate(x + size / 2, y + size / 2);
     ctx.rotate(tower.angle || 0);
 
+    /* Blades keep turning while the blender is cutting. */
+    if (token.plan === "blades") {
+      ctx.rotate(tower.spin || 0);
+    }
+
+    /* Kick backwards along the barrel. */
+    if (tower.recoil) {
+      ctx.translate(0, tower.recoil * radius * 0.3);
+    }
+
     if (!isField && PLANS[token.plan]) {
       PLANS[token.plan](token, radius, tower.level);
     }
@@ -641,6 +661,7 @@
       ctx.save();
       ctx.translate(x + size / 2, y + size / 2);
       ctx.rotate(tower.angle || 0);
+      ctx.translate(0, (tower.recoil || 0) * size * 0.09);
       ctx.drawImage(
         top,
         (-top.width * scale) / 2,
@@ -658,6 +679,7 @@
     ctx.save();
     ctx.translate(x + size / 2, y + size / 2);
     ctx.rotate(tower.angle || 0);
+    ctx.translate(0, (tower.recoil || 0) * size * 0.09);
 
     roundedPath(-width / 2, -length, width, length, width * 0.4);
     ctx.fillStyle = "#3a3f42";
@@ -934,6 +956,57 @@
     );
   }
 
+  /* A thrown dagger: a round pommel with a blade ahead of it,
+     pointing the way it is travelling. */
+  function drawProjectiles() {
+    projectiles.forEach(function (shot) {
+      var x = shot.fromX + (shot.toX - shot.fromX) * shot.progress;
+      var y = shot.fromY + (shot.toY - shot.fromY) * shot.progress;
+      var scale = view.size * 0.11;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(shot.angle);
+
+      ctx.beginPath();
+      ctx.moveTo(0, -scale * 0.45);
+      ctx.lineTo(scale * 1.7, 0);
+      ctx.lineTo(0, scale * 0.45);
+      ctx.closePath();
+      ctx.fillStyle = "#d2d2d2";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(-scale * 0.2, 0, scale * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#bb0000";
+      ctx.fill();
+
+      ctx.restore();
+    });
+  }
+
+  /* Coins lifting off a farm as it pays out. */
+  function drawParticles() {
+    particles.forEach(function (coin) {
+      if (coin.delay > 0) {
+        return;
+      }
+
+      var lift = (1 - coin.life) * coin.rise;
+      var radius = view.size * 0.09;
+
+      ctx.globalAlpha = Math.max(0, Math.min(1, coin.life));
+      ctx.beginPath();
+      ctx.arc(coin.x, coin.y - lift, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#d2ae59";
+      ctx.fill();
+      ctx.strokeStyle = "#8a7f3a";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+  }
+
   function drawShots() {
     shots.forEach(function (shot) {
       ctx.beginPath();
@@ -1014,6 +1087,8 @@
 
     enemies.forEach(drawEnemy);
     drawShots();
+    drawProjectiles();
+    drawParticles();
 
     /* Ghost of the tower waiting to be committed. */
     if (placing) {
@@ -1233,6 +1308,33 @@
       );
     });
 
+    recordFiring(tower, origin, aim);
+  }
+
+  /* What firing looks like, per tower. */
+  function recordFiring(tower, origin, aim) {
+    if (tower.key === "blender") {
+      /* Blades wind up while it is cutting and coast down after. */
+      tower.spinPower = 1;
+      return;
+    }
+
+    if (tower.key === "dagger") {
+      projectiles.push({
+        fromX: origin.x,
+        fromY: origin.y,
+        toX: aim.x,
+        toY: aim.y,
+        angle: Math.atan2(aim.y - origin.y, aim.x - origin.x),
+        progress: 0,
+        speed: 4.5
+      });
+      return;
+    }
+
+    /* Sniper and shotgunner kick back and leave a tracer. */
+    tower.recoil = 1;
+
     shots.push({
       fromX: origin.x,
       fromY: origin.y,
@@ -1240,6 +1342,22 @@
       toY: aim.y,
       life: 0.12
     });
+  }
+
+  /* Coins drifting up off a farm as it pays out. */
+  function spendParticles(position) {
+    var parts = position.split(",");
+    var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+
+    for (var i = 0; i < 5; i += 1) {
+      particles.push({
+        x: centre.x + (Math.random() - 0.5) * view.size * 0.6,
+        y: centre.y + (Math.random() - 0.5) * view.size * 0.3,
+        rise: view.size * (0.6 + Math.random() * 0.5),
+        life: 1,
+        delay: i * 0.08
+      });
+    }
   }
 
   /* The wave payout: a flat bonus plus every farm's output.
@@ -1271,9 +1389,42 @@
 
       counted[id] = true;
       total += income;
+      spendParticles(position);
     });
 
     cash += total;
+  }
+
+  /* Spin, recoil, thrown daggers and farm coins all decay or
+     travel on their own once started. */
+  function advanceEffects(delta) {
+    Object.keys(towers).forEach(function (position) {
+      var tower = towers[position];
+
+      if (tower.spinPower) {
+        tower.spin = (tower.spin || 0) + tower.spinPower * SPIN_RATE * delta;
+        tower.spinPower = Math.max(0, tower.spinPower - SPIN_DECAY * delta);
+      }
+
+      if (tower.recoil) {
+        tower.recoil = Math.max(0, tower.recoil - RECOIL_DECAY * delta);
+      }
+    });
+
+    projectiles = projectiles.filter(function (shot) {
+      shot.progress += shot.speed * delta;
+      return shot.progress < 1;
+    });
+
+    particles = particles.filter(function (coin) {
+      if (coin.delay > 0) {
+        coin.delay -= delta;
+        return true;
+      }
+
+      coin.life -= delta * 0.9;
+      return coin.life > 0;
+    });
   }
 
   function update(delta) {
@@ -1323,6 +1474,8 @@
       shot.life -= delta;
       return shot.life > 0;
     });
+
+    advanceEffects(delta);
 
     /* A wave counts once nothing is left on the path, however it
        got there. Tanking a wave with the base is a valid way to
@@ -1995,6 +2148,8 @@
     towers = {};
     enemies = [];
     shots = [];
+    projectiles = [];
+    particles = [];
     spawnQueue = [];
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
     baseHp = stats.baseHp;
