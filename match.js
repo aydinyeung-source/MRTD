@@ -807,10 +807,6 @@
     spawnTimer = 0;
     spawnQueue = [];
 
-    /* Paid up front, so the money is available to spend on the
-       wave you are about to face. */
-    payWave();
-
     var pool = stats.wavePool(wave);
     var count = stats.waveCount(wave);
 
@@ -819,6 +815,18 @@
     }
 
     refreshHud();
+  }
+
+  /* Skipping jumps straight into the next wave, bypassing the
+     intermission where the payout normally happens — so it pays
+     here instead. During an intermission the money has already
+     been handed over, so it just starts. */
+  function beginNextWave() {
+    if (waveActive) {
+      payWave();
+    }
+
+    startWave();
   }
 
   function spawn(kind) {
@@ -911,8 +919,12 @@
     });
   }
 
-  /* Paid when a wave starts: a flat bonus plus every farm's
-     output for that wave. */
+  /* The wave payout: a flat bonus plus every farm's output.
+
+     Paid when the NEXT wave becomes imminent — the moment the
+     intermission opens, or the moment Skip is pressed — so the
+     money is in hand while there is still time to spend it.
+     Wave 1 pays nothing; you begin with starting cash only. */
   function payWave() {
     var total = WAVE_BONUS;
 
@@ -977,6 +989,10 @@
       waveActive = false;
       wavesBeaten = wave;
       breakLeft = BREAK_SECONDS;
+
+      /* The intermission belongs to the wave ahead, so it pays
+         out as it opens. */
+      payWave();
     }
 
     /* The breather runs itself out and starts the next wave. */
@@ -993,7 +1009,7 @@
        queue, so canStart goes false again immediately and waves
        chain rather than firing every frame. */
     if (autoSkip && canStart()) {
-      startWave();
+      beginNextWave();
     }
 
     if (baseHp <= 0) {
@@ -1054,14 +1070,18 @@
     waveDisplay.textContent = String(wave);
     exitButton.disabled = baseHp > 0;
 
-    /* Counts down through the break, then starts itself. */
+    /* Skip is offered once the wave has finished spawning and
+       there is still something left to kill. The two buttons do
+       the same job, so only one is ever shown. */
+    var canSkip = waveActive && !spawnQueue.length && enemies.length > 0;
+
+    skipButton.hidden = !canSkip;
+    startButton.hidden = canSkip;
+
+    /* Counts down through the intermission, then starts itself. */
     startButton.disabled = !canStart();
     startButton.textContent =
       breakLeft > 0 ? "Start wave (" + Math.ceil(breakLeft) + ")" : "Start wave";
-
-    /* Only offered once the wave has finished spawning and there
-       is still something left to kill. */
-    skipButton.hidden = !(waveActive && !spawnQueue.length && enemies.length > 0);
 
     refreshHotbar();
   }
@@ -1726,8 +1746,8 @@
   startButton.addEventListener("click", startWave);
 
   /* Skipping starts the next wave while stragglers are still on
-     the path, which is the same call. */
-  skipButton.addEventListener("click", startWave);
+     the path, and pays out as it goes. */
+  skipButton.addEventListener("click", beginNextWave);
 
   /* 2x is an upgrade, 10x is a developer speed. */
   function speedChoices() {
