@@ -4,7 +4,11 @@
 --   common     dagger, axe                52%
 --   rare       farm, sniper, shotgunner   27%
 --   epic       blender, spawner           18%
---   legendary  (none yet)                  3%
+--   legendary  beacon, forge, metronome    2%
+--   mythic     djtv                        1%
+--
+-- Legendary takes what is left after the others, so adding the
+-- 1% mythic moved it from 3 to 2.
 --
 -- One tower from each rarity is in the chest at a time. The
 -- line-up changes every half hour and is worked out from the
@@ -26,10 +30,13 @@ insert into public.chest_odds (tower_key, weight, rarity) values
   ('sniper',     27, 'rare'),
   ('shotgunner', 27, 'rare'),
   ('blender',    18, 'epic'),
-  ('spawner',    18, 'epic')
-  -- Legendary is the 3% left over. Add towers here when there
-  -- are any, all carrying weight 3:
-  --   ('whatever', 3, 'legendary')
+  ('spawner',    18, 'epic'),
+  -- The three boosters share the 3% legendary slot, one up at a
+  -- time like every other rarity.
+  ('beacon',      2, 'legendary'),
+  ('forge',       2, 'legendary'),
+  ('metronome',   2, 'legendary'),
+  ('djtv',        1, 'mythic')
 on conflict (tower_key) do update
   set weight = excluded.weight, rarity = excluded.rarity;
 

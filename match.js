@@ -43,7 +43,8 @@
 
   var MAX_LEVEL = 10;
   var TOWER_KEYS = [
-    "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner"
+    "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner",
+    "beacon", "forge", "metronome", "djtv"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -60,7 +61,11 @@
     farm: { body: "#eae484", accent: "#b8ae4a", plan: "field" },
     shotgunner: { body: "#656565", accent: "#8c8c8c", plan: "barrels" },
     sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" },
-    spawner: { body: "#4a6b6e", accent: "#7fc4c9", plan: "gate" }
+    spawner: { body: "#4a6b6e", accent: "#7fc4c9", plan: "gate" },
+    beacon: { body: "#3f5a7a", accent: "#8fb7e2", plan: "aura" },
+    forge: { body: "#7a4038", accent: "#e0895f", plan: "aura" },
+    metronome: { body: "#6a5a7f", accent: "#b79ce0", plan: "aura" },
+    djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" }
   };
 
   var root = document.getElementById("match");
@@ -650,7 +655,66 @@
     ctx.stroke();
   }
 
+  /* Boosters: rings radiating outward, one more per merge. */
+  function planAura(token, radius, level) {
+    var rings = 2 + Math.floor(level / 3);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1.2, radius * 0.1);
+
+    for (var i = 1; i <= rings; i += 1) {
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * (0.5 + i * 0.34), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  /* DJTV: a wide screen behind, decks in front. The screen gains
+     bands as it merges. */
+  function planDecks(token, radius, level) {
+    var bands = 2 + Math.floor(level / 2);
+    var screenW = radius * 2.1;
+    var screenH = radius * 0.85;
+
+    /* The screen, standing behind the booth. */
+    roundedPath(-screenW / 2, -radius * 1.65, screenW, screenH, radius * 0.12);
+    ctx.fillStyle = "#12101a";
+    ctx.fill();
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.07);
+    ctx.stroke();
+
+    /* Bars on the display. */
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < bands; i += 1) {
+      var w = screenW / (bands * 1.8);
+      var x = -screenW / 2 + (screenW / bands) * i + w * 0.4;
+      var h = screenH * (0.3 + ((i * 37) % 100) / 140);
+
+      ctx.fillRect(x, -radius * 1.65 + (screenH - h) - radius * 0.02, w, h);
+    }
+
+    /* Two decks. */
+    [-1, 1].forEach(function (side) {
+      ctx.beginPath();
+      ctx.arc(side * radius * 0.46, radius * 0.28, radius * 0.34, 0, Math.PI * 2);
+      ctx.fillStyle = "#3a3448";
+      ctx.fill();
+      ctx.strokeStyle = token.accent;
+      ctx.lineWidth = Math.max(1, radius * 0.06);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(side * radius * 0.46, radius * 0.28, radius * 0.09, 0, Math.PI * 2);
+      ctx.fillStyle = token.accent;
+      ctx.fill();
+    });
+  }
+
   var PLANS = {
+    aura: planAura,
+    decks: planDecks,
     blades: planBlades,
     arm: planArm,
     axes: planAxes,
@@ -1382,7 +1446,11 @@
     var origin = tileCentre(Number(parts[0]), Number(parts[1]));
     var evolution = evolutionFor(tower);
     var reach =
-      (stats.range(tower.key, tower.level, evolution) / stats.rangePerTile) *
+      (stats.boosted(
+        stats.range(tower.key, tower.level, evolution),
+        boostFor(position, "range")
+      ) /
+        stats.rangePerTile) *
       view.size;
     var attack = definition.attack;
 
@@ -1406,7 +1474,11 @@
     var aim = enemyAt(primary);
 
     tower.angle = Math.atan2(aim.y - origin.y, aim.x - origin.x) + Math.PI / 2;
-    tower.cooldown = stats.cooldown(tower.key);
+
+    /* A cooldown boost shortens the wait rather than lengthening
+       it, so the percentage divides instead of multiplying. */
+    tower.cooldown =
+      stats.cooldown(tower.key) / (1 + boostFor(position, "cooldown") / 100);
 
     var targets = attack.shape === "single" ? [primary] : inRange;
 
@@ -1427,11 +1499,9 @@
 
       var statDistance = (distance / view.size) * stats.rangePerTile;
 
-      enemy.hp -= stats.damageAtDistance(
-        tower.key,
-        tower.level,
-        evolution,
-        statDistance
+      enemy.hp -= stats.boosted(
+        stats.damageAtDistance(tower.key, tower.level, evolution, statDistance),
+        boostFor(position, "damage")
       );
     });
 
@@ -1827,6 +1897,43 @@
      carried on the tower itself so it survives merges. */
   function evolutionOf(name) {
     return window.MRTD.evolutionOf ? window.MRTD.evolutionOf(name) : 0;
+  }
+
+  /* The strongest boost of one kind covering a tile. Boosts never
+     stack: ten Forges reaching the same tower give exactly what
+     the best one alone would. */
+  function boostFor(position, stat) {
+    var parts = position.split(",");
+    var col = Number(parts[0]);
+    var row = Number(parts[1]);
+    var best = 0;
+
+    Object.keys(towers).forEach(function (at) {
+      var booster = towers[at];
+
+      if (stats.boostsWhat(booster.key).indexOf(stat) < 0) {
+        return;
+      }
+
+      var from = at.split(",");
+      var dx = Number(from[0]) - col;
+      var dy = Number(from[1]) - row;
+      var evolution = evolutionFor(booster);
+      var reach =
+        stats.range(booster.key, booster.level, evolution) / stats.rangePerTile;
+
+      if (Math.sqrt(dx * dx + dy * dy) > reach) {
+        return;
+      }
+
+      var strength = stats.boost(booster.key, booster.level, evolution);
+
+      if (strength > best) {
+        best = strength;
+      }
+    });
+
+    return best;
   }
 
   function evolutionFor(tower) {

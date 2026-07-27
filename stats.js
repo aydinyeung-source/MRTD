@@ -235,6 +235,40 @@
       damage: 900, range: 60, cooldown: 3, cost: 600, // 300 dps, 0.50 per cash
       attack: { shape: "single" }
     },
+    /* The three boosters. Each lifts one stat for every tower
+       inside its aura, and `boosts` says which. Their own range
+       IS the aura. Boosts never stack — only the strongest of a
+       given kind counts. */
+    beacon: {
+      label: "Beacon", role: "booster", boosts: "range",
+      damage: 0, cooldown: 0, cost: 1200,
+      boost: 6, range: 25,
+      attack: null
+    },
+    forge: {
+      label: "Forge", role: "booster", boosts: "damage",
+      damage: 0, cooldown: 0, cost: 1200,
+      boost: 6, range: 25,
+      attack: null
+    },
+    metronome: {
+      label: "Metronome", role: "booster", boosts: "cooldown",
+      damage: 0, cooldown: 0, cost: 1200,
+      boost: 6, range: 25,
+      attack: null
+    },
+    djtv: {
+      /* Does all three boosters' jobs at once, at the same
+         strength each. One of these replaces a Beacon, a Forge
+         and a Metronome — and since boosts never stack, standing
+         one next to those makes them redundant rather than
+         additive. */
+      label: "DJTV", role: "booster",
+      boosts: ["range", "damage", "cooldown"],
+      damage: 0, cooldown: 0, cost: 2500,
+      boost: 6, range: 25,
+      attack: null
+    },
     spawner: {
       /* Builds nothing itself. Every 15 seconds it puts an ally on
          the path, which blocks enemies and fights back. Allies are
@@ -485,6 +519,19 @@
     return parts.join(" · ");
   }
 
+  /* Which stats a booster lifts. Always a list, so a tower that
+     boosts one thing and one that boosts three are read the same
+     way. Empty for everything that is not a booster. */
+  function boostsWhat(key) {
+    var tower = base(key);
+
+    if (!tower || !tower.boosts) {
+      return [];
+    }
+
+    return [].concat(tower.boosts);
+  }
+
   function cost(key) {
     var tower = base(key);
 
@@ -529,6 +576,7 @@
     runReward: runReward,
     evolutionAll: EVOLUTION_ALL,
     cost: cost,
+    boostsWhat: boostsWhat,
     buyCost: buyCost,
     sellValue: sellValue,
     attack: attackOf,

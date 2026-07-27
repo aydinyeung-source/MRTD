@@ -1835,6 +1835,16 @@ body::after {
   background-color: #e7dcf3;
 }
 
+.chestitem[data-rarity="legendary"] {
+  border-color: #c9992b;
+  background-color: #f6ead0;
+}
+
+.chestitem[data-rarity="mythic"] {
+  border-color: #d8447f;
+  background-color: #fadbe9;
+}
+
 .chestitem__rarity {
   margin: 0 0 2px;
   font-family: var(--mono);
@@ -1847,6 +1857,8 @@ body::after {
 .chestitem[data-rarity="common"] .chestitem__rarity { color: #5f6b71; }
 .chestitem[data-rarity="rare"]   .chestitem__rarity { color: #3f6e8c; }
 .chestitem[data-rarity="epic"]   .chestitem__rarity { color: #6b4b91; }
+.chestitem[data-rarity="legendary"] .chestitem__rarity { color: #8a6a12; }
+.chestitem[data-rarity="mythic"] .chestitem__rarity { color: #a82c5e; }
 
 .chestitem__chance {
   margin: 0;
