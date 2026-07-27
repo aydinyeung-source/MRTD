@@ -811,28 +811,10 @@ body::after {
 
 /* ---- Money notifications ---- */
 
-/* Runs for the whole match rather than passing by. */
-.killtotal {
-  position: absolute;
-  left: clamp(12px, 3vw, 28px);
-  bottom: 108px;
-  z-index: 40;
-  margin: 0;
-  padding: 6px 12px;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background-color: rgba(249, 251, 252, 0.94);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: #b07404;
-  pointer-events: none;
-}
-
 .cashfeed {
   position: absolute;
   left: clamp(12px, 3vw, 28px);
-  bottom: 144px;
+  bottom: 108px;
   z-index: 40;
   display: flex;
   flex-direction: column-reverse;

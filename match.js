@@ -51,6 +51,9 @@
      plan views below, which are built in code. */
   var ART_TOWERS = ["sniper"];
 
+  /* Must match SLOTS in loadout.js. */
+  var LOADOUT_SLOTS = 5;
+
   /* Fallback plan designs, drawn in code. Used only for a tower
      whose artwork has not loaded, so the board still reads while
      a sprite is missing. */
@@ -74,6 +77,7 @@
   var canvas = document.getElementById("match-canvas");
   var exitButton = document.getElementById("match-exit");
   var forfeitButton = document.getElementById("match-forfeit");
+  var graphicsButton = document.getElementById("match-graphics");
   var startButton = document.getElementById("match-start");
   var speedButton = document.getElementById("match-speed");
   var skipButton = document.getElementById("match-skip");
@@ -95,7 +99,6 @@
   var gameoverNote = document.getElementById("gameover-note");
   var gameoverLeave = document.getElementById("gameover-leave");
   var cashfeed = document.getElementById("cashfeed");
-  var killTotalDisplay = document.getElementById("killtotal");
   var playButton = document.getElementById("play");
 
   if (!canvas || !root) {
@@ -165,6 +168,14 @@
      the current one has finished spawning. Deliberately not
      remembered — every match begins with it off. */
   var autoSkip = false;
+
+  /* Low graphics drops everything decorative — thrown daggers,
+     tracers, coin puffs, blade spin, recoil — and keeps anything
+     that tells you what is happening. Effects are not merely
+     hidden but never created, so the arrays stay empty and the
+     work disappears rather than moving. */
+  var LOW_KEY = "mrtd.lowfx";
+  var lowGraphics = false;
 
   var view = { cols: 0, rows: 0, size: 0, x: 0, y: 0, path: [] };
   var drag = null;
@@ -1361,9 +1372,12 @@
 
     allies.forEach(drawAlly);
     enemies.forEach(drawEnemy);
-    drawShots();
-    drawProjectiles();
-    drawParticles();
+
+    if (!lowGraphics) {
+      drawShots();
+      drawProjectiles();
+      drawParticles();
+    }
 
     /* Ghost of the tower waiting to be committed. */
     if (placing) {
@@ -1580,6 +1594,10 @@
 
   /* What firing looks like, per tower. */
   function recordFiring(tower, origin, aim) {
+    if (lowGraphics) {
+      return;
+    }
+
     if (tower.key === "blender") {
       /* Blades wind up while it is cutting and coast down after. */
       tower.spinPower = 1;
@@ -1613,6 +1631,10 @@
 
   /* Coins drifting up off a farm as it pays out. */
   function spendParticles(position) {
+    if (lowGraphics) {
+      return;
+    }
+
     var parts = position.split(",");
     var centre = tileCentre(Number(parts[0]), Number(parts[1]));
 
@@ -1865,10 +1887,7 @@
 
     enemies = enemies.filter(function (enemy) {
       if (enemy.hp <= 0) {
-        var bounty = stats.waveBounty(enemy.kind, wave);
-
-        cash += bounty;
-        addKillEarnings(bounty);
+        cash += stats.waveBounty(enemy.kind, wave);
         return false;
       }
 
@@ -2059,12 +2078,9 @@
   /* =========================================================
      Money notifications
 
-     One-off events get a passing line. Kills do not — there are
-     far too many of them — so they add to a single running total
-     that stays on screen for the whole run.
+     One-off events get a passing line. Kills get nothing —
+     there are far too many of them to be worth announcing.
      ========================================================= */
-
-  var killTotal = 0;
 
   function notifyCash(amount, reason) {
     var rounded = Math.round(amount);
@@ -2086,17 +2102,6 @@
     }, 1800);
   }
 
-  function addKillEarnings(amount) {
-    killTotal += amount;
-
-    if (!killTotalDisplay) {
-      return;
-    }
-
-    killTotalDisplay.hidden = false;
-    killTotalDisplay.textContent =
-      "+" + Math.round(killTotal) + " from kills";
-  }
 
   function refreshHud() {
     cashDisplay.textContent = isDev() ? "∞" : String(Math.floor(cash));
@@ -2183,15 +2188,19 @@
   /* The five towers equipped in the Towers tab. Falls back to the
      full list so the match is still playable before anything is
      owned. */
+  /* The hotbar is the loadout, always — developer mode owns every
+     tower so any five can be equipped, but it still only brings
+     five into a match. */
   function loadoutKeys() {
-    /* Developer mode ignores the loadout and unlocks everything. */
-    if (isDev()) {
-      return TOWER_KEYS;
-    }
-
     var equipped = window.MRTD.loadout ? window.MRTD.loadout() : [];
 
-    return equipped.length ? equipped : TOWER_KEYS;
+    if (equipped.length) {
+      return equipped.slice(0, LOADOUT_SLOTS);
+    }
+
+    /* Nothing equipped yet: give the opening towers rather than
+       an empty hotbar. */
+    return TOWER_KEYS.slice(0, LOADOUT_SLOTS);
   }
 
   function buildHotbar() {
@@ -2516,12 +2525,34 @@
      Input
      ========================================================= */
 
-  /* Right click a placed tower to read everything about it. */
+  /* Right click a placed tower to read everything about it — or,
+     while positioning one, to drop it and keep the ghost so a run
+     of towers can be laid down without reselecting each time. */
   canvas.addEventListener("contextmenu", function (event) {
     event.preventDefault();
 
     var point = pointerPosition(event);
     var tile = tileAt(point.x, point.y);
+
+    if (placing) {
+      var repeat = placing;
+
+      place(tile);
+
+      /* Stay armed while there is still money and room for
+         another; otherwise the ghost clears itself. */
+      if (
+        (isDev() || stats.buyCost(repeat.key, repeat.level) <= cash) &&
+        placed() < placementLimit()
+      ) {
+        placing = repeat;
+      }
+
+      refreshHud();
+      draw();
+      return;
+    }
+
     var tower = tile && towers[key(tile[0], tile[1])];
 
     if (!tower) {
@@ -2737,12 +2768,6 @@
     spawnQueue = [];
     portraitMode = null;
     elapsed = 0;
-    killTotal = 0;
-
-    if (killTotalDisplay) {
-      killTotalDisplay.hidden = true;
-      killTotalDisplay.textContent = "+0 from kills";
-    }
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
     baseHp = stats.baseHp;
     wave = 0;
@@ -2917,6 +2942,29 @@
     setAuto(!autoSkip);
   });
 
+  function setGraphics(low) {
+    lowGraphics = Boolean(low);
+    graphicsButton.textContent = "Graphics: " + (lowGraphics ? "low" : "full");
+    graphicsButton.classList.toggle("is-on", lowGraphics);
+
+    /* Anything already in flight goes now rather than finishing. */
+    if (lowGraphics) {
+      shots = [];
+      projectiles = [];
+      particles = [];
+    }
+
+    try {
+      localStorage.setItem(LOW_KEY, lowGraphics ? "1" : "0");
+    } catch (error) {
+      /* Storage refused; the toggle still works for this session. */
+    }
+  }
+
+  graphicsButton.addEventListener("click", function () {
+    setGraphics(!lowGraphics);
+  });
+
   /* Toggling developer mode mid match takes effect immediately. */
   /* A switch turned off mid match must not leave the player on a
      speed they no longer have. */
@@ -2984,7 +3032,16 @@
   window.MRTD.towerArt = towerArt;
   document.dispatchEvent(new CustomEvent("mrtd:art"));
 
+  function restoreGraphics() {
+    try {
+      setGraphics(localStorage.getItem(LOW_KEY) === "1");
+    } catch (error) {
+      setGraphics(false);
+    }
+  }
+
   buildHotbar();
   setAuto(false);
+  restoreGraphics();
   loadSprites();
 })();
