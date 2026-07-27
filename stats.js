@@ -86,16 +86,19 @@
      counts even if it gets through. Colours stand in until the SVGs
      arrive. */
   var ENEMIES = {
-    grunt: { label: "Grunt", hp: 600, speed: 1.2, bounty: 25, colour: "#7a5c8a" },
-    runner: { label: "Runner", hp: 350, speed: 2.6, bounty: 20, colour: "#c98f6a" },
-    brute: { label: "Brute", hp: 4000, speed: 0.6, bounty: 120, colour: "#5a6b52" }
+    /* The opening fodder. Weak enough that the one dagger a player
+       can afford at wave 1 actually kills things. */
+    crawler: { label: "Crawler", hp: 60, speed: 1, bounty: 12, colour: "#8a7f9c" },
+    grunt: { label: "Grunt", hp: 250, speed: 1.2, bounty: 25, colour: "#7a5c8a" },
+    runner: { label: "Runner", hp: 200, speed: 2.6, bounty: 20, colour: "#c98f6a" },
+    brute: { label: "Brute", hp: 1200, speed: 0.6, bounty: 120, colour: "#5a6b52" }
   };
 
   /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
   var WAVE = {
     hpGrowth: 1.12,   // per wave, compounding
     bountyGrowth: 1.04,
-    countBase: 5,
+    countBase: 4,
     countPerWave: 1.5,
     spawnGap: 0.75    // seconds between spawns
   };
@@ -116,15 +119,21 @@
     return Math.floor(WAVE.countBase + wave * WAVE.countPerWave);
   }
 
-  /* Which enemies appear, by wave. Runners join at 3, brutes at 6. */
+  /* Which enemies appear, by wave. The early waves are crawlers
+     only, so the opening is survivable on one tower; everything
+     else joins gradually. */
   function wavePool(wave) {
-    var pool = ["grunt"];
+    var pool = ["crawler"];
 
     if (wave >= 3) {
-      pool.push("runner");
+      pool.push("grunt");
     }
 
     if (wave >= 6) {
+      pool.push("runner");
+    }
+
+    if (wave >= 12) {
       pool.push("brute");
     }
 
