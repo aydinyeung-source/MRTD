@@ -44,7 +44,7 @@
   var MAX_LEVEL = 10;
   var TOWER_KEYS = [
     "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner",
-    "beacon", "forge", "metronome", "djtv", "quantum"
+    "beacon", "forge", "metronome", "djtv", "quantum", "icecannon"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -66,7 +66,8 @@
     forge: { body: "#7a4038", accent: "#e0895f", plan: "aura" },
     metronome: { body: "#6a5a7f", accent: "#b79ce0", plan: "aura" },
     djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" },
-    quantum: { body: "#1b2b3a", accent: "#5fe3d0", plan: "orbit" }
+    quantum: { body: "#1b2b3a", accent: "#5fe3d0", plan: "orbit" },
+    icecannon: { body: "#5b7f9c", accent: "#cfeaf7", plan: "frost" }
   };
 
   var root = document.getElementById("match");
@@ -746,8 +747,31 @@
     ctx.restore();
   }
 
+  /* Ice Cannon: frost spikes radiating from the barrel, gaining
+     one every couple of merges. */
+  function planFrost(token, radius, level) {
+    var spikes = 6 + Math.floor(level / 2);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1.2, radius * 0.09);
+
+    for (var i = 0; i < spikes; i += 1) {
+      ctx.save();
+      ctx.rotate((i / spikes) * Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(0, -radius * 0.55);
+      ctx.lineTo(0, -radius * 1.35);
+      ctx.moveTo(-radius * 0.13, -radius * 1.05);
+      ctx.lineTo(0, -radius * 1.3);
+      ctx.lineTo(radius * 0.13, -radius * 1.05);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   var PLANS = {
     aura: planAura,
+    frost: planFrost,
     decks: planDecks,
     orbit: planOrbit,
     blades: planBlades,
@@ -1170,8 +1194,19 @@
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fillStyle = definition.colour;
     ctx.fill();
-    ctx.strokeStyle = "rgba(15, 18, 16, 0.35)";
-    ctx.lineWidth = 1.5;
+
+    /* Chilled enemies wash out, so a slowed crowd is obvious
+       without reading anything. */
+    if (enemy.slowed) {
+      ctx.fillStyle = "rgba(228, 245, 252, 0.5)";
+      ctx.fill();
+      ctx.strokeStyle = "#8fd3ea";
+      ctx.lineWidth = 2;
+    } else {
+      ctx.strokeStyle = "rgba(15, 18, 16, 0.35)";
+      ctx.lineWidth = 1.5;
+    }
+
     ctx.stroke();
 
     var width = view.size * 0.7;
@@ -1818,9 +1853,14 @@
     fightAllies(delta);
 
     enemies.forEach(function (enemy) {
-      if (!enemy.blocked) {
-        enemy.progress += enemy.speed * delta;
+      if (enemy.blocked) {
+        return;
       }
+
+      var factor = slowAt(enemyAt(enemy));
+
+      enemy.slowed = factor < 1;
+      enemy.progress += enemy.speed * factor * delta;
     });
 
     enemies = enemies.filter(function (enemy) {
@@ -1969,6 +2009,37 @@
     });
 
     return best;
+  }
+
+  /* The strongest slow covering a point, as a speed multiplier.
+     Slows do not stack — two Ice Cannons overlapping give one
+     Ice Cannon's worth. */
+  function slowAt(point) {
+    var factor = 1;
+
+    Object.keys(towers).forEach(function (at) {
+      var tower = towers[at];
+      var slow = stats.slowOf(tower.key);
+
+      if (slow >= 1) {
+        return;
+      }
+
+      var parts = at.split(",");
+      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+      var dx = point.x - centre.x;
+      var dy = point.y - centre.y;
+      var reach =
+        (stats.range(tower.key, tower.level, evolutionFor(tower)) /
+          stats.rangePerTile) *
+        view.size;
+
+      if (Math.sqrt(dx * dx + dy * dy) <= reach && slow < factor) {
+        factor = slow;
+      }
+    });
+
+    return factor;
   }
 
   function evolutionFor(tower) {

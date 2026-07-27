@@ -257,6 +257,15 @@
       boost: 6, range: 25,
       attack: null
     },
+    icecannon: {
+      /* Not a damage tower. Anything inside its splash walks at
+         half speed, which buys every other tower twice as long to
+         shoot. The 10 dps is a courtesy, not a plan. */
+      label: "Ice Cannon", role: "damage",
+      damage: 5, range: 12, cooldown: 0.5, cost: 2000, // 10 dps
+      attack: { shape: "circle", angle: 360 },
+      slow: 0.5
+    },
     quantum: {
       /* 1500 dps to everything in reach at once. Four times the
          blender's efficiency per coin with nearly three times the
@@ -528,6 +537,14 @@
     return parts.join(" · ");
   }
 
+  /* How much a tower slows what it covers, as a speed multiplier.
+     1 means no slowing. */
+  function slowOf(key) {
+    var tower = base(key);
+
+    return tower && tower.slow ? tower.slow : 1;
+  }
+
   /* Which stats a booster lifts. Always a list, so a tower that
      boosts one thing and one that boosts three are read the same
      way. Empty for everything that is not a booster. */
@@ -586,6 +603,7 @@
     evolutionAll: EVOLUTION_ALL,
     cost: cost,
     boostsWhat: boostsWhat,
+    slowOf: slowOf,
     buyCost: buyCost,
     sellValue: sellValue,
     attack: attackOf,
