@@ -1098,7 +1098,10 @@
 
       if (tile) {
         var target = tileRect(tile[0], tile[1]);
-        var allowed = buildable(tile[0], tile[1]) && !towers[key(tile[0], tile[1])];
+        var under = towers[key(tile[0], tile[1])];
+        var ground = buildable(tile[0], tile[1]);
+        var merges = ground && canMerge(ghost, under);
+        var allowed = ground && !under;
 
         drawRange(ghost, target.x + target.size / 2, target.y + target.size / 2);
         drawCone(ghost, target.x, target.y, target.size);
@@ -1107,7 +1110,12 @@
         drawTower(ghost, target.x, target.y, target.size);
         ctx.globalAlpha = 1;
 
-        ctx.strokeStyle = allowed ? "#4f6a78" : "rgba(157, 75, 69, 0.85)";
+        /* Gold means the purchase will merge into what is there. */
+        ctx.strokeStyle = merges
+          ? "#c9992b"
+          : allowed
+            ? "#4f6a78"
+            : "rgba(157, 75, 69, 0.85)";
         ctx.lineWidth = 3;
         ctx.strokeRect(target.x + 1.5, target.y + 1.5, target.size - 3, target.size - 3);
       }
@@ -1163,6 +1171,13 @@
     }
 
     wave += 1;
+
+    /* Reaching wave n means the n-1 before it were survived. Waves
+       chained by Skip or auto never leave a moment where the path
+       is empty, so counting only on a clean clear would leave this
+       stuck near zero for the whole run. */
+    wavesSurvived = Math.max(wavesSurvived, wave - 1);
+
     waveActive = true;
     breakLeft = 0;
     spawnTimer = 0;
@@ -1383,7 +1398,7 @@
 
       var earner = { position: position, income: income };
 
-      /* A fully merged farm always earns, however many there are. */
+      /* Fully merged farms have their own allowance. */
       if (tower.level >= MAX_LEVEL) {
         maxed.push(earner);
       } else {
@@ -1392,13 +1407,19 @@
     });
 
     /* Shuffled before sorting, so farms tied on level are picked
-       at random rather than by whichever tile came first. */
+       at random rather than by whichever tile came first. Maxed
+       farms are all tied, so shuffling is the whole selection. */
+    shuffle(maxed);
     shuffle(rest);
     rest.sort(function (a, b) {
       return b.income - a.income;
     });
 
-    maxed.concat(rest.slice(0, PAYING_FARMS)).forEach(function (earner) {
+    var paying = maxed
+      .slice(0, PAYING_MAXED)
+      .concat(rest.slice(0, PAYING_FARMS));
+
+    paying.forEach(function (earner) {
       total += earner.income;
       farmed += earner.income;
       spendParticles(earner.position);
@@ -1504,7 +1525,7 @@
        survive it — the cost is the health, not the credit. */
     if (waveActive && !spawnQueue.length && !enemies.length) {
       waveActive = false;
-      wavesSurvived = wave;
+      wavesSurvived = Math.max(wavesSurvived, wave);
       breakLeft = BREAK_SECONDS;
 
       /* The intermission belongs to the wave ahead, so it pays
@@ -1993,12 +2014,20 @@
 
     var at = key(tile[0], tile[1]);
 
-    if (!buildable(tile[0], tile[1]) || towers[at]) {
+    if (!buildable(tile[0], tile[1])) {
       return;
     }
 
-    /* Merging never breaches either limit, only new placements do. */
-    if (placed() >= placementLimit()) {
+    var occupant = towers[at];
+
+    /* Buying onto a matching tower merges straight into it, so a
+       bought level 4 dropped on a level 4 becomes a level 5. */
+    if (occupant && !canMerge(placing, occupant)) {
+      return;
+    }
+
+    /* Merging never breaches the limit, only new placements do. */
+    if (!occupant && placed() >= placementLimit()) {
       return;
     }
 
@@ -2015,10 +2044,10 @@
 
     towers[at] = {
       key: placing.key,
-      level: placing.level,
-      evolution: evolutionOf(placing.key),
+      level: occupant ? occupant.level + 1 : placing.level,
+      evolution: occupant ? evolutionFor(occupant) : evolutionOf(placing.key),
       cooldown: 0,
-      angle: 0
+      angle: occupant ? occupant.angle || 0 : 0
     };
     placing = null;
     refreshHud();
@@ -2172,11 +2201,11 @@
      Placing and merging
      ========================================================= */
 
-  /* Only the three best unmaxed farms earn. Build as many as you
-     like — a ladder of lower levels is how merges are staged —
-     but the rest are stock, not income. Fully merged farms are
-     exempt and always pay. */
+  /* Three fully merged farms pay, plus the three best below them.
+     Build as many as you like — a ladder of lower levels is how
+     merges are staged — but the rest are stock, not income. */
   var PAYING_FARMS = 3;
+  var PAYING_MAXED = 3;
 
   function shuffle(list) {
     for (var i = list.length - 1; i > 0; i -= 1) {
