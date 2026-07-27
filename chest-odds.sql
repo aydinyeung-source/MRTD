@@ -1,11 +1,12 @@
 -- ============================================================
 -- MRTD chest: seven towers on a rotating line-up.
 --
---   common     dagger, axe                51.3%
+--   common     dagger, axe                51.2%
 --   rare       farm, sniper, shotgunner   26.7%
 --   epic       blender, spawner           18.0%
 --   legendary  beacon, forge, metronome    3.0%
---   mythic     djtv, quantum               1.0%
+--   mythic     djtv                        1.0%
+--   godly      quantum                     0.1%
 --
 -- Weights are per mille rather than percent, because 51.3 is not
 -- a whole number and the column is an integer. They add to 1000.
@@ -24,8 +25,8 @@
 -- ============================================================
 
 insert into public.chest_odds (tower_key, weight, rarity) values
-  ('dagger',     513, 'common'),
-  ('axe',        513, 'common'),
+  ('dagger',     512, 'common'),
+  ('axe',        512, 'common'),
   ('farm',       267, 'rare'),
   ('sniper',     267, 'rare'),
   ('shotgunner', 267, 'rare'),
@@ -35,7 +36,9 @@ insert into public.chest_odds (tower_key, weight, rarity) values
   ('forge',       30, 'legendary'),
   ('metronome',   30, 'legendary'),
   ('djtv',        10, 'mythic'),
-  ('quantum',     10, 'mythic')
+  -- Alone in its own tier, so it is always up and never diluted
+  -- by rotation. One in a thousand pulls.
+  ('quantum',      1, 'godly')
 on conflict (tower_key) do update
   set weight = excluded.weight, rarity = excluded.rarity;
 

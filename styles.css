@@ -1845,6 +1845,19 @@ body::after {
   background-color: #fadbe9;
 }
 
+/* Godly breaks the pastel ladder entirely — dark, so it never
+   reads as "one more colour" alongside the others. */
+.chestitem[data-rarity="godly"] {
+  border-color: #5fe3d0;
+  background-color: #1b2b3a;
+  box-shadow: 0 0 0 1px #5fe3d0, 0 10px 26px -14px rgba(95, 227, 208, 0.7);
+}
+
+.chestitem[data-rarity="godly"] .chestitem__chance,
+.chestitem[data-rarity="godly"] .chestitem__name {
+  color: #eafaf7;
+}
+
 .chestitem__rarity {
   margin: 0 0 2px;
   font-family: var(--mono);
@@ -1859,6 +1872,7 @@ body::after {
 .chestitem[data-rarity="epic"]   .chestitem__rarity { color: #6b4b91; }
 .chestitem[data-rarity="legendary"] .chestitem__rarity { color: #8a6a12; }
 .chestitem[data-rarity="mythic"] .chestitem__rarity { color: #a82c5e; }
+.chestitem[data-rarity="godly"] .chestitem__rarity { color: #5fe3d0; }
 
 .chestitem__chance {
   margin: 0;
