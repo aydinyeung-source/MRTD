@@ -207,6 +207,14 @@
       damage: 100, range: 10, cooldown: 1, cost: 100, // 100 dps, 1.00 per cash
       attack: { shape: "single" }
     },
+    axe: {
+      /* The dagger's cheaper cousin: four fifths the output, but
+         it throws five times as often, so almost nothing is lost
+         to overkill on weak enemies. */
+      label: "Axe", role: "damage",
+      damage: 16, range: 10, cooldown: 0.2, cost: 100, // 80 dps, 0.80 per cash
+      attack: { shape: "single" }
+    },
     farm: {
       label: "Farm", role: "economy",
       damage: 0, range: 0, cooldown: 0, cost: 250, coins: 100,

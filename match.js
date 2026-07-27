@@ -43,7 +43,7 @@
 
   var MAX_LEVEL = 10;
   var TOWER_KEYS = [
-    "dagger", "blender", "shotgunner", "sniper", "farm", "spawner"
+    "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -55,7 +55,8 @@
      a sprite is missing. */
   var TOKENS = {
     blender: { body: "#8e8e8e", accent: "#ff140a", plan: "blades" },
-    dagger: { body: "#949494", accent: "#bb0000", plan: "knives" },
+    dagger: { body: "#5c6166", accent: "#bb0000", plan: "arm" },
+    axe: { body: "#7d6a52", accent: "#cfd4d8", plan: "axes" },
     farm: { body: "#eae484", accent: "#b8ae4a", plan: "field" },
     shotgunner: { body: "#656565", accent: "#8c8c8c", plan: "barrels" },
     sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" },
@@ -485,34 +486,76 @@
     }
   }
 
-  /* Dagger: nothing radial. A forward fan of straight blades over
-     a diamond body, so it reads as thrown knives rather than a
-     spinning disc. */
-  function planKnives(token, radius, level) {
-    var count = 2 + Math.floor(level / 2);
-    var length = radius * (1.15 + level * 0.055);
-    var spread = 0.16 + level * 0.012;
+  /* Dagger: a robotic arm. Two jointed segments reaching forward
+     with a blade at the tip, and a rack of spares behind it that
+     fills up as the tower merges. */
+  function planArm(token, radius, level) {
+    var upper = radius * 0.75;
+    var fore = radius * (0.6 + level * 0.045);
+    var thick = radius * 0.22;
+
+    /* Rack of spare daggers behind the shoulder. */
+    var spares = 2 + Math.floor(level / 2);
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < spares; i += 1) {
+      var x = -radius * 0.55 + (radius * 1.1 * i) / (spares - 1 || 1);
+
+      ctx.fillRect(x - radius * 0.04, radius * 0.45, radius * 0.08, radius * 0.34);
+    }
+
+    ctx.save();
+
+    /* Upper segment, angled out from the shoulder. */
+    ctx.rotate(-0.35);
+    ctx.fillStyle = "#3f4448";
+    roundedPath(-thick / 2, -upper, thick, upper, thick * 0.45);
+    ctx.fill();
+
+    /* Elbow, then the forearm straightening towards the target. */
+    ctx.translate(0, -upper);
+    ctx.beginPath();
+    ctx.arc(0, 0, thick * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = "#8c9296";
+    ctx.fill();
+
+    ctx.rotate(0.35);
+    ctx.fillStyle = "#4d5357";
+    roundedPath(-thick * 0.4, -fore, thick * 0.8, fore, thick * 0.35);
+    ctx.fill();
+
+    /* The blade it is about to fling. */
+    ctx.beginPath();
+    ctx.moveTo(-thick * 0.34, -fore);
+    ctx.lineTo(0, -fore - radius * 0.5);
+    ctx.lineTo(thick * 0.34, -fore);
+    ctx.closePath();
+    ctx.fillStyle = token.accent;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /* Axe: heads on short handles, thrown fast and often. */
+  function planAxes(token, radius, level) {
+    var count = 2 + Math.floor(level / 3);
+    var reach = radius * (1.05 + level * 0.03);
 
     for (var i = 0; i < count; i += 1) {
-      var offset = (i - (count - 1) / 2) * spread;
-
       ctx.save();
-      ctx.rotate(offset);
+      ctx.rotate(((i - (count - 1) / 2) * Math.PI) / 5);
 
-      /* Blade. */
-      ctx.beginPath();
-      ctx.moveTo(-radius * 0.075, -radius * 0.2);
-      ctx.lineTo(0, -length);
-      ctx.lineTo(radius * 0.075, -radius * 0.2);
-      ctx.closePath();
-      ctx.fillStyle = "#d2d2d2";
-      ctx.fill();
+      /* Handle. */
+      ctx.fillStyle = "#6b573f";
+      ctx.fillRect(-radius * 0.06, -reach, radius * 0.12, reach * 0.8);
 
-      /* Tip. */
+      /* Head. */
       ctx.beginPath();
-      ctx.moveTo(-radius * 0.075, -length * 0.72);
-      ctx.lineTo(0, -length);
-      ctx.lineTo(radius * 0.075, -length * 0.72);
+      ctx.moveTo(-radius * 0.06, -reach);
+      ctx.lineTo(-radius * 0.34, -reach + radius * 0.22);
+      ctx.lineTo(radius * 0.34, -reach + radius * 0.22);
+      ctx.lineTo(radius * 0.06, -reach);
       ctx.closePath();
       ctx.fillStyle = token.accent;
       ctx.fill();
@@ -609,7 +652,8 @@
 
   var PLANS = {
     blades: planBlades,
-    knives: planKnives,
+    arm: planArm,
+    axes: planAxes,
     field: planField,
     barrels: planBarrels,
     barrel: planBarrel,
@@ -626,7 +670,9 @@
     /* The footprint itself creeps up with every merge. */
     var radius = size * 0.32 * (0.82 + tower.level * 0.02);
     var isField = token.plan === "field";
-    var isKnives = token.plan === "knives";
+    /* The dagger's arm sits on a square housing rather than a
+       disc, so it does not read as another spinner. */
+    var isKnives = token.plan === "arm";
 
     ctx.save();
     ctx.translate(x + size / 2, y + size / 2);
