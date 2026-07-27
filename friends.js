@@ -422,6 +422,164 @@
       });
   }
 
+  /* =========================================================
+     Incoming trade popup
+
+     Runs whether or not the Friends panel is open, so an offer
+     is never missed. Once accepted it becomes the countdown, so
+     the withdrawal window is available from the same place.
+     ========================================================= */
+
+  var popup = document.getElementById("traderequest");
+  var popupText = document.getElementById("traderequest-text");
+  var popupActions = document.getElementById("traderequest-actions");
+
+  var watching = null;
+  var watchPoll = null;
+  var countdown = null;
+
+  function hidePopup() {
+    popup.hidden = true;
+    watching = null;
+
+    if (countdown) {
+      window.clearInterval(countdown);
+      countdown = null;
+    }
+  }
+
+  function popupButton(host, label, handler) {
+    var node = document.createElement("button");
+
+    node.className = "traderequest__button";
+    node.type = "button";
+    node.textContent = label;
+    node.addEventListener("click", handler);
+    host.appendChild(node);
+
+    return node;
+  }
+
+  function showRequest(trade) {
+    watching = trade.id;
+
+    popupText.textContent =
+      "Player " + (names[trade.from_player] || "someone") +
+      " requested to trade with you!  They give " +
+      trade.offer_copies + "× " + label(trade.offer_key) +
+      " for your " + trade.want_copies + "× " + label(trade.want_key);
+
+    popupActions.textContent = "";
+
+    popupButton(popupActions, "Yes", function () {
+      api("/rest/v1/rpc/accept_trade", { method: "POST", body: { p_id: trade.id } })
+        .then(function () {
+          startHold(trade);
+        })
+        .catch(function (error) {
+          popupText.textContent = error.message;
+        });
+    });
+
+    popupButton(popupActions, "No", function () {
+      api("/rest/v1/rpc/cancel_trade", { method: "POST", body: { p_id: trade.id } })
+        .catch(function () {})
+        .then(hidePopup);
+    });
+
+    popup.hidden = false;
+  }
+
+  /* The five seconds either side has to pull out. */
+  function startHold(trade) {
+    var left = HOLD_SECONDS;
+
+    popupActions.textContent = "";
+
+    var withdraw = popupButton(popupActions, "Withdraw", function () {
+      api("/rest/v1/rpc/cancel_trade", { method: "POST", body: { p_id: trade.id } })
+        .catch(function () {})
+        .then(hidePopup);
+    });
+
+    function tick() {
+      popupText.textContent = "Trade settles in " + left + "s";
+
+      if (left <= 0) {
+        window.clearInterval(countdown);
+        countdown = null;
+        withdraw.disabled = true;
+
+        settle(trade.id);
+        popupText.textContent = "Trade complete.";
+        window.setTimeout(hidePopup, 1600);
+        return;
+      }
+
+      left -= 1;
+    }
+
+    tick();
+    countdown = window.setInterval(tick, 1000);
+  }
+
+  /* Only looks for offers waiting on this player. */
+  function watchForTrades() {
+    var mine = me();
+
+    if (!mine || watching) {
+      return;
+    }
+
+    api(
+      "/rest/v1/trades?select=*&to_player=eq." + mine +
+        "&status=eq.pending&order=created_at.desc&limit=1"
+    )
+      .then(function (rows) {
+        if (!rows.length) {
+          return null;
+        }
+
+        var trade = rows[0];
+
+        if (names[trade.from_player]) {
+          showRequest(trade);
+          return null;
+        }
+
+        /* Learn the sender's name before announcing them. */
+        return api("/rest/v1/profiles?select=id,username&id=eq." + trade.from_player)
+          .then(function (people) {
+            if (people.length) {
+              names[people[0].id] = people[0].username;
+            }
+
+            showRequest(trade);
+          });
+      })
+      .catch(function () {
+        /* Offline or signed out; try again next tick. */
+      });
+  }
+
+  document.addEventListener("mrtd:unlocked", function () {
+    if (watchPoll) {
+      window.clearInterval(watchPoll);
+    }
+
+    watchForTrades();
+    watchPoll = window.setInterval(watchForTrades, 5000);
+  });
+
+  document.addEventListener("mrtd:locked", function () {
+    if (watchPoll) {
+      window.clearInterval(watchPoll);
+      watchPoll = null;
+    }
+
+    hidePopup();
+  });
+
   openButton.addEventListener("click", function () {
     panel.hidden = false;
     setStatus("");

@@ -1130,6 +1130,69 @@ body::after {
 }
 
 /* =========================================================
+   Incoming trade request
+   ========================================================= */
+
+.traderequest {
+  position: fixed;
+  top: clamp(14px, 3vh, 28px);
+  left: clamp(14px, 3vw, 28px);
+  z-index: 220;
+  width: min(320px, calc(100vw - 32px));
+  padding: 16px 18px;
+  border: 1px solid #d8bf85;
+  border-radius: 14px;
+  background-color: var(--paper-raised);
+  box-shadow: 0 18px 40px -22px rgba(34, 42, 47, 0.7);
+  animation: rise 380ms var(--ease-soft) both;
+}
+
+.traderequest__text {
+  margin: 0 0 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.traderequest__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.traderequest__button {
+  flex: 1;
+  padding: 9px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: transparent;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--glacier);
+  cursor: pointer;
+  transition: border-color 240ms var(--ease-soft),
+              background-color 240ms var(--ease-soft);
+}
+
+.traderequest__button:first-child {
+  border-color: transparent;
+  background-color: var(--glacier);
+  color: var(--paper-raised);
+}
+
+.traderequest__button:hover:not(:disabled) {
+  border-color: var(--glacier);
+  background-color: var(--paper);
+  color: var(--glacier);
+}
+
+.traderequest__button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* =========================================================
    Broadcast banner
    ========================================================= */
 
