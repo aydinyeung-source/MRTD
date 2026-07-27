@@ -109,6 +109,10 @@
     return function (count) {
       setStatus(verb + " " + count + " player" + (count === 1 ? "" : "s") + ".");
       refreshOnline();
+
+      /* The grant includes the admin, so their own coins, cards
+         and upgrades need re-reading. */
+      document.dispatchEvent(new CustomEvent("mrtd:granted"));
     };
   }
 

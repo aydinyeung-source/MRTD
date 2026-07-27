@@ -164,12 +164,16 @@ begin
     raise exception 'Amount must be between 1 and 1000000';
   end if;
 
+  /* The admin always receives their own grant, whether or not the
+     online filter would have caught them. */
   update public.profiles p
   set coins = p.coins + amount
-  where not online_only or exists (
-    select 1 from public.player_sessions s
-    where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
-  );
+  where p.id = auth.uid()
+     or not online_only
+     or exists (
+       select 1 from public.player_sessions s
+       where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
+     );
 
   get diagnostics affected = row_count;
 
@@ -217,10 +221,12 @@ begin
 
   for target in
     select p.id from public.profiles p
-    where not p_online_only or exists (
-      select 1 from public.player_sessions s
-      where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
-    )
+    where p.id = auth.uid()
+       or not p_online_only
+       or exists (
+         select 1 from public.player_sessions s
+         where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
+       )
   loop
     picked := coalesce(p_tower, public.draw_tower());
 
@@ -266,10 +272,12 @@ begin
 
   for target in
     select p.id from public.profiles p
-    where not online_only or exists (
-      select 1 from public.player_sessions s
-      where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
-    )
+    where p.id = auth.uid()
+       or not online_only
+       or exists (
+         select 1 from public.player_sessions s
+         where s.player_id = p.id and s.last_seen > now() - interval '2 minutes'
+       )
   loop
     for i in 1..draws loop
       picked := public.draw_tower();

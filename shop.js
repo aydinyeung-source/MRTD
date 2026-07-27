@@ -356,6 +356,7 @@
   });
 
   document.addEventListener("mrtd:dev", refresh);
+  document.addEventListener("mrtd:granted", refresh);
 
   document.addEventListener("mrtd:locked", function () {
     collection.textContent = "";

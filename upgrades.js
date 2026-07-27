@@ -238,6 +238,7 @@
 
   document.addEventListener("mrtd:unlocked", refresh);
   document.addEventListener("mrtd:dev", render);
+  document.addEventListener("mrtd:granted", refresh);
   document.addEventListener("mrtd:locked", function () {
     owned = {};
     coins = 0;

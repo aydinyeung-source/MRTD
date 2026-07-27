@@ -349,6 +349,7 @@
 
   document.addEventListener("mrtd:unlocked", refresh);
   document.addEventListener("mrtd:dev", refresh);
+  document.addEventListener("mrtd:granted", refresh);
 
   /* Handbook, opened from the lobby corner. */
   var handbook = document.getElementById("handbook");
