@@ -29,13 +29,36 @@ create table public.trades (
 
 create index if not exists trades_party_idx on public.trades (player_a, player_b, status);
 
+-- Evolution is part of what is being traded, so an evolved copy
+-- is a different item from a base one of the same tower.
 create table public.trade_items (
-  trade_id  bigint not null references public.trades(id) on delete cascade,
-  player_id uuid   not null references public.profiles(id) on delete cascade,
-  tower_key text   not null,
+  trade_id  bigint  not null references public.trades(id) on delete cascade,
+  player_id uuid    not null references public.profiles(id) on delete cascade,
+  tower_key text    not null,
+  evolution integer not null default 0 check (evolution between 0 and 10),
   copies    integer not null check (copies > 0),
-  primary key (trade_id, player_id, tower_key)
+  primary key (trade_id, player_id, tower_key, evolution)
 );
+
+-- Copies a player holds of one tower at one evolution.
+create or replace function public.copies_at(
+  player    uuid,
+  tower     text,
+  evolution integer
+)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select t.copies from public.player_towers t
+     where t.player_id = player
+       and t.tower_key = tower
+       and t.evolution = copies_at.evolution),
+    0
+  );
+$$;
 
 alter table public.trades enable row level security;
 alter table public.trade_items enable row level security;
@@ -109,9 +132,10 @@ end $$;
 -- Setting a tower to zero removes it. Every change clears both
 -- locks, so an agreed deal can never be altered underneath.
 create or replace function public.set_trade_item(
-  p_id     bigint,
-  p_tower  text,
-  p_copies integer
+  p_id        bigint,
+  p_tower     text,
+  p_evolution integer,
+  p_copies    integer
 )
 returns boolean
 language plpgsql security definer set search_path = ''
@@ -133,17 +157,25 @@ begin
     raise exception 'Copies must be between 0 and 999';
   end if;
 
-  if p_copies > public.base_copies(auth.uid(), p_tower) then
+  if coalesce(p_evolution, 0) < 0 or coalesce(p_evolution, 0) > 10 then
+    raise exception 'Evolution out of range';
+  end if;
+
+  if p_copies > public.copies_at(auth.uid(), p_tower, coalesce(p_evolution, 0)) then
     raise exception 'You do not have that many';
   end if;
 
   if p_copies = 0 then
     delete from public.trade_items
-    where trade_id = p_id and player_id = auth.uid() and tower_key = p_tower;
+    where trade_id = p_id
+      and player_id = auth.uid()
+      and tower_key = p_tower
+      and evolution = coalesce(p_evolution, 0);
   else
-    insert into public.trade_items (trade_id, player_id, tower_key, copies)
-    values (p_id, auth.uid(), p_tower, p_copies)
-    on conflict (trade_id, player_id, tower_key)
+    insert into public.trade_items
+      (trade_id, player_id, tower_key, evolution, copies)
+    values (p_id, auth.uid(), p_tower, coalesce(p_evolution, 0), p_copies)
+    on conflict (trade_id, player_id, tower_key, evolution)
     do update set copies = excluded.copies;
   end if;
 
@@ -160,10 +192,11 @@ returns timestamptz
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  deal   public.trades;
-  is_a   boolean;
-  both   boolean;
-  starts timestamptz;
+  deal       public.trades;
+  is_a       boolean;
+  /* Not named "both" — that is a reserved word in Postgres. */
+  all_locked boolean;
+  starts     timestamptz;
 begin
   select * into deal from public.trades where id = p_id for update;
 
@@ -181,9 +214,9 @@ begin
   set a_locked = case when is_a then coalesce(p_locked, false) else a_locked end,
       b_locked = case when is_a then b_locked else coalesce(p_locked, false) end
   where id = p_id
-  returning (a_locked and b_locked) into both;
+  returning (a_locked and b_locked) into all_locked;
 
-  if both then
+  if all_locked then
     update public.trades
     set status = 'locked', locked_at = now()
     where id = p_id
@@ -248,7 +281,7 @@ begin
   for item in
     select * from public.trade_items where trade_id = p_id
   loop
-    if public.base_copies(item.player_id, item.tower_key) < item.copies then
+    if public.copies_at(item.player_id, item.tower_key, item.evolution) < item.copies then
       update public.trades set status = 'cancelled' where id = p_id;
       raise exception 'Someone no longer has the cards — trade cancelled';
     end if;
@@ -261,12 +294,12 @@ begin
     set copies = copies - item.copies
     where player_id = item.player_id
       and tower_key = item.tower_key
-      and evolution = 0;
+      and evolution = item.evolution;
 
     insert into public.player_towers (player_id, tower_key, evolution, copies)
     values (
       case when item.player_id = deal.player_a then deal.player_b else deal.player_a end,
-      item.tower_key, 0, item.copies
+      item.tower_key, item.evolution, item.copies
     )
     on conflict (player_id, tower_key, evolution)
     do update set copies = public.player_towers.copies + item.copies;
@@ -279,7 +312,8 @@ end $$;
 
 grant execute on function public.request_trade(uuid) to authenticated;
 grant execute on function public.respond_trade(bigint, boolean) to authenticated;
-grant execute on function public.set_trade_item(bigint, text, integer) to authenticated;
+grant execute on function public.copies_at(uuid, text, integer) to authenticated;
+grant execute on function public.set_trade_item(bigint, text, integer, integer) to authenticated;
 grant execute on function public.lock_trade(bigint, boolean) to authenticated;
 grant execute on function public.cancel_trade(bigint) to authenticated;
 grant execute on function public.settle_trade(bigint) to authenticated;

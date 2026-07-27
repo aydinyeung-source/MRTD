@@ -309,17 +309,47 @@
      The live trade window
      ========================================================= */
 
+  /* The picker lists what the player actually holds, evolution by
+     evolution, so an evolved stack can be put in as easily as a
+     base one. */
   function fillTowerSelect() {
-    if (towerSelect.children.length) {
-      return;
+    var mine = me();
+
+    if (!mine) {
+      return Promise.resolve();
     }
 
-    Object.keys(window.MRTD.stats.towers).forEach(function (name) {
-      var option = document.createElement("option");
+    return api(
+      "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0" +
+        "&order=tower_key.asc,evolution.desc"
+    ).then(function (rows) {
+      var chosen = towerSelect.value;
 
-      option.value = name;
-      option.textContent = window.MRTD.stats.towers[name].label;
-      towerSelect.appendChild(option);
+      towerSelect.textContent = "";
+
+      if (!rows.length) {
+        var empty = document.createElement("option");
+
+        empty.textContent = "Nothing to trade";
+        empty.value = "";
+        towerSelect.appendChild(empty);
+        return;
+      }
+
+      rows.forEach(function (row) {
+        var option = document.createElement("option");
+
+        option.value = row.tower_key + ":" + row.evolution;
+        option.textContent =
+          label(row.tower_key) +
+          (row.evolution ? " · Evo " + row.evolution : "") +
+          "  (" + row.copies + ")";
+        towerSelect.appendChild(option);
+      });
+
+      if (chosen) {
+        towerSelect.value = chosen;
+      }
     });
   }
 
@@ -335,7 +365,12 @@
       var line = element("div", "friends__line");
 
       line.appendChild(
-        element("span", "friends__name", item.copies + "× " + label(item.tower_key))
+        element(
+          "span",
+          "friends__name",
+          item.copies + "× " + label(item.tower_key) +
+            (item.evolution ? " · Evo " + item.evolution : "")
+        )
       );
 
       if (editable) {
@@ -343,10 +378,13 @@
           rpc("set_trade_item", {
             p_id: active.id,
             p_tower: item.tower_key,
+            p_evolution: item.evolution,
             p_copies: 0
-          }).catch(function (error) {
-            tradeStatus.textContent = error.message;
-          });
+          })
+            .then(fillTowerSelect)
+            .catch(function (error) {
+              tradeStatus.textContent = error.message;
+            });
         }));
       }
 
@@ -431,17 +469,22 @@
   }
 
   putButton.addEventListener("click", function () {
-    if (!active) {
+    if (!active || !towerSelect.value) {
       return;
     }
 
+    var parts = towerSelect.value.split(":");
+
     rpc("set_trade_item", {
       p_id: active.id,
-      p_tower: towerSelect.value,
+      p_tower: parts[0],
+      p_evolution: Number(parts[1]),
       p_copies: Number(countInput.value)
-    }).catch(function (error) {
-      tradeStatus.textContent = error.message;
-    });
+    })
+      .then(fillTowerSelect)
+      .catch(function (error) {
+        tradeStatus.textContent = error.message;
+      });
   });
 
   lockButton.addEventListener("click", function () {
