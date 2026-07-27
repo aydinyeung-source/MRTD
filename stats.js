@@ -356,14 +356,34 @@
     return index < 0 ? RARITY_ORDER.length : index;
   }
 
-  /* Allies scale on the same curves as everything else: root 5 per
-     merge, 10% per evolution, applied to both health and damage. */
-  var ALLY = { merge: Math.sqrt(5), evolution: 0.1 };
+  /* Allies scale health and damage on different curves, which is
+     the one place in the game where a merge does not do the same
+     thing to both.
 
-  function allyStat(base, level, evolution) {
+     Health at root 10 per merge, damage at root 5. Enemy damage
+     compounds 1.12x every wave, so an ally on the root 5 curve
+     stops surviving contact at all somewhere around wave 61;
+     root 10 carries it to about wave 89. Damage deliberately
+     stays on root 5 — an ally is chip damage that stacks, not a
+     damage dealer, and root 10 there would put a fully merged
+     and evolved one near 4.9M a hit.
+
+     Evolution stays 10% on both.
+
+     Neither curve fixes the real problem: both are constants and
+     enemy scaling is not, so any multiplier is overtaken in the
+     end. Only tying ally health to the current wave would hold
+     indefinitely. */
+  var ALLY = {
+    healthMerge: Math.sqrt(10),
+    damageMerge: Math.sqrt(5),
+    evolution: 0.1
+  };
+
+  function allyStat(base, merge, level, evolution) {
     return (
       base *
-      Math.pow(ALLY.merge, (level || 1) - 1) *
+      Math.pow(merge, (level || 1) - 1) *
       Math.pow(1 + ALLY.evolution, evolution || 0)
     );
   }
@@ -371,14 +391,16 @@
   function allyHealth(key, level, evolution) {
     var tower = base(key);
 
-    return tower && tower.allyHp ? allyStat(tower.allyHp, level, evolution) : 0;
+    return tower && tower.allyHp
+      ? allyStat(tower.allyHp, ALLY.healthMerge, level, evolution)
+      : 0;
   }
 
   function allyDamage(key, level, evolution) {
     var tower = base(key);
 
     return tower && tower.allyDamage
-      ? allyStat(tower.allyDamage, level, evolution)
+      ? allyStat(tower.allyDamage, ALLY.damageMerge, level, evolution)
       : 0;
   }
 
