@@ -240,7 +240,12 @@
          booster can change this. */
       allyRange: 15,
       spawnEvery: 15,
-      allyCap: 6
+
+      /* Allies walk up the lane towards the portal, tiles per
+         second. They stop to fight anything they meet, and any
+         that reach the portal are lost — that, not a cap, is what
+         keeps their numbers in check. */
+      allySpeed: 0.8
     }
   };
 

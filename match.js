@@ -1562,14 +1562,6 @@
 
     tower.spawnTimer = definition.spawnEvery;
 
-    var mine = allies.filter(function (ally) {
-      return ally.from === position;
-    });
-
-    if (mine.length >= definition.allyCap) {
-      return;
-    }
-
     var parts = position.split(",");
     var origin = tileCentre(Number(parts[0]), Number(parts[1]));
     var hp = stats.allyHealth(tower.key, tower.level, evolution);
@@ -1582,6 +1574,7 @@
       damage: stats.allyDamage(tower.key, tower.level, evolution),
       cooldown: 0,
       reload: definition.allyCooldown,
+      speed: definition.allySpeed,
       /* Never scales — only a booster can widen it. */
       range: definition.allyRange,
       progress: nearestPathProgress(origin)
@@ -1619,23 +1612,35 @@
       }
     });
 
-    /* Anything touching an ally stops and hits it. */
-    var block = BLOCK_TILES;
+    /* Anything touching an ally stops and hits it, and the ally
+       stops too rather than walking through it. */
+    allies.forEach(function (ally) {
+      ally.engaged = false;
+    });
 
     enemies.forEach(function (enemy) {
       enemy.blocked = false;
 
       for (var i = 0; i < allies.length; i += 1) {
-        if (Math.abs(enemy.progress - allies[i].progress) <= block) {
+        if (Math.abs(enemy.progress - allies[i].progress) <= BLOCK_TILES) {
           enemy.blocked = true;
+          allies[i].engaged = true;
           allies[i].hp -= stats.waveEnemyDps(enemy.kind, wave) * delta;
           break;
         }
       }
     });
 
+    /* Unengaged allies march on towards the portal. */
+    allies.forEach(function (ally) {
+      if (!ally.engaged) {
+        ally.progress -= ally.speed * delta;
+      }
+    });
+
+    /* Killed, or walked into the portal and lost. */
     allies = allies.filter(function (ally) {
-      return ally.hp > 0;
+      return ally.hp > 0 && ally.progress > 0;
     });
   }
 
