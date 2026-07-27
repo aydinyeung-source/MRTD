@@ -675,6 +675,45 @@
     ctx.strokeStyle = fraction > 0.3 ? "#4f6a78" : "#9d4b45";
     ctx.lineWidth = 3;
     ctx.stroke();
+
+    /* The ring reads at a glance, the number tells you how many
+       more leaks you can survive. */
+    outlinedText(
+      Math.max(0, Math.ceil(baseHp)) + " / " + stats.baseHp,
+      rect.x + rect.size / 2,
+      rect.y + rect.size + Math.max(12, rect.size * 0.34),
+      Math.max(10, Math.round(rect.size * 0.24)),
+      fraction > 0.3 ? "#222a2f" : "#9d4b45"
+    );
+  }
+
+  /* Health runs into the millions, so long numbers are shortened
+     rather than overflowing the tile. */
+  function formatHp(value) {
+    var amount = Math.max(0, Math.ceil(value));
+
+    if (amount >= 1000000) {
+      return Math.round(amount / 100000) / 10 + "M";
+    }
+
+    if (amount >= 1000) {
+      return Math.round(amount / 100) / 10 + "k";
+    }
+
+    return String(amount);
+  }
+
+  /* Text with a pale halo, so it stays readable over the path,
+     the grass and the enemies alike. */
+  function outlinedText(text, x, y, size, colour) {
+    ctx.font = "600 " + size + "px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = Math.max(2, size * 0.28);
+    ctx.strokeStyle = "rgba(249, 251, 252, 0.9)";
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = colour;
+    ctx.fillText(text, x, y);
   }
 
   /* PLACEHOLDER enemy art: a coloured disc with a health bar.
@@ -694,11 +733,23 @@
 
     var width = view.size * 0.7;
     var fraction = Math.max(0, enemy.hp / enemy.maxHp);
+    var barY = point.y - radius - 7;
 
     ctx.fillStyle = "rgba(34, 42, 47, 0.25)";
-    ctx.fillRect(point.x - width / 2, point.y - radius - 7, width, 4);
+    ctx.fillRect(point.x - width / 2, barY, width, 4);
     ctx.fillStyle = fraction > 0.4 ? "#5f8a63" : "#9d4b45";
-    ctx.fillRect(point.x - width / 2, point.y - radius - 7, width * fraction, 4);
+    ctx.fillRect(point.x - width / 2, barY, width * fraction, 4);
+
+    /* The bar shows how hurt it is; the number shows how much is
+       actually left, which is what decides whether a tower can
+       finish it. */
+    outlinedText(
+      formatHp(enemy.hp),
+      point.x,
+      barY - Math.max(7, view.size * 0.14),
+      Math.max(9, Math.round(view.size * 0.2)),
+      "#222a2f"
+    );
   }
 
   function drawShots() {
