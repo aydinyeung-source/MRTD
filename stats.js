@@ -368,23 +368,29 @@
      damage dealer, and root 10 there would put a fully merged
      and evolved one near 4.9M a hit.
 
-     Evolution stays 10% on both.
+     Evolution splits the same way. Health takes 15%, which is
+     what the spawner's role in ROLES has always advertised on
+     the card — the code applied 10% and quietly disagreed with
+     its own label until v1.34.2. Damage keeps the universal 10%.
 
-     Neither curve fixes the real problem: both are constants and
-     enemy scaling is not, so any multiplier is overtaken in the
-     end. Only tying ally health to the current wave would hold
-     indefinitely. */
+     Neither curve fixes the real problem: all four numbers are
+     constants and enemy scaling is not, so any multiplier is
+     overtaken in the end. Only tying ally health to the current
+     wave would hold indefinitely. */
   var ALLY = {
     healthMerge: Math.sqrt(10),
     damageMerge: Math.sqrt(5),
-    evolution: 0.1
+    /* Keep in step with ROLES.spawner, which is what the player
+       is shown. */
+    healthEvolution: 0.15,
+    damageEvolution: 0.1
   };
 
-  function allyStat(base, merge, level, evolution) {
+  function allyStat(base, merge, growth, level, evolution) {
     return (
       base *
       Math.pow(merge, (level || 1) - 1) *
-      Math.pow(1 + ALLY.evolution, evolution || 0)
+      Math.pow(1 + growth, evolution || 0)
     );
   }
 
@@ -392,7 +398,13 @@
     var tower = base(key);
 
     return tower && tower.allyHp
-      ? allyStat(tower.allyHp, ALLY.healthMerge, level, evolution)
+      ? allyStat(
+          tower.allyHp,
+          ALLY.healthMerge,
+          ALLY.healthEvolution,
+          level,
+          evolution
+        )
       : 0;
   }
 
@@ -400,7 +412,13 @@
     var tower = base(key);
 
     return tower && tower.allyDamage
-      ? allyStat(tower.allyDamage, ALLY.damageMerge, level, evolution)
+      ? allyStat(
+          tower.allyDamage,
+          ALLY.damageMerge,
+          ALLY.damageEvolution,
+          level,
+          evolution
+        )
       : 0;
   }
 
