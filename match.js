@@ -1736,9 +1736,14 @@
     });
   }
 
+  /* The lobby is re-entered through a full reload, so a player
+     coming out of a match always picks up whatever has been
+     deployed since they started it. */
   function leave() {
     close();
-    window.MRTD.load("Returning to lobby", 1400);
+    window.MRTD.load("Returning to lobby", 1400, function () {
+      window.location.reload();
+    });
   }
 
   exitButton.addEventListener("click", leave);

@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.14.2";
+  var VERSION = "1.14.3";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -276,13 +276,21 @@
     "Selling a merged tower refunds half of every tower inside it."
   ];
 
-  function showLoader(title, duration, done) {
+  function openLoader(title) {
     loaderTitle.textContent = title;
     loaderTip.textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
     loader.hidden = false;
+  }
+
+  function closeLoader() {
+    loader.hidden = true;
+  }
+
+  function showLoader(title, duration, done) {
+    openLoader(title);
 
     window.setTimeout(function () {
-      loader.hidden = true;
+      closeLoader();
 
       if (done) {
         done();
@@ -460,6 +468,10 @@
       profileName.textContent = displayName(user);
     }
 
+    /* Whichever way the session resolves, the startup loader has
+       done its job. */
+    closeLoader();
+
     auth.hidden = true;
     app.hidden = false;
 
@@ -468,6 +480,8 @@
   }
 
   function lock() {
+    closeLoader();
+
     auth.hidden = false;
     app.hidden = true;
 
@@ -690,5 +704,10 @@
   window.MRTD.load = showLoader;
 
   setMode("login");
+
+  /* The panel is already on screen from the markup; this just
+     fills in the title and tip. lock() or unlock() takes it down
+     once the stored session has been checked. */
+  openLoader("Loading");
   restoreSession();
 })();

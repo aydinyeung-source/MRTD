@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <section class="auth" id="auth">
+  <section class="auth" id="auth" hidden>
     <form class="auth__panel" id="auth-form" novalidate>
       <h1 class="auth__title">MRTD</h1>
       <p class="auth__mode">Log in or sign up</p>
@@ -165,7 +165,9 @@
     </nav>
   </div>
 
-  <div class="loader" id="loader" hidden>
+  <!-- Visible from the first paint, so the login panel never
+       flashes up for a player who is already signed in. -->
+  <div class="loader" id="loader">
     <div class="loader__panel">
       <p class="loader__title" id="loader-title">Loading</p>
       <div class="loader__bar"><span class="loader__stripe"></span></div>
