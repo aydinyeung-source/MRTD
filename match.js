@@ -129,6 +129,10 @@
   var hover = null;
   var sellZone = null;
 
+  /* Tile of the tower whose stats panel is open, so its cover
+     stays on screen while you read it. */
+  var inspected = null;
+
   /* The tower waiting to be positioned, as { key, level }. Shown
      semi-opaque until a second click commits it. */
   var placing = null;
@@ -497,9 +501,6 @@
   }
 
   function drawTower(tower, x, y, size) {
-    /* Drawn in both views, and under the tower itself. */
-    drawCone(tower, x, y, size);
-
     if (viewMode === "top") {
       drawTopTower(tower, x, y, size);
       return;
@@ -734,6 +735,22 @@
     ctx.fillText("+" + Math.floor(value) + " cash", rect.x + rect.width / 2, rect.y + 42);
   }
 
+  /* Range circle plus, for cone towers, the arc they actually
+     fire into. */
+  function showCover(position) {
+    var tower = position && towers[position];
+
+    if (!tower) {
+      return;
+    }
+
+    var parts = position.split(",");
+    var rect = tileRect(Number(parts[0]), Number(parts[1]));
+
+    drawRange(tower, rect.x + rect.size / 2, rect.y + rect.size / 2);
+    drawCone(tower, rect.x, rect.y, rect.size);
+  }
+
   function draw() {
     if (!view.size) {
       return;
@@ -745,11 +762,11 @@
     drawPortal();
     drawBase();
 
-    if (!drag && !placing && hover && towers[hover]) {
-      var at = hover.split(",");
-      var centre = tileCentre(Number(at[0]), Number(at[1]));
-      drawRange(towers[hover], centre.x, centre.y);
-    }
+    /* Cover is only drawn for a tower you are hovering or have
+       open in the stats panel — showing every cone at once made
+       the map unreadable. */
+    showCover(hover && !drag && !placing ? hover : null);
+    showCover(inspected);
 
     Object.keys(towers).forEach(function (position) {
       if (drag && drag.from === position) {
@@ -775,6 +792,7 @@
         var allowed = buildable(tile[0], tile[1]) && !towers[key(tile[0], tile[1])];
 
         drawRange(ghost, target.x + target.size / 2, target.y + target.size / 2);
+        drawCone(ghost, target.x, target.y, target.size);
 
         ctx.globalAlpha = 0.55;
         drawTower(ghost, target.x, target.y, target.size);
@@ -788,6 +806,12 @@
 
     if (drag) {
       drawRange(drag.tower, drag.x, drag.y);
+      drawCone(
+        drag.tower,
+        drag.x - view.size / 2,
+        drag.y - view.size / 2,
+        view.size
+      );
 
       var dropTile = inSellZone(drag.x, drag.y) ? null : tileAt(drag.x, drag.y);
 
@@ -1440,6 +1464,7 @@
 
   function closeInspect() {
     inspect.hidden = true;
+    inspected = null;
   }
 
   function refreshHotbar() {
@@ -1514,7 +1539,9 @@
       return;
     }
 
+    inspected = key(tile[0], tile[1]);
     openInspect(tower, event.clientX, event.clientY);
+    draw();
   });
 
   canvas.addEventListener("pointerdown", function (event) {
