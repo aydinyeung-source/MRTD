@@ -1250,11 +1250,27 @@
      Wave 1 pays nothing; you begin with starting cash only. */
   function payWave() {
     var total = WAVE_BONUS;
+    var counted = {};
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
+      var income = stats.coins(tower.key, tower.level, evolutionFor(tower));
 
-      total += stats.coins(tower.key, tower.level, evolutionFor(tower));
+      if (!income) {
+        return;
+      }
+
+      /* Only one farm of each level pays. Building a second level 3
+         earns nothing on its own — it is worth having only as half
+         of a level 4. */
+      var id = tower.key + ":" + tower.level;
+
+      if (counted[id]) {
+        return;
+      }
+
+      counted[id] = true;
+      total += income;
     });
 
     cash += total;

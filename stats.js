@@ -27,7 +27,9 @@
   var MERGE = {
     damage: { mode: "multiply", factor: Math.sqrt(5) }, // 2.2360
     range: { mode: "multiply", factor: 1.1 },           // +10% per merge
-    coins: { mode: "multiply", factor: Math.sqrt(5) },
+    /* Flat, not compounding: a farm is worth 100 per merge level,
+       so a level 10 pays 1000 rather than six figures. */
+    coins: { mode: "add", amount: 100 },
     health: { mode: "multiply", factor: Math.sqrt(5) }, // PLACEHOLDER — unspecified
     boost: { mode: "add", amount: 2.5, percent: true }
   };
