@@ -176,6 +176,7 @@
     </main>
 
     <div class="corner">
+      <button class="corner__dev" id="friends-open" type="button">Friends</button>
       <button class="corner__dev" id="handbook-open" type="button">Handbook</button>
       <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
       <button class="corner__signout" id="signout" type="button">Sign out</button>
@@ -192,6 +193,37 @@
 
   <!-- Visible from the first paint, so the login panel never
        flashes up for a player who is already signed in. -->
+  <div class="handbook" id="friends" hidden>
+    <div class="handbook__panel">
+      <h2 class="handbook__title">Friends</h2>
+
+      <section class="handbook__section">
+        <h3>Find a player</h3>
+        <div class="friends__row">
+          <input class="admin__input" id="friends-search" type="text"
+                 maxlength="20" placeholder="Username">
+          <button class="admin__button" id="friends-add" type="button">Add</button>
+        </div>
+      </section>
+
+      <section class="handbook__section">
+        <h3>Your friends</h3>
+        <div id="friends-list"></div>
+      </section>
+
+      <section class="handbook__section">
+        <h3>Trades</h3>
+        <div id="friends-trades"></div>
+      </section>
+
+      <p class="friends__status" id="friends-status"></p>
+
+      <button class="handbook__close" id="friends-close" type="button">
+        Close
+      </button>
+    </div>
+  </div>
+
   <div class="handbook" id="handbook" hidden>
     <div class="handbook__panel">
       <h2 class="handbook__title">Handbook</h2>
@@ -324,6 +356,7 @@
   <script src="upgrades.js"></script>
   <script src="shop.js"></script>
   <script src="admin.js"></script>
+  <script src="friends.js"></script>
   <script src="match.js"></script>
 </body>
 </html>

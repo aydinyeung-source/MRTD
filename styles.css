@@ -703,6 +703,79 @@ body::after {
   color: var(--ink);
 }
 
+/* ---- Friends ---- */
+
+.friends__row {
+  display: flex;
+  gap: 8px;
+}
+
+.friends__line,
+.friends__offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.friends__offer {
+  border-bottom: none;
+}
+
+.friends__name {
+  flex: 1;
+  min-width: 130px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.friends__tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.friends__button {
+  padding: 6px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background-color: transparent;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--glacier);
+  cursor: pointer;
+}
+
+.friends__button:hover {
+  border-color: var(--glacier);
+  background-color: var(--paper);
+}
+
+.friends__empty {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.friends__status {
+  margin: 0 0 18px;
+  min-height: 1.4em;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.friends__status.is-error {
+  color: #9d4b45;
+}
+
 .handbook__close {
   width: 100%;
   padding: 12px;
