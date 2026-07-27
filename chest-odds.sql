@@ -1,32 +1,33 @@
 -- ============================================================
--- MRTD chest: six towers, and a rotating line-up.
+-- MRTD chest: seven towers on a rotating line-up.
 --
---   common  dagger, axe
---   rare    farm, sniper, shotgunner
---   epic    blender
+--   common  dagger, axe                52%
+--   rare    farm, sniper, shotgunner   36%
+--   epic    blender, spawner           12%
 --
 -- One tower from each rarity is in the chest at a time. The
 -- line-up changes every half hour and is worked out from the
 -- clock, so every player everywhere sees the same one without
 -- anything needing to be scheduled or stored.
 --
--- A rarity's whole weight goes to whichever of its towers is
--- currently up, so the odds of getting SOMETHING rare never
--- change — only which rare it is.
+-- NOTE ON WEIGHTS: the weight column is the whole RARITY's share
+-- of a pull, repeated on every tower in that rarity. Whichever
+-- tower is up carries it. That way adding a tower to a rarity
+-- changes how often you see that particular tower, and never
+-- changes how often the rarity itself comes up.
 -- Run once, then this file goes.
 -- ============================================================
 
-insert into public.chest_odds (tower_key, weight, rarity)
-values ('axe', 24, 'common')
+insert into public.chest_odds (tower_key, weight, rarity) values
+  ('dagger',     52, 'common'),
+  ('axe',        52, 'common'),
+  ('farm',       36, 'rare'),
+  ('sniper',     36, 'rare'),
+  ('shotgunner', 36, 'rare'),
+  ('blender',    12, 'epic'),
+  ('spawner',    12, 'epic')
 on conflict (tower_key) do update
   set weight = excluded.weight, rarity = excluded.rarity;
-
-update public.chest_odds set weight = 28, rarity = 'common' where tower_key = 'dagger';
-update public.chest_odds set weight = 24, rarity = 'common' where tower_key = 'axe';
-update public.chest_odds set weight = 14, rarity = 'rare'   where tower_key = 'farm';
-update public.chest_odds set weight = 12, rarity = 'rare'   where tower_key = 'sniper';
-update public.chest_odds set weight = 10, rarity = 'rare'   where tower_key = 'shotgunner';
-update public.chest_odds set weight = 12, rarity = 'epic'   where tower_key = 'blender';
 
 -- Which half hour we are in. Same number for everyone.
 create or replace function public.chest_slot()
@@ -42,8 +43,8 @@ language sql
 stable
 as $$ select to_timestamp((public.chest_slot() + 1) * 1800) $$;
 
--- The towers actually in the chest right now, one per rarity,
--- each carrying its whole rarity's weight.
+-- The towers actually in the chest right now: one per rarity,
+-- each carrying its rarity's share.
 create or replace function public.active_chest()
 returns table (tower_key text, weight integer, rarity text)
 language sql
@@ -54,19 +55,19 @@ as $$
   with ranked as (
     select
       c.tower_key,
+      c.weight,
       c.rarity,
       row_number() over (partition by c.rarity order by c.tower_key) - 1 as slot,
-      count(*)    over (partition by c.rarity) as choices,
-      sum(c.weight) over (partition by c.rarity) as tier_weight
+      count(*)    over (partition by c.rarity) as choices
     from public.chest_odds c
   )
-  select r.tower_key, r.tier_weight::integer, r.rarity
+  select r.tower_key, r.weight, r.rarity
   from ranked r
   where r.slot = mod(public.chest_slot(), r.choices);
 $$;
 
--- Draws now come from the active line-up rather than the whole
--- table, so a tower that is not up cannot be pulled.
+-- Draws come from the active line-up rather than the whole table,
+-- so a tower that is not up cannot be pulled.
 create or replace function public.draw_tower()
 returns text
 language plpgsql
