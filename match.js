@@ -1378,9 +1378,8 @@
         return;
       }
 
-      /* Only one farm of each level pays. Building a second level 3
-         earns nothing on its own — it is worth having only as half
-         of a level 4. */
+      /* Duplicated levels cannot survive resolveFarms, so this is
+         a guard rather than a rule. */
       var id = tower.key + ":" + tower.level;
 
       if (counted[id]) {
@@ -1943,6 +1942,7 @@
       angle: 0
     };
     placing = null;
+    resolveFarms();
     refreshHud();
   }
 
@@ -2094,6 +2094,40 @@
      Placing and merging
      ========================================================= */
 
+  /* Only one farm of each level may stand on the board. Placing or
+     merging into a level that already exists folds the two
+     together, cascading upward if that collides too — so buying a
+     second level 1 gives you a level 2 rather than a duplicate. */
+  function resolveFarms() {
+    var merged = true;
+
+    while (merged) {
+      merged = false;
+
+      var seen = {};
+      var positions = Object.keys(towers);
+
+      for (var i = 0; i < positions.length; i += 1) {
+        var tower = towers[positions[i]];
+
+        if (tower.key !== "farm") {
+          continue;
+        }
+
+        var existing = seen[tower.level];
+
+        if (existing && tower.level < MAX_LEVEL) {
+          towers[existing].level += 1;
+          delete towers[positions[i]];
+          merged = true;
+          break;
+        }
+
+        seen[tower.level] = positions[i];
+      }
+    }
+  }
+
   function canMerge(source, target) {
     return Boolean(
       source && target &&
@@ -2127,6 +2161,7 @@
         angle: tower.angle || 0
       };
       delete towers[from];
+      resolveFarms();
       return;
     }
 
