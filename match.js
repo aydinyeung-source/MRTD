@@ -78,6 +78,9 @@
   var exitButton = document.getElementById("match-exit");
   var forfeitButton = document.getElementById("match-forfeit");
   var graphicsButton = document.getElementById("match-graphics");
+  var jumpBox = document.getElementById("match-jump");
+  var jumpInput = document.getElementById("match-jump-wave");
+  var jumpButton = document.getElementById("match-jump-go");
   var startButton = document.getElementById("match-start");
   var speedButton = document.getElementById("match-speed");
   var skipButton = document.getElementById("match-skip");
@@ -2136,6 +2139,7 @@
     startButton.hidden = canSkip;
 
     /* Counts down through the intermission, then starts itself. */
+    jumpBox.hidden = !isDev();
     startButton.disabled = !canStart();
     startButton.textContent =
       breakLeft > 0 ? "Start wave (" + Math.ceil(breakLeft) + ")" : "Start wave";
@@ -2963,6 +2967,51 @@
 
   graphicsButton.addEventListener("click", function () {
     setGraphics(!lowGraphics);
+  });
+
+  /* Developer only: drop straight into any wave. Everything on
+     the path is cleared first so the new wave arrives on its own
+     rather than mixed with the old one. */
+  var MAX_JUMP = 5000;
+
+  function jumpToWave(target) {
+    if (!isDev()) {
+      return;
+    }
+
+    var n = Math.floor(Number(target));
+
+    if (!n || n < 1) {
+      return;
+    }
+
+    n = Math.min(n, MAX_JUMP);
+
+    enemies = [];
+    allies = [];
+    spawnQueue = [];
+    shots = [];
+    projectiles = [];
+    particles = [];
+    waveActive = false;
+    breakLeft = 0;
+    wave = n - 1;
+    wavesSurvived = Math.max(wavesSurvived, n - 1);
+
+    startWave();
+    refreshHud();
+    draw();
+  }
+
+  jumpButton.addEventListener("click", function () {
+    jumpToWave(jumpInput.value);
+  });
+
+  jumpInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      jumpToWave(jumpInput.value);
+    }
   });
 
   /* Toggling developer mode mid match takes effect immediately. */

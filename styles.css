@@ -435,6 +435,23 @@ body::after {
   padding-top: max(14px, env(safe-area-inset-top));
 }
 
+.match__jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.match__jump-input {
+  width: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: var(--paper-raised);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+
 .match__button--go {
   background-color: var(--glacier);
   border-color: transparent;
