@@ -1517,7 +1517,7 @@
 
       var icon = document.createElement("img");
       icon.className = "hotbar__icon";
-      icon.src = "towers/" + name + "/1.svg";
+      icon.src = towerArt(name);
       icon.alt = stats.towers[name].label;
       button.appendChild(icon);
 
@@ -1525,6 +1525,14 @@
       price.className = "hotbar__cost";
       price.textContent = String(stats.cost(name));
       button.appendChild(price);
+
+      /* The slots are icons only, so the name appears above the
+         one under the pointer. */
+      var label = document.createElement("span");
+      label.className = "hotbar__name";
+      label.textContent = stats.towers[name].label;
+      button.appendChild(label);
+      button.title = stats.towers[name].label;
 
       /* Tap selects a level 1. Hold opens the level picker, which
          is the Quick buy upgrade. */
@@ -2183,6 +2191,35 @@
       draw();
     }
   });
+
+  /* Card art for the lobby: the drawn plan view at full merge
+     level, rendered offscreen once and handed over as an image.
+     Towers with real artwork use their own top level costume. */
+  function towerArt(name, level) {
+    var at = level || MAX_LEVEL;
+
+    if (ART_TOWERS.indexOf(name) >= 0) {
+      return "towers/" + name + "/" + at + ".svg";
+    }
+
+    var size = 160;
+    var off = document.createElement("canvas");
+    var previous = ctx;
+
+    off.width = size;
+    off.height = size;
+
+    /* drawTopTower paints through the module context, so it is
+       pointed at the offscreen canvas for the duration. */
+    ctx = off.getContext("2d");
+    drawTopTower({ key: name, level: at, angle: 0 }, 0, 0, size);
+    ctx = previous;
+
+    return off.toDataURL();
+  }
+
+  window.MRTD.towerArt = towerArt;
+  document.dispatchEvent(new CustomEvent("mrtd:art"));
 
   buildHotbar();
   setAuto(false);

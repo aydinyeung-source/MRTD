@@ -111,6 +111,15 @@
     })[0];
   }
 
+  /* Cards show the tower as it appears on the board, fully merged.
+     Falls back to the plain file if the match module has not
+     finished loading yet. */
+  function artFor(name) {
+    return window.MRTD.towerArt
+      ? window.MRTD.towerArt(name)
+      : "towers/" + name + "/10.svg";
+  }
+
   function towerCard(entry, className) {
     var card = document.createElement("button");
 
@@ -121,7 +130,7 @@
 
     var icon = document.createElement("img");
     icon.className = "loadout__icon";
-    icon.src = "towers/" + entry.key + "/1.svg";
+    icon.src = artFor(entry.key);
     icon.alt = window.MRTD.stats.towers[entry.key].label;
     card.appendChild(icon);
 
@@ -350,6 +359,10 @@
   document.addEventListener("mrtd:unlocked", refresh);
   document.addEventListener("mrtd:dev", refresh);
   document.addEventListener("mrtd:granted", refresh);
+
+  /* The match module supplies the drawn card art, so anything
+     rendered before it loaded is redrawn once it is ready. */
+  document.addEventListener("mrtd:art", render);
 
   /* Handbook, opened from the lobby corner. */
   var handbook = document.getElementById("handbook");

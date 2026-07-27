@@ -489,6 +489,30 @@ body::after {
   color: var(--ink-soft);
 }
 
+/* Name of the slot under the pointer. */
+.hotbar__name {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: 7px;
+  background-color: rgba(34, 42, 47, 0.94);
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #f9fbfc;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-soft);
+}
+
+.hotbar__slot:hover .hotbar__name,
+.hotbar__slot:focus-visible .hotbar__name {
+  opacity: 1;
+}
+
 /* Hold a hotbar slot to buy a merged tower outright. */
 .levels {
   position: fixed;

@@ -22,9 +22,10 @@
 
   var MAX_EVOLUTION = 10;
 
-  /* Which artwork stands in for the tower in the collection. The
-     sprite never changes with evolution — only the border does. */
-  var ICON_LEVEL = 1;
+  /* Fallback only — the card normally shows the fully merged
+     top view. The art never changes with evolution; only the
+     border does. */
+  var ICON_LEVEL = 10;
 
 
   var status = document.getElementById("shop-status");
@@ -137,7 +138,10 @@
 
     var icon = document.createElement("img");
     icon.className = "tower-card__icon";
-    icon.src = "towers/" + row.tower_key + "/" + ICON_LEVEL + ".svg";
+    /* The tower as it looks fully merged, matching the board. */
+    icon.src = window.MRTD.towerArt
+      ? window.MRTD.towerArt(row.tower_key)
+      : "towers/" + row.tower_key + "/" + ICON_LEVEL + ".svg";
     icon.alt = labelFor(row.tower_key);
     card.appendChild(icon);
 
