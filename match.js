@@ -1385,41 +1385,25 @@
   function payWave() {
     var total = WAVE_BONUS;
     var farmed = 0;
-    var maxed = [];
-    var rest = [];
+    var earners = [];
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
       var income = stats.coins(tower.key, tower.level, evolutionFor(tower));
 
-      if (income <= 0) {
-        return;
-      }
-
-      var earner = { position: position, income: income };
-
-      /* Fully merged farms have their own allowance. */
-      if (tower.level >= MAX_LEVEL) {
-        maxed.push(earner);
-      } else {
-        rest.push(earner);
+      if (income > 0) {
+        earners.push({ position: position, income: income });
       }
     });
 
     /* Shuffled before sorting, so farms tied on level are picked
-       at random rather than by whichever tile came first. Maxed
-       farms are all tied, so shuffling is the whole selection. */
-    shuffle(maxed);
-    shuffle(rest);
-    rest.sort(function (a, b) {
+       at random rather than by whichever tile came first. */
+    shuffle(earners);
+    earners.sort(function (a, b) {
       return b.income - a.income;
     });
 
-    var paying = maxed
-      .slice(0, PAYING_MAXED)
-      .concat(rest.slice(0, PAYING_FARMS));
-
-    paying.forEach(function (earner) {
+    earners.slice(0, PAYING_FARMS).forEach(function (earner) {
       total += earner.income;
       farmed += earner.income;
       spendParticles(earner.position);
@@ -2201,11 +2185,10 @@
      Placing and merging
      ========================================================= */
 
-  /* Three fully merged farms pay, plus the three best below them.
-     Build as many as you like — a ladder of lower levels is how
-     merges are staged — but the rest are stock, not income. */
+  /* The three highest farms pay, whatever level they are. Build as
+     many as you like — a ladder of lower levels is how merges are
+     staged — but the rest are stock, not income. */
   var PAYING_FARMS = 3;
-  var PAYING_MAXED = 3;
 
   function shuffle(list) {
     for (var i = list.length - 1; i > 0; i -= 1) {
