@@ -74,6 +74,8 @@
   var hpDisplay = document.getElementById("match-hp");
   var placedDisplay = document.getElementById("match-placed");
   var waveDisplay = document.getElementById("match-wave");
+  var beatenDisplay = document.getElementById("match-beaten");
+  var payoutDisplay = document.getElementById("match-payout");
   var gameover = document.getElementById("gameover");
   var gameoverWaves = document.getElementById("gameover-waves");
   var gameoverCoins = document.getElementById("gameover-coins");
@@ -1399,6 +1401,14 @@
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
     placedDisplay.textContent = placed() + " / " + placementLimit();
     waveDisplay.textContent = String(wave);
+
+    /* What the run is worth if it ended right now. A wave only
+       counts once it has been cleared, so this rises when the wave
+       ends rather than when it starts. */
+    beatenDisplay.textContent = String(wavesBeaten);
+    payoutDisplay.textContent = isDev()
+      ? "0"
+      : String(stats.runReward(wavesBeaten));
     exitButton.disabled = baseHp > 0;
 
     /* Skip is offered once the wave has finished spawning and
