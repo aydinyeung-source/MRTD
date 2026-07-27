@@ -263,9 +263,12 @@
       });
   }
 
+  /* Everything the chest can give, with its real odds read from
+     the database rather than written here. */
   function renderOdds(rows) {
+    oddsLine.textContent = "";
+
     if (!rows || !rows.length) {
-      oddsLine.textContent = "";
       return;
     }
 
@@ -273,11 +276,31 @@
       return sum + row.weight;
     }, 0);
 
-    oddsLine.textContent = rows
-      .map(function (row) {
-        return labelFor(row.tower_key) + " " + Math.round((row.weight / total) * 100) + "%";
-      })
-      .join("  ·  ");
+    rows.forEach(function (row) {
+      var item = document.createElement("article");
+
+      item.className = "chestitem";
+
+      var chance = document.createElement("p");
+      chance.className = "chestitem__chance";
+      chance.textContent = Math.round((row.weight / total) * 100) + "%";
+      item.appendChild(chance);
+
+      var icon = document.createElement("img");
+      icon.className = "chestitem__icon";
+      icon.src = window.MRTD.towerArt
+        ? window.MRTD.towerArt(row.tower_key)
+        : "towers/" + row.tower_key + "/" + ICON_LEVEL + ".svg";
+      icon.alt = labelFor(row.tower_key);
+      item.appendChild(icon);
+
+      var name = document.createElement("p");
+      name.className = "chestitem__name";
+      name.textContent = labelFor(row.tower_key);
+      item.appendChild(name);
+
+      oddsLine.appendChild(item);
+    });
   }
 
   /* A long pull is unreadable as a list, so identical towers are
