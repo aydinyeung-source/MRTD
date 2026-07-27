@@ -44,10 +44,9 @@
   var MAX_LEVEL = 10;
   var TOWER_KEYS = ["dagger", "blender", "shotgunner", "sniper", "farm"];
 
-  /* Top down designs, drawn rather than imported. Colours come from
-     the real SVGs so both views agree, and detail grows with merge
-     level. These are authored plan views, not conversions — a side
-     elevation carries no depth information to convert from. */
+  /* Fallback plan designs, drawn in code. Used only for a tower
+     whose artwork has not loaded, so the board still reads while
+     a sprite is missing. */
   var TOKENS = {
     blender: { body: "#8e8e8e", accent: "#ff140a", plan: "blades" },
     dagger: { body: "#949494", accent: "#bb0000", plan: "blades" },
@@ -56,13 +55,9 @@
     sniper: { body: "#2b2b2b", accent: "#8c8c8c", plan: "barrel" }
   };
 
-  var VIEW_KEY = "mrtd.view";
-  var viewMode = "top";
-
   var root = document.getElementById("match");
   var canvas = document.getElementById("match-canvas");
   var exitButton = document.getElementById("match-exit");
-  var viewButton = document.getElementById("match-view");
   var forfeitButton = document.getElementById("match-forfeit");
   var startButton = document.getElementById("match-start");
   var speedButton = document.getElementById("match-speed");
@@ -328,11 +323,27 @@
     });
   }
 
+  /* The largest costume a tower has, so the others can be drawn in
+     proportion to it. Scratch exports each costume cropped to its
+     own artwork, so scaling every one to fill the tile would make
+     a level 1 and a level 10 the same size on screen. Measuring
+     them here means the files are never edited. */
+  var spriteScale = {};
+
+  function noteSpriteSize(name, image) {
+    var largest = Math.max(image.width, image.height);
+
+    if (!spriteScale[name] || largest > spriteScale[name]) {
+      spriteScale[name] = largest;
+    }
+  }
+
   function loadSprite(name, level) {
     var image = new Image();
 
     image.onload = function () {
       sprites[name][level] = image;
+      noteSpriteSize(name, image);
     };
 
     image.onerror = function () {
@@ -500,28 +511,66 @@
     ctx.restore();
   }
 
+  /* The barrel the artwork does not have: a stub that turns to
+     show where the tower is aiming. Drawn over the base, and it
+     lengthens as the tower merges. */
+  function drawBarrel(tower, x, y, size) {
+    if (!stats.attack(tower.key)) {
+      return;
+    }
+
+    var length = size * (0.3 + tower.level * 0.022);
+    var width = size * 0.13;
+
+    ctx.save();
+    ctx.translate(x + size / 2, y + size / 2);
+    ctx.rotate(tower.angle || 0);
+
+    roundedPath(-width / 2, -length, width, length, width * 0.4);
+    ctx.fillStyle = "#3a3f42";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(249, 251, 252, 0.7)";
+    ctx.lineWidth = Math.max(1, size * 0.02);
+    ctx.stroke();
+
+    /* Muzzle, so the far end reads at small tile sizes. */
+    roundedPath(-width * 0.75, -length, width * 1.5, width * 0.6, width * 0.3);
+    ctx.fillStyle = "#8c8c8c";
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /* The artwork is the base and does not turn. It is drawn in
+     proportion to the tower's largest costume, so higher levels
+     really are bigger on the board. */
   function drawTower(tower, x, y, size) {
-    if (viewMode === "top") {
+    var sprite = sprites[tower.key] && sprites[tower.key][tower.level];
+
+    if (!sprite) {
       drawTopTower(tower, x, y, size);
       return;
     }
 
-    var sprite = sprites[tower.key] && sprites[tower.key][tower.level];
+    var reference = spriteScale[tower.key] || Math.max(sprite.width, sprite.height);
+    var scale = size / reference;
+    var width = sprite.width * scale;
+    var height = sprite.height * scale;
 
-    if (sprite) {
-      var scale = Math.min(size / sprite.width, size / sprite.height);
-      var width = sprite.width * scale;
-      var height = sprite.height * scale;
+    ctx.drawImage(
+      sprite,
+      x + (size - width) / 2,
+      y + (size - height) / 2,
+      width,
+      height
+    );
 
-      ctx.drawImage(sprite, x + (size - width) / 2, y + size - height, width, height);
-    } else {
-      roundedPath(x + size * 0.15, y + size * 0.15, size * 0.7, size * 0.7, 6);
-      ctx.fillStyle = "#4f6a78";
-      ctx.fill();
-    }
+    drawBarrel(tower, x, y, size);
 
+    /* Level sits square to the screen, never rotated with the art. */
     ctx.fillStyle = "#222a2f";
-    ctx.font = "600 " + Math.max(9, Math.round(size * 0.26)) + "px 'IBM Plex Mono', monospace";
+    ctx.font =
+      "600 " + Math.max(9, Math.round(size * 0.26)) + "px 'IBM Plex Mono', monospace";
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
     ctx.fillText(String(tower.level), x + size - 2, y + size - 1);
@@ -1860,35 +1909,6 @@
     root.hidden = true;
   }
 
-  /* =========================================================
-     View setting
-     ========================================================= */
-
-  function applyView(mode) {
-    viewMode = mode === "3d" ? "3d" : "top";
-    viewButton.textContent = viewMode === "3d" ? "View: 3D - beta" : "View: Top";
-
-    try {
-      localStorage.setItem(VIEW_KEY, viewMode);
-    } catch (error) {
-      /* Private browsing can refuse storage; the view still works. */
-    }
-
-    draw();
-  }
-
-  function restoreView() {
-    var saved = null;
-
-    try {
-      saved = localStorage.getItem(VIEW_KEY);
-    } catch (error) {
-      saved = null;
-    }
-
-    applyView(saved || "top");
-  }
-
   if (playButton) {
     playButton.addEventListener("click", function () {
       /* Deliberately unhurried: two to five seconds. */
@@ -1962,9 +1982,6 @@
     }
   });
 
-  viewButton.addEventListener("click", function () {
-    applyView(viewMode === "top" ? "3d" : "top");
-  });
 
   /* Nothing else can finish a run early, and without this the
      player would be stuck once they stop pressing Start wave. */
@@ -1982,7 +1999,6 @@
   });
 
   buildHotbar();
-  restoreView();
   setAuto(false);
   loadSprites();
 })();
