@@ -83,6 +83,7 @@
   var gameoverNote = document.getElementById("gameover-note");
   var gameoverLeave = document.getElementById("gameover-leave");
   var cashfeed = document.getElementById("cashfeed");
+  var killTotalDisplay = document.getElementById("killtotal");
   var playButton = document.getElementById("play");
 
   if (!canvas || !root) {
@@ -1511,7 +1512,7 @@
         var bounty = stats.waveBounty(enemy.kind, wave);
 
         cash += bounty;
-        poolBounty(bounty);
+        addKillEarnings(bounty);
         return false;
       }
 
@@ -1536,7 +1537,6 @@
     });
 
     advanceEffects(delta);
-    flushBounty(delta);
 
     /* A wave counts once nothing is left on the path, however it
        got there. Tanking a wave with the base is a valid way to
@@ -1634,14 +1634,12 @@
   /* =========================================================
      Money notifications
 
-     Kills are pooled for a moment before being announced —
-     one line per enemy would be unreadable at 10x.
+     One-off events get a passing line. Kills do not — there are
+     far too many of them — so they add to a single running total
+     that stays on screen for the whole run.
      ========================================================= */
 
-  var BOUNTY_FLUSH = 0.9;
-
-  var bountyPool = 0;
-  var bountyTimer = 0;
+  var killTotal = 0;
 
   function notifyCash(amount, reason) {
     var rounded = Math.round(amount);
@@ -1663,24 +1661,16 @@
     }, 1800);
   }
 
-  function poolBounty(amount) {
-    bountyPool += amount;
-  }
+  function addKillEarnings(amount) {
+    killTotal += amount;
 
-  function flushBounty(delta) {
-    if (bountyPool <= 0) {
+    if (!killTotalDisplay) {
       return;
     }
 
-    bountyTimer += delta;
-
-    if (bountyTimer < BOUNTY_FLUSH) {
-      return;
-    }
-
-    notifyCash(bountyPool, "kills");
-    bountyPool = 0;
-    bountyTimer = 0;
+    killTotalDisplay.hidden = false;
+    killTotalDisplay.textContent =
+      "+" + Math.round(killTotal) + " from kills";
   }
 
   function refreshHud() {
@@ -2294,6 +2284,12 @@
     particles = [];
     spawnQueue = [];
     portraitMode = null;
+    killTotal = 0;
+
+    if (killTotalDisplay) {
+      killTotalDisplay.hidden = true;
+      killTotalDisplay.textContent = "+0 from kills";
+    }
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
     baseHp = stats.baseHp;
     wave = 0;

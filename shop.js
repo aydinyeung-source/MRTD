@@ -33,6 +33,7 @@
   var coinsDisplay = document.getElementById("shop-coins");
   var buyOne = document.getElementById("shop-buy-1");
   var buyTen = document.getElementById("shop-buy-10");
+  var buyAll = document.getElementById("shop-buy-all");
   var evolveAllButton = document.getElementById("shop-evolve-all");
   var oddsLine = document.getElementById("shop-odds");
 
@@ -192,6 +193,10 @@
     buyOne.disabled = !freeRollAvailable && !dev && coins < 100;
 
     buyTen.disabled = !dev && coins < 900;
+    buyAll.disabled = !dev && coins < 100;
+    buyAll.textContent = dev
+      ? "Summon all — free"
+      : "Summon all — " + Math.floor(coins / 100) + "×";
 
     if (!rows.length) {
       collection.appendChild(
@@ -275,29 +280,52 @@
       .join("  ·  ");
   }
 
-  function openChest(draws, button) {
+  /* A long pull is unreadable as a list, so identical towers are
+     counted rather than repeated. */
+  function summarise(result) {
+    var tally = {};
+
+    (result || []).forEach(function (name) {
+      tally[name] = (tally[name] || 0) + 1;
+    });
+
+    return Object.keys(tally)
+      .sort(function (a, b) {
+        return tally[b] - tally[a];
+      })
+      .map(function (name) {
+        return tally[name] + "× " + labelFor(name);
+      })
+      .join(", ");
+  }
+
+  function pull(path, body, button) {
+    var sandbox = Boolean(window.MRTD.dev);
+
     button.disabled = true;
     setStatus("Opening...");
 
-    var sandbox = Boolean(window.MRTD.dev);
+    body.sandbox = sandbox;
+    body.p_sandbox = sandbox;
 
-    api("/rest/v1/rpc/open_chest", {
-      method: "POST",
-      body: { draws: draws, sandbox: sandbox }
-    })
+    api(path, { method: "POST", body: body })
       .then(function (result) {
-        var names = (result || []).map(labelFor);
-
         setStatus(
-          "Got: " + names.join(", ") +
+          "Got: " + summarise(result) +
             (sandbox ? "  (dev mode — not kept)" : "")
         );
         return refresh();
       })
       .catch(function (error) {
         setStatus(error.message, true);
+      })
+      .then(function () {
         button.disabled = false;
       });
+  }
+
+  function openChest(draws, button) {
+    pull("/rest/v1/rpc/open_chest", { draws: draws }, button);
   }
 
   function roll() {
@@ -353,6 +381,11 @@
 
   buyTen.addEventListener("click", function () {
     openChest(10, buyTen);
+  });
+
+  /* Every coin, at the single draw price — convenience over value. */
+  buyAll.addEventListener("click", function () {
+    pull("/rest/v1/rpc/open_chest_all", {}, buyAll);
   });
 
   /* Runs every evolution the collection can pay for, lowest tier
