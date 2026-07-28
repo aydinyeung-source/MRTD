@@ -27,16 +27,16 @@
   var MERGE = {
     damage: { mode: "multiply", factor: Math.sqrt(5) }, // 2.2360
     range: { mode: "multiply", factor: 1.1 },           // +10% per merge
-    /* Root 3, so every two merges is exactly x3 income and a
-       level 10 farm pays 14,029 a wave.
+    /* Doubles every merge, so a level 10 farm pays 51,200 a wave
+       and the three that pay bring in 153,600.
 
-       This was a flat +100 a merge, which topped out at 1,000.
-       With only three farms paying that is 3,000 a wave, and a
-       fully merged Quantum costs 5000 x 2^9 = 2,560,000 — over
-       850 waves of saving, so the top of the buy list was not
-       reachable in any run anyone would actually play. Root 3
-       brings the same purchase to about 60 waves. */
-    coins: { mode: "multiply", factor: Math.sqrt(3) },  // 1.7320
+       This was a flat +100 a merge, capping a level 10 at 1,000
+       — 3,000 a wave from three farms, against a fully merged
+       Quantum at 5000 x 2^9 = 2,560,000. That is 853 waves of
+       saving, so the top of the buy list was not reachable in
+       any run anyone would actually play. At x2 the same
+       purchase takes about 17 waves. */
+    coins: { mode: "multiply", factor: 2 },
     health: { mode: "multiply", factor: Math.sqrt(5) }, // PLACEHOLDER — unspecified
     boost: { mode: "add", amount: 2.5, percent: true }
   };
