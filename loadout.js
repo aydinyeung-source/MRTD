@@ -9,10 +9,19 @@
      uses, so the strongest version leads.
      ========================================================= */
 
-  var SLOTS = 5;
   var STORAGE_KEY = "mrtd.loadout";
 
+  /* Five, or six once the Loadout slot upgrade is bought. Read
+     fresh every time rather than cached, so buying the upgrade
+     takes effect without a reload. Developer mode owns it. */
+  function slots() {
+    var level = window.MRTD.upgrade ? window.MRTD.upgrade("loadout_slots") : 0;
+
+    return window.MRTD.stats.loadoutSlots(level);
+  }
+
   var slotsHost = document.getElementById("loadout-slots");
+  var heading = document.getElementById("loadout-heading");
   var ownedHost = document.getElementById("loadout-owned");
   var status = document.getElementById("loadout-status");
   var detail = document.getElementById("loadout-detail");
@@ -33,7 +42,7 @@
     try {
       var saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
 
-      return Array.isArray(saved) ? saved.slice(0, SLOTS) : [];
+      return Array.isArray(saved) ? saved.slice(0, slots()) : [];
     } catch (error) {
       return [];
     }
@@ -170,9 +179,15 @@
   }
 
   function render() {
+    var total = slots();
+
+    if (heading) {
+      heading.textContent = "Equipped · " + total + " slots";
+    }
+
     slotsHost.textContent = "";
 
-    for (var index = 0; index < SLOTS; index += 1) {
+    for (var index = 0; index < total; index += 1) {
       var name = equipped[index];
       var entry = name ? ownedEntry(name) : null;
 
@@ -205,9 +220,10 @@
     if (!owned.length) {
       status.textContent = "No towers yet. Open a chest in the Shop.";
     } else if (!equipped.length) {
-      status.textContent = "Equip up to five towers to take into a match.";
+      status.textContent =
+        "Equip up to " + slots() + " towers to take into a match.";
     } else {
-      status.textContent = equipped.length + " of " + SLOTS + " slots filled.";
+      status.textContent = equipped.length + " of " + slots() + " slots filled.";
     }
   }
 
@@ -307,7 +323,7 @@
     action.className = "inspect__action";
     action.type = "button";
     action.textContent = isEquipped ? "Unequip" : "Equip";
-    action.disabled = !isEquipped && equipped.length >= SLOTS;
+    action.disabled = !isEquipped && equipped.length >= slots();
 
     action.addEventListener("click", function () {
       if (isEquipped) {
@@ -324,7 +340,7 @@
   }
 
   function equip(name) {
-    if (equipped.indexOf(name) >= 0 || equipped.length >= SLOTS) {
+    if (equipped.indexOf(name) >= 0 || equipped.length >= slots()) {
       return;
     }
 

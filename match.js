@@ -52,8 +52,11 @@
      plan views below, which are built in code. */
   var ART_TOWERS = ["sniper"];
 
-  /* Must match SLOTS in loadout.js. */
-  var LOADOUT_SLOTS = 5;
+  /* Five, or six with the Loadout slot upgrade. loadout.js reads
+     the same helper, so the two cannot drift apart. */
+  function loadoutSlots() {
+    return stats.loadoutSlots(upgradeLevel("loadout_slots"));
+  }
 
   /* Fallback plan designs, drawn in code. Used only for a tower
      whose artwork has not loaded, so the board still reads while
@@ -2549,12 +2552,12 @@
     var equipped = window.MRTD.loadout ? window.MRTD.loadout() : [];
 
     if (equipped.length) {
-      return equipped.slice(0, LOADOUT_SLOTS);
+      return equipped.slice(0, loadoutSlots());
     }
 
     /* Nothing equipped yet: give the opening towers rather than
        an empty hotbar. */
-    return TOWER_KEYS.slice(0, LOADOUT_SLOTS);
+    return TOWER_KEYS.slice(0, loadoutSlots());
   }
 
   function buildHotbar() {
@@ -3127,9 +3130,11 @@
       return;
     }
 
-    var slot = "12345".indexOf(event.key);
+    /* Bounded by what is actually on the hotbar rather than a
+       fixed 1-5, so the sixth slot gets a key too. */
+    var slot = "123456789".indexOf(event.key);
 
-    if (slot >= 0) {
+    if (slot >= 0 && slot < hotbar.children.length) {
       var button = hotbar.children[slot];
 
       if (button) {

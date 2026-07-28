@@ -86,6 +86,10 @@
       return level ? "up to merge " + (level + 1) : "locked";
     }
 
+    if (name === "loadout_slots") {
+      return stats.loadoutSlots(level) + " slots";
+    }
+
     return level ? "unlocked" : "locked";
   }
 

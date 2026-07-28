@@ -76,8 +76,23 @@
       label: "2× speed",
       note: "Fast forward a match",
       max: 1
+    },
+    loadout_slots: {
+      label: "Loadout slot",
+      note: "A sixth tower in the hotbar, and a sixth key to reach it",
+      max: 1
     }
   };
+
+  /* Towers you can equip before the upgrade. The hotbar and the
+     Towers tab both read this rather than keeping their own copy
+     — they used to, with a comment asking whoever changed one to
+     remember the other. */
+  var BASE_LOADOUT_SLOTS = 5;
+
+  function loadoutSlots(level) {
+    return BASE_LOADOUT_SLOTS + (level || 0);
+  }
 
   function placementLimit(level) {
     return BASE_PLACEMENTS + (level || 0);
@@ -858,6 +873,8 @@
     rangePerTile: RANGE_PER_TILE,
     startingCash: STARTING_CASH,
     basePlacements: BASE_PLACEMENTS,
+    baseLoadoutSlots: BASE_LOADOUT_SLOTS,
+    loadoutSlots: loadoutSlots,
     upgrades: UPGRADES,
     placementLimit: placementLimit,
     startingCashFor: startingCash,

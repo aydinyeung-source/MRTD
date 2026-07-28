@@ -98,5 +98,20 @@ begin
 end $function$;
 
 
+
+-- ============================================================
+-- A sixth loadout slot, 3000 coins.
+--
+-- One level only, so there is one price. Every other upgrade
+-- prices each level separately in this table, which is why the
+-- level column is here at all.
+-- ============================================================
+
+insert into public.upgrade_costs (upgrade_key, level, cost) values
+  ('loadout_slots', 1, 3000)
+on conflict (upgrade_key, level) do update
+  set cost = excluded.cost;
+
+
 -- What is in the chest this half hour, and what each is worth.
 select * from public.active_chest() order by weight desc;
