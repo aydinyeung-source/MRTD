@@ -433,7 +433,11 @@
       return;
     }
 
-    window.MRTD.enterRun(runId, isLeader());
+    /* As a guest, always. The leader that started the run is
+       already in it and never reaches here — anyone arriving
+       through this path is joining something already running,
+       and asserting host over it would give the run two. */
+    window.MRTD.enterRun(runId, false);
   }
 
   /* Polled harder while a party is sitting in the lobby, because

@@ -3136,6 +3136,13 @@
     speedButton.disabled = !steering;
     autoButton.hidden = !steering;
 
+    /* Forfeit ends the run for everybody, so it belongs to the
+       one person running it. Anyone else can Step out, which
+       costs them their own reward and leaves the others playing
+       — the difference between giving up and giving up on
+       everyone's behalf. */
+    forfeitButton.hidden = !steering;
+
     if (!steering) {
       jumpBox.hidden = true;
     }
@@ -4883,6 +4890,19 @@
     buildHotbar();
     startRun();
 
+    /* startRun has just cleared the board, and on a rejoin the
+       snapshot answering the join arrived during the loading
+       screen — before this ran — so it was wiped along with
+       everything else. Asking again here is the fix: the board
+       is empty at exactly this moment either way, so the answer
+       cannot be undone by anything.
+
+       It never showed on a first join because the host's board
+       was empty too, so losing the snapshot lost nothing. */
+    if (mp.on && !mp.host) {
+      ask("hello", {});
+    }
+
     if (layout()) {
       draw();
     }
@@ -4933,7 +4953,18 @@
     }
 
     if (party && party.runId && party.runPresent) {
-      connect(party.runId, party.isLeader);
+      /* Never as host. Leading the PARTY is not the same as
+         running the RUN — somebody else may well be simulating
+         it right now, and walking back in claiming to be the
+         host meant two hosts, each broadcasting its own board.
+         From the rejoiner's side that looked like a brand new
+         match, because their fresh empty board was the one they
+         were broadcasting.
+
+         Only starting a run asserts hosting. Coming back to one
+         joins as a guest, and the election takes over if it
+         turns out nobody is running it. */
+      connect(party.runId, false);
       window.MRTD.load("Preparing the field", wait, open);
       return;
     }
