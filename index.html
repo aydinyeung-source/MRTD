@@ -325,15 +325,18 @@
           the top of the board.
         </p>
         <p>
-          A boss has <strong>25×</strong> a brute's health for that wave, moves
-          slowly, and is heavy enough that a Fan only troubles it a little.
+          A boss has <strong>25×</strong> a brute's health for that wave and
+          moves slowly. It is heavy, so a Fan holds it to about two thirds of
+          its pace rather than a half — but nothing is immune to pushback.
           Killing one pays <strong>20×</strong> a brute's bounty.
         </p>
         <p>
           Five come round in order, each asking something different of your
-          towers. <strong>Warden</strong> carries a shield worth 30% of its
-          health and gets it back every 12 seconds — burst through or it
-          returns. <strong>Brood</strong> sheds four crawlers every 8 seconds.
+          towers. <strong>Warden</strong> is <strong>immune</strong> for 5
+          seconds, then vulnerable for 8, over and over — it arrives
+          vulnerable, and the bar counts down to each change, so a timestop
+          spent on an open window is worth far more than one spent early.
+          <strong>Brood</strong> sheds four crawlers every 8 seconds.
           <strong>Cleaver</strong> breaks into two smaller bosses when it dies,
           which do not break again. <strong>Sapper</strong> halves the fire
           rate of towers within 6 tiles, so damage spread down the lane keeps
@@ -500,7 +503,6 @@
       </p>
       <div class="bossbar__track">
         <div class="bossbar__fill" id="match-boss-fill"></div>
-        <div class="bossbar__shield" id="match-boss-shield"></div>
       </div>
       <p class="bossbar__hp" id="match-boss-hp"></p>
     </div>

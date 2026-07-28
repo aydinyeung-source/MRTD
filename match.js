@@ -104,7 +104,6 @@
   var bossName = document.getElementById("match-boss-name");
   var bossNote = document.getElementById("match-boss-note");
   var bossFill = document.getElementById("match-boss-fill");
-  var bossShield = document.getElementById("match-boss-shield");
   var bossHp = document.getElementById("match-boss-hp");
 
   var abilityButton = document.getElementById("match-ability");
@@ -1367,14 +1366,20 @@
     ctx.fillStyle = boss ? boss.colour : definition.colour;
     ctx.fill();
 
-    /* A shield reads as a ring standing off the body, and a
-       Wraith that has found a gap glows while it heals. */
-    if (boss && enemy.shield > 0) {
+    /* Immunity reads as a solid ring standing off the body, so
+       shots landing for nothing are obviously landing for
+       nothing. A Wraith that has found a gap glows instead. */
+    if (boss && enemy.immune) {
       ctx.beginPath();
       ctx.arc(point.x, point.y, radius + 5, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(120, 190, 235, 0.85)";
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(120, 190, 235, 0.95)";
+      ctx.lineWidth = 4;
       ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(190, 226, 245, 0.45)";
+      ctx.fill();
     }
 
     if (boss && enemy.healing) {
@@ -1737,11 +1742,11 @@
       share: share,
       hp: hp,
       maxHp: hp,
-      /* Only the Warden ever carries one, and only after its
-         first charge. */
-      shield: 0,
-      shieldMax: definition.shield ? hp * definition.shield : 0,
-      abilityTimer: definition.every || 0,
+      /* Only the Warden is ever immune, and it arrives with the
+         shield DOWN — a boss that is untouchable from the moment
+         it appears tells the player nothing except to wait. */
+      immune: false,
+      abilityTimer: definition.down || definition.every || 0,
       progress: progress || 0,
       speed: stats.boss.speed
     });
@@ -1751,27 +1756,16 @@
     return pathPoint(enemy.progress);
   }
 
-  /* Every point that damages an enemy goes through here, so a
-     shield cannot be missed by one of them. Absorbed damage is
-     spent on the shield first and the remainder carries through
-     — a shield delays a kill, it never wastes a shot. */
+  /* Every point that damages an enemy goes through here, so an
+     immune boss cannot be hurt by one of them that forgot to
+     check. There are two — towers and allies — and a shield
+     honoured by only one would be a shield that mostly works. */
   function hurt(enemy, amount) {
-    if (!(amount > 0)) {
+    if (!(amount > 0) || enemy.immune) {
       return;
     }
 
-    if (enemy.shield > 0) {
-      var absorbed = Math.min(enemy.shield, amount);
-
-      enemy.shield -= absorbed;
-      amount -= absorbed;
-    }
-
     enemy.hp -= amount;
-
-    /* A Wraith only heals while nothing has touched it recently,
-       so being shot at all interrupts it. */
-    enemy.hitAt = elapsed;
   }
 
 
@@ -1866,11 +1860,14 @@
       if (definition.ability === "shield") {
         enemy.abilityTimer -= delta;
 
-        /* Comes back whole on a timer whether or not the last one
-           was broken, so the pressure is constant. */
+        /* Straight alternation. Damage does not shorten the up
+           window and cannot lengthen it either — the cycle is the
+           thing you play around. */
         if (enemy.abilityTimer <= 0) {
-          enemy.shield = enemy.shieldMax;
-          enemy.abilityTimer = definition.every;
+          enemy.immune = !enemy.immune;
+          enemy.abilityTimer = enemy.immune
+            ? definition.up
+            : definition.down;
         }
       }
 
@@ -1903,18 +1900,28 @@
       }
 
       if (definition.ability === "regen") {
-        /* Only while nothing can reach it. Tied to coverage
-           rather than to damage taken: out-healing damage makes a
-           boss that never dies, but walking through a gap in the
-           towers is something the player chose. */
-        if (!covered(enemyAt(enemy))) {
-          enemy.hp = Math.min(
-            enemy.maxHp,
-            enemy.hp + enemy.maxHp * definition.heal * delta
-          );
-          enemy.healing = true;
-        } else {
+        /* Only while nothing can reach it, and only once it has
+           been unreachable a moment. Tied to coverage rather than
+           to damage taken: out-healing damage makes a boss that
+           never dies, but walking through a gap in the towers is
+           something the player chose.
+
+           The delay is what stops it healing in the slivers
+           between one tower's edge and the next — those are not
+           gaps in any sense the player could act on. */
+        if (covered(enemyAt(enemy))) {
+          enemy.uncovered = 0;
           enemy.healing = false;
+        } else {
+          enemy.uncovered = (enemy.uncovered || 0) + delta;
+          enemy.healing = enemy.uncovered >= definition.delay;
+
+          if (enemy.healing) {
+            enemy.hp = Math.min(
+              enemy.maxHp,
+              enemy.hp + enemy.maxHp * definition.heal * delta
+            );
+          }
         }
       }
     });
@@ -2669,8 +2676,9 @@
      them, and firing rate has nothing to do with it. */
   function pushAt(point, enemy) {
     var factor = 1;
-    /* A boss has its own weight, well above anything else, so a
-       Fan slows one a little rather than holding it in place. */
+    /* A boss has its own weight — heavier than anything else, so
+       it is shoved less, but a Fan still bites. Nothing is exempt
+       from pushback. */
     var weight = enemy.boss ? stats.boss.weight : stats.weight(enemy.kind);
 
     Object.keys(towers).forEach(function (at) {
@@ -2792,8 +2800,8 @@
     var definition = stats.bosses[present[0].boss];
     var hp = 0;
     var max = 0;
-    var shield = 0;
     var healing = false;
+    var immune = false;
 
     present.forEach(function (enemy) {
       hp += enemy.hp;
@@ -2801,30 +2809,36 @@
          read as what is left of it rather than resetting the bar
          to full the moment it splits. */
       max += enemy.maxHp / enemy.share;
-      shield += enemy.shield;
       healing = healing || enemy.healing;
+      immune = immune || enemy.immune;
     });
 
     max = Math.max(max / present.length, hp);
 
     bossName.textContent = definition ? definition.label : "Boss";
 
+    /* The shield window is the whole fight against a Warden, so
+       what the bar has to say is how long until it flips — a
+       countdown is something you can act on, the word "immune"
+       on its own is not. */
+    var warden = present.filter(function (enemy) {
+      return stats.bosses[enemy.boss] &&
+        stats.bosses[enemy.boss].ability === "shield";
+    })[0];
+
     bossNote.textContent = healing
       ? "healing — nothing can reach it"
-      : shield > 0
-        ? "shielded"
+      : warden
+        ? warden.immune
+          ? "immune · drops in " + Math.ceil(warden.abilityTimer) + "s"
+          : "vulnerable · " + Math.ceil(warden.abilityTimer) + "s"
         : present.length > 1
           ? present.length + " pieces"
           : "";
 
+    bossBar.classList.toggle("is-immune", immune);
     bossFill.style.width = Math.max(0, (hp / max) * 100) + "%";
-    bossShield.style.width =
-      Math.min(100, (shield / max) * 100) + "%";
-    bossShield.hidden = shield <= 0;
-
-    bossHp.textContent =
-      formatHp(hp) + " / " + formatHp(max) +
-      (shield > 0 ? "  +" + formatHp(shield) : "");
+    bossHp.textContent = formatHp(hp) + " / " + formatHp(max);
   }
 
   function refreshHud() {

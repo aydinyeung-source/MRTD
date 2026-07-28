@@ -221,8 +221,14 @@
     hpMultiple: 25,
     /* Slower than anything else — a boss is a wall, not a race. */
     speed: 0.45,
-    /* Heavy enough that a Fan barely troubles it. */
-    weight: 4,
+
+    /* Heavy, but not immune. At 4 a Fan left a boss with 88% of
+       its pace, which is close enough to nothing that the tower
+       looked broken against the one enemy you most want to hold
+       back. 1.5 leaves it 67%, so a Fan is worth building for a
+       boss wave without ever being a wall — a boss still crosses
+       the map, just slowly enough to be shot at properly. */
+    weight: 1.5,
     bountyMultiple: 20,
     /* Ordinary enemies alongside it. */
     escort: 6
@@ -241,11 +247,24 @@
       label: "Warden",
       colour: "#43648c",
       ability: "shield",
-      /* Absorbs this share of its health, and comes back this
-         often once broken. An absorb pool rather than immunity:
-         immunity at 10x speed is just waiting. */
-      shield: 0.3,
-      every: 12
+
+      /* Flat immunity while it is up, nothing while it is down,
+         on a fixed cycle in game seconds. The window it is down
+         is the whole fight — spend a timestop on one and a
+         Warden dies in gaps.
+
+         This began as a pool that absorbed damage and refilled,
+         which is a damage FLOOR wearing a shield's clothes: with
+         the pool coming back every 12 seconds you had to
+         out-damage 2.5% of the boss's health a second before its
+         health moved at all, and below that it took literally
+         nothing, forever. A cycle cannot do that. However small
+         your damage, `down` seconds of it always land.
+
+         Down for longer than it is up, so the fight is mostly
+         fighting. */
+      up: 5,
+      down: 8
     },
     brood: {
       label: "Brood",
@@ -286,7 +305,14 @@
          player controls and "out-healing your damage" is one
          they cannot — the second version makes a boss that never
          dies and a wave that never ends. */
-      heal: 0.04
+      heal: 0.04,
+
+      /* It has to be unreachable this long before healing starts,
+         and the count resets the moment anything can reach it
+         again. Without the delay it took every frame it could
+         find between two towers' coverage and healed through
+         gaps too brief to be worth calling gaps. */
+      delay: 0.2
     }
   };
 
