@@ -60,6 +60,13 @@
      the party is doing — see pollRate. */
   var rate = POLL_MS;
 
+  /* Whether any answer has come back yet this page load, and
+     which run the last one named. Together they are how
+     followLeader tells "a run just started" from "a run was
+     already going when I arrived". */
+  var seenState = false;
+  var lastRunId = null;
+
   /* =========================================================
      Supabase
      ========================================================= */
@@ -388,7 +395,32 @@
      the moment they reached the lobby would make leaving
      impossible — that is what the Rejoin button is for. */
   function followLeader() {
-    if (!state.run_id || !state.run_present) {
+    var runId = state.run_id || null;
+
+    /* The FIRST answer after loading never pulls anyone in, it
+       only records what is already true.
+
+       Without that, a run you are already part of drags you back
+       the instant the page settles — including straight after
+       leaving one, and including after closing the tab and
+       reopening it. There is then no reachable lobby and no way
+       out of the run at all, which is exactly what happened.
+
+       Auto-join is for a run STARTING while you sit in the
+       lobby. A run that was already going when you got here is
+       what the Rejoin button is for: same destination, but you
+       choose when. */
+    if (!seenState) {
+      seenState = true;
+      lastRunId = runId;
+      return;
+    }
+
+    var isNew = runId && runId !== lastRunId;
+
+    lastRunId = runId;
+
+    if (!isNew || !state.run_present) {
       return;
     }
 
@@ -396,13 +428,12 @@
       return;
     }
 
-    /* The leader is already in the match it just started, and
-       anyone mid-run is already where this would send them. */
+    /* The leader is already in the match it just started. */
     if (window.MRTD.matchOpen()) {
       return;
     }
 
-    window.MRTD.enterRun(state.run_id, isLeader());
+    window.MRTD.enterRun(runId, isLeader());
   }
 
   /* Polled harder while a party is sitting in the lobby, because

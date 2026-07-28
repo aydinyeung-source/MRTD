@@ -438,7 +438,7 @@
       /* Best value per coin by a distance, paid for with a one
          tile reach — it only works where the path comes to it. */
       label: "Dagger", role: "damage",
-      damage: 100, range: 10, cooldown: 1, cost: 100, // 100 dps, 1.00 per cash
+      damage: 100, range: 15, cooldown: 1, cost: 100, // 100 dps, 1.00 per cash
       attack: { shape: "single" }
     },
     axe: {
@@ -446,7 +446,7 @@
          it throws five times as often, so almost nothing is lost
          to overkill on weak enemies. */
       label: "Axe", role: "damage",
-      damage: 16, range: 10, cooldown: 0.2, cost: 100, // 80 dps, 0.80 per cash
+      damage: 16, range: 15, cooldown: 0.2, cost: 100, // 80 dps, 0.80 per cash
       attack: { shape: "single" }
     },
     farm: {

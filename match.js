@@ -4413,6 +4413,19 @@
       return;
     }
 
+    /* Never promote off the back of a channel that is not
+       working. A client that cannot hear anyone hears no host
+       either, so silence-means-take-over would have every player
+       crown themselves and run their own private copy of the
+       match — which is precisely what it did.
+
+       Hearing nothing because the channel is down is not the
+       same as hearing nothing because the host left, and only
+       the second one is a reason to take over. */
+    if (!window.MRTD.net.isReady()) {
+      return;
+    }
+
     if (now - mp.heardHost < HOST_GONE_MS) {
       return;
     }
@@ -4726,8 +4739,32 @@
     /* The host answering a newcomer is the same message a guest
        sends on joining, so a rejoin needs no separate path. */
     window.MRTD.net.on("_open", function () {
+      setStatusLine("Connected");
+
       if (!mp.host) {
         ask("hello", {});
+      }
+    });
+
+    /* A channel that will not open is the difference between a
+       shared match and several private ones, and it used to
+       happen in complete silence. Said out loud now, on screen
+       and in the console, because every symptom downstream of it
+       looks like something else. */
+    window.MRTD.net.on("_refused", function (data) {
+      setStatusLine("Cannot join the match channel — playing alone");
+
+      if (window.console) {
+        window.console.error(
+          "MRTD: realtime join refused for run:" + mp.runId,
+          data && data.reason
+        );
+      }
+    });
+
+    window.MRTD.net.on("_closed", function () {
+      if (!window.MRTD.net.isReady()) {
+        setStatusLine("Reconnecting...");
       }
     });
 
@@ -4746,7 +4783,8 @@
        when the person leaving knows they are leaving. */
     window.MRTD.net.send("g", { who: me(), host: mp.host });
 
-    ["s", "t", "b", "i", "p", "h", "g", "_open"].forEach(function (event) {
+    ["s", "t", "b", "i", "p", "h", "g", "_open", "_refused", "_closed"]
+      .forEach(function (event) {
       window.MRTD.net.off(event);
     });
 
@@ -4869,14 +4907,20 @@
 
        Not sent when the base has already fallen: the run is over
        and end_party_run has closed it. */
-    if (mp.on && baseHp > 0 && window.MRTD.leaveRun) {
-      window.MRTD.leaveRun();
-    }
+    /* Waited for, not fired and forgotten. The reload is what
+       takes this player back to the lobby, and a reload cancels
+       any request still in flight — so leaving used to race its
+       own page load. When the request lost, the run still had
+       this player marked present, and they were pulled straight
+       back into it. */
+    var leaving = mp.on && baseHp > 0 && window.MRTD.leaveRun
+      ? window.MRTD.leaveRun()
+      : Promise.resolve();
 
     disconnect();
     close();
     window.MRTD.load("Returning to lobby", 1400, function () {
-      Promise.resolve(banking).then(function () {
+      Promise.all([Promise.resolve(banking), leaving]).then(function () {
         window.location.reload();
       });
     });
