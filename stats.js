@@ -472,23 +472,30 @@
     /* The three boosters. Each lifts one stat for every tower
        inside its aura, and `boosts` says which. Their own range
        IS the aura. Boosts never stack — only the strongest of a
-       given kind counts. */
+       given kind counts.
+
+       All three reach exactly as far as DJTV. They were on 25,
+       which worked out to 20.3 tiles fully merged and evolved on
+       a map 15 tiles from centre to corner — one covered the
+       whole board, so where you put it never mattered. 12 lands
+       at 12.3 tiles for every booster in the game, and what
+       separates them is what they give rather than how far. */
     beacon: {
       label: "Beacon", role: "booster", boosts: "range",
       damage: 0, cooldown: 0, cost: 1200,
-      boost: 6, range: 25,
+      boost: 6, range: 12,
       attack: null
     },
     forge: {
       label: "Forge", role: "booster", boosts: "damage",
       damage: 0, cooldown: 0, cost: 1200,
-      boost: 6, range: 25,
+      boost: 6, range: 12,
       attack: null
     },
     metronome: {
       label: "Metronome", role: "booster", boosts: "cooldown",
       damage: 0, cooldown: 0, cost: 1200,
-      boost: 6, range: 25,
+      boost: 6, range: 12,
       attack: null
     },
     icecannon: {
