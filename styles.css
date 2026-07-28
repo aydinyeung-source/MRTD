@@ -1147,6 +1147,37 @@ body::after {
   gap: 12px;
 }
 
+/* =========================================================
+   Shiny
+
+   A shiny shares its artwork with the normal copy, so gold is
+   the only thing telling them apart. It has to read at a glance
+   on a collection card, a loadout slot and a hotbar button.
+   ========================================================= */
+
+.collection__group[data-shiny] {
+  --rarity: #c8961f;
+}
+
+.tower-card[data-shiny],
+.loadout__card[data-shiny],
+.loadout__slot[data-shiny] {
+  border-color: #d8a52c;
+  background-image: linear-gradient(
+    150deg,
+    rgba(216, 165, 44, 0.16),
+    rgba(216, 165, 44, 0) 62%
+  );
+}
+
+.hotbar__slot[data-shiny] {
+  border-color: #d8a52c;
+}
+
+.hotbar__slot[data-shiny] .hotbar__key {
+  color: #b9861a;
+}
+
 /* ---- Tower card ---- */
 
 .tower-card {

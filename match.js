@@ -953,8 +953,41 @@
   /* The artwork is the base and does not turn. It is drawn in
      proportion to the tower's largest costume, so higher levels
      really are bigger on the board. */
+  /* A shiny uses the same artwork as its normal twin, so the tile
+     itself has to say which it is: a gold ring, and a soft glow
+     under the tower. The ring stays in low graphics — it is what
+     the tower IS, not an effect — and only the glow drops. */
+  function drawShinyMark(x, y, size) {
+    if (!lowGraphics) {
+      var glow = ctx.createRadialGradient(
+        x + size / 2,
+        y + size / 2,
+        size * 0.1,
+        x + size / 2,
+        y + size / 2,
+        size * 0.62
+      );
+
+      glow.addColorStop(0, "rgba(255, 214, 110, 0.42)");
+      glow.addColorStop(1, "rgba(255, 214, 110, 0)");
+
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - size * 0.1, y - size * 0.1, size * 1.2, size * 1.2);
+    }
+
+    var inset = size * 0.06;
+
+    ctx.strokeStyle = "#e0a92b";
+    ctx.lineWidth = Math.max(1.5, size * 0.055);
+    ctx.strokeRect(x + inset, y + inset, size - inset * 2, size - inset * 2);
+  }
+
   function drawTower(tower, x, y, size) {
     var sprite = sprites[tower.key] && sprites[tower.key][tower.level];
+
+    if (tower.shiny) {
+      drawShinyMark(x, y, size);
+    }
 
     if (!sprite) {
       drawTopTower(tower, x, y, size);
@@ -1587,7 +1620,7 @@
       var statDistance = (distance / view.size) * stats.rangePerTile;
 
       enemy.hp -= stats.boosted(
-        stats.damageAtDistance(tower.key, tower.level, evolution, statDistance),
+        stats.damageAtDistance(tower.key, tower.level, evolution, statDistance, tower.shiny),
         boostFor(position, "damage")
       );
     });
@@ -1665,7 +1698,7 @@
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
-      var income = stats.coins(tower.key, tower.level, evolutionFor(tower));
+      var income = stats.coins(tower.key, tower.level, evolutionFor(tower), tower.shiny);
 
       if (income > 0) {
         earners.push({ position: position, income: income });
@@ -1759,7 +1792,7 @@
       key: tower.key,
       hp: hp,
       maxHp: hp,
-      damage: stats.allyDamage(tower.key, tower.level, evolution),
+      damage: stats.allyDamage(tower.key, tower.level, evolution, tower.shiny),
       cooldown: 0,
       reload: definition.allyCooldown,
       speed: definition.allySpeed,
@@ -2006,7 +2039,12 @@
         return;
       }
 
-      var strength = stats.boost(booster.key, booster.level, evolution);
+      var strength = stats.boost(
+        booster.key,
+        booster.level,
+        evolution,
+        booster.shiny
+      );
 
       if (strength > best) {
         best = strength;
@@ -2047,9 +2085,11 @@
     return factor;
   }
 
+  /* Evolution is looked up per variant: a shiny Sniper is not the
+     same collection entry as a plain one and carries its own. */
   function evolutionFor(tower) {
     return tower.evolution === undefined
-      ? evolutionOf(tower.key)
+      ? evolutionOf(stats.variantName(tower.key, tower.shiny))
       : tower.evolution;
   }
 
@@ -2194,12 +2234,20 @@
     hotbar.textContent = "";
     closeLevels();
 
-    loadoutKeys().forEach(function (name, index) {
+    loadoutKeys().forEach(function (slotName, index) {
+      /* The loadout stores variants, so the slot has to be split
+         back into the tower and whether it is the shiny line. */
+      var variant = stats.variantOf(slotName);
+      var name = variant.key;
       var button = document.createElement("button");
 
       button.className = "hotbar__slot";
       button.type = "button";
-      button.dataset.tower = name;
+      button.dataset.tower = slotName;
+
+      if (variant.shiny) {
+        button.dataset.shiny = "true";
+      }
 
       /* The key that selects this slot, on the slot — a shortcut
          nobody knows about is not a shortcut. */
@@ -2221,11 +2269,13 @@
 
       /* The slots are icons only, so the name appears above the
          one under the pointer. */
+      var title =
+        (variant.shiny ? "Shiny " : "") + stats.towers[name].label;
       var label = document.createElement("span");
       label.className = "hotbar__name";
-      label.textContent = stats.towers[name].label;
+      label.textContent = title;
       button.appendChild(label);
-      button.title = stats.towers[name].label;
+      button.title = title;
 
       /* Tap selects a level 1. Hold opens the level picker, which
          is the Quick buy upgrade. */
@@ -2239,7 +2289,7 @@
 
         holdTimer = window.setTimeout(function () {
           held = true;
-          openLevels(name, button);
+          openLevels(slotName, button);
         }, HOLD_MS);
       });
 
@@ -2250,7 +2300,7 @@
           return;
         }
 
-        select(name, 1);
+        select(slotName, 1);
       });
 
       button.addEventListener("pointerleave", function () {
@@ -2261,10 +2311,19 @@
     });
   }
 
-  function select(name, level) {
-    var same = placing && placing.key === name && placing.level === level;
+  /* Takes a variant name from the hotbar and splits it, so what
+     is being positioned already knows whether it is shiny. */
+  function select(slotName, level) {
+    var variant = stats.variantOf(slotName);
+    var same =
+      placing &&
+      placing.key === variant.key &&
+      Boolean(placing.shiny) === variant.shiny &&
+      placing.level === level;
 
-    placing = same ? null : { key: name, level: level };
+    placing = same
+      ? null
+      : { key: variant.key, shiny: variant.shiny, level: level };
     closeLevels();
     refreshHotbar();
     draw();
@@ -2301,7 +2360,10 @@
     levels.style.bottom = window.innerHeight - box.top + 8 + "px";
   }
 
-  function levelRow(name, level) {
+  /* `slotName` is a variant. A shiny costs exactly what its normal
+     twin costs, so the price comes from the base key. */
+  function levelRow(slotName, level) {
+    var name = stats.variantOf(slotName).key;
     var row = document.createElement("button");
     var price = stats.buyCost(name, level);
 
@@ -2319,7 +2381,7 @@
     row.appendChild(amount);
 
     row.addEventListener("click", function () {
-      select(name, level);
+      select(slotName, level);
     });
 
     return row;
@@ -2378,7 +2440,7 @@
   function openInspect(tower, x, y) {
     var definition = stats.towers[tower.key];
     var evolution = evolutionFor(tower);
-    var damage = stats.damage(tower.key, tower.level, evolution);
+    var damage = stats.damage(tower.key, tower.level, evolution, tower.shiny);
     var cooldown = stats.cooldown(tower.key);
     var reach =
       stats.range(tower.key, tower.level, evolution) / stats.rangePerTile;
@@ -2388,9 +2450,14 @@
     var title = document.createElement("p");
     title.className = "inspect__title";
     title.textContent =
+      (tower.shiny ? "Shiny " : "") +
       definition.label + "  ·  Level " + tower.level +
       (evolution ? "  ·  Evo " + evolution : "");
     inspect.appendChild(title);
+
+    if (tower.shiny) {
+      inspect.appendChild(statLine("Shiny", stats.shinySummary(tower.key)));
+    }
 
     if (damage > 0) {
       inspect.appendChild(statLine("Damage", String(Math.round(damage))));
@@ -2407,7 +2474,7 @@
       inspect.appendChild(
         statLine(
           "Ally damage",
-          formatHp(stats.allyDamage(tower.key, tower.level, evolution))
+          formatHp(stats.allyDamage(tower.key, tower.level, evolution, tower.shiny))
         )
       );
       inspect.appendChild(
@@ -2418,7 +2485,7 @@
       );
     }
 
-    var coins = stats.coins(tower.key, tower.level, evolution);
+    var coins = stats.coins(tower.key, tower.level, evolution, tower.shiny);
 
     if (coins > 0) {
       inspect.appendChild(
@@ -2453,12 +2520,16 @@
 
   function refreshHotbar() {
     Array.prototype.forEach.call(hotbar.children, function (button) {
-      var name = button.dataset.tower;
+      var variant = stats.variantOf(button.dataset.tower);
 
-      button.disabled = !affordable(name, 1);
+      button.disabled = !affordable(variant.key, 1);
       button.classList.toggle(
         "is-selected",
-        Boolean(placing && placing.key === name)
+        Boolean(
+          placing &&
+            placing.key === variant.key &&
+            Boolean(placing.shiny) === variant.shiny
+        )
       );
     });
   }
@@ -2506,8 +2577,11 @@
 
     towers[at] = {
       key: placing.key,
+      shiny: Boolean(placing.shiny),
       level: occupant ? occupant.level + 1 : placing.level,
-      evolution: occupant ? evolutionFor(occupant) : evolutionOf(placing.key),
+      evolution: occupant
+        ? evolutionFor(occupant)
+        : evolutionOf(stats.variantName(placing.key, placing.shiny)),
       cooldown: 0,
       angle: occupant ? occupant.angle || 0 : 0
     };
@@ -2783,10 +2857,13 @@
     return list;
   }
 
+  /* A shiny and a normal are different towers for this purpose,
+     however identical they look on the board. */
   function canMerge(source, target) {
     return Boolean(
       source && target &&
       source.key === target.key &&
+      Boolean(source.shiny) === Boolean(target.shiny) &&
       source.level === target.level &&
       source.level < MAX_LEVEL
     );
@@ -2810,6 +2887,7 @@
     if (canMerge(tower, occupant)) {
       towers[to] = {
         key: tower.key,
+        shiny: Boolean(tower.shiny),
         level: tower.level + 1,
         evolution: evolutionFor(tower),
         cooldown: 0,

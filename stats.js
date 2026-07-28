@@ -284,7 +284,12 @@
       label: "DJTV", role: "booster",
       boosts: ["range", "damage", "cooldown"],
       damage: 0, cooldown: 0, cost: 2500,
-      boost: 6, range: 25,
+      /* Reaches less far than the single boosters on purpose. At
+         25 it worked out to 20.3 tiles fully merged and evolved,
+         and the map is 26x15 — 15 tiles centre to corner — so one
+         of these covered the entire board and placement stopped
+         being a decision. 12 lands at 12.3 tiles instead. */
+      boost: 6, range: 12,
       attack: null
     },
     spawner: {
@@ -356,6 +361,93 @@
     return index < 0 ? RARITY_ORDER.length : index;
   }
 
+  /* =========================================================
+     Shiny
+
+     One pull in a hundred comes out shiny. A shiny is a separate
+     line from the normal copy of the same tower and never merges
+     with it — two shinies make a higher shiny, two normals make a
+     higher normal, and the two never meet. That is what makes a
+     shiny worth keeping rather than feeding to the pile.
+
+     The 1% roll happens in Postgres. The number is repeated here
+     only so the handbook can quote it.
+     ========================================================= */
+
+  var SHINY = {
+    chance: 0.01,
+    /* Half again the damage, on towers and on spawner allies. */
+    damage: 0.5,
+    /* Farms have no damage to raise, so they earn more instead. */
+    coins: 0.1,
+    /* Nor do boosters. Theirs lifts what they give everyone else,
+       which is worth more than it looks — it multiplies across
+       every tower standing in range. */
+    boost: 0.1
+  };
+
+  /* A tower and its shiny are two different things everywhere the
+     player picks one — the hotbar, the loadout, the collection —
+     so they need one name that says which. Plain keys stay plain,
+     which keeps every loadout saved before shinies existed valid. */
+  var SHINY_MARK = "#shiny";
+
+  function variantName(key, shiny) {
+    return shiny ? key + SHINY_MARK : key;
+  }
+
+  function variantOf(name) {
+    var mark = String(name || "").indexOf(SHINY_MARK);
+
+    return mark < 0
+      ? { key: name, shiny: false }
+      : { key: String(name).slice(0, mark), shiny: true };
+  }
+
+  /* What a shiny multiplies a given stat by. Anything not listed
+     is unaffected — range, cooldown and health are the same. */
+  function shinyFactor(stat, shiny) {
+    if (!shiny) {
+      return 1;
+    }
+
+    if (stat === "damage") {
+      return 1 + SHINY.damage;
+    }
+
+    if (stat === "coins") {
+      return 1 + SHINY.coins;
+    }
+
+    if (stat === "boost") {
+      return 1 + SHINY.boost;
+    }
+
+    return 1;
+  }
+
+  /* What being shiny is worth to this particular tower, in words.
+     Which stat it lifts depends on the role, so every screen that
+     mentions it asks here rather than working it out again. */
+  function shinySummary(key) {
+    var tower = TOWERS[key];
+
+    if (!tower) {
+      return "";
+    }
+
+    if (tower.role === "booster") {
+      return "+" + Math.round(SHINY.boost * 100) + "% boost";
+    }
+
+    if (tower.role === "economy") {
+      return "+" + Math.round(SHINY.coins * 100) + "% cash";
+    }
+
+    /* Damage towers, and spawners through their allies. */
+    return "+" + Math.round(SHINY.damage * 100) + "% damage";
+  }
+
   /* Allies scale health and damage on different curves, which is
      the one place in the game where a merge does not do the same
      thing to both.
@@ -408,7 +500,9 @@
       : 0;
   }
 
-  function allyDamage(key, level, evolution) {
+  /* A shiny spawner has no attack of its own, so its half again
+     damage lands on what its allies hit for. */
+  function allyDamage(key, level, evolution, shiny) {
     var tower = base(key);
 
     return tower && tower.allyDamage
@@ -418,7 +512,7 @@
           ALLY.damageEvolution,
           level,
           evolution
-        )
+        ) * shinyFactor("damage", shiny)
       : 0;
   }
 
@@ -480,8 +574,9 @@
       : value * Math.pow(1 + effect.rate, steps);
   }
 
-  function damage(key, level, evolution) {
-    return statValue(key, "damage", level, evolution);
+  function damage(key, level, evolution, shiny) {
+    return statValue(key, "damage", level, evolution) *
+      shinyFactor("damage", shiny);
   }
 
   function range(key, level, evolution) {
@@ -493,13 +588,15 @@
   }
 
   /* Match coins per wave. Only economy towers earn. */
-  function coins(key, level, evolution) {
-    return statValue(key, "coins", level, evolution);
+  function coins(key, level, evolution, shiny) {
+    return statValue(key, "coins", level, evolution) *
+      shinyFactor("coins", shiny);
   }
 
   /* Percentage a single booster grants to the towers it affects. */
-  function boost(key, level, evolution) {
-    return statValue(key, "boost", level, evolution);
+  function boost(key, level, evolution, shiny) {
+    return statValue(key, "boost", level, evolution) *
+      shinyFactor("boost", shiny);
   }
 
   /* Boosts DO NOT STACK. A tower sitting inside several booster
@@ -544,8 +641,8 @@
   /* Damage actually dealt at a given distance. Only towers with
      falloff care; everyone else deals full damage anywhere inside
      their range. */
-  function damageAtDistance(key, level, evolution, distance) {
-    var full = damage(key, level, evolution);
+  function damageAtDistance(key, level, evolution, distance, shiny) {
+    var full = damage(key, level, evolution, shiny);
     var reach = range(key, level, evolution);
     var attack = attackOf(key);
 
@@ -667,6 +764,11 @@
     rarityOrder: RARITY_ORDER,
     rarityOf: rarityOf,
     rarityRank: rarityRank,
+    shiny: SHINY,
+    variantName: variantName,
+    variantOf: variantOf,
+    shinyFactor: shinyFactor,
+    shinySummary: shinySummary,
     merge: MERGE,
     maxMerge: MAX_MERGE,
     maxEvolution: MAX_EVOLUTION,

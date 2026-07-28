@@ -67,7 +67,7 @@
 
     return fetch(
       window.MRTD.url +
-        "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0",
+        "/rest/v1/player_towers?select=tower_key,evolution,copies,shiny&copies=gt.0",
       {
         headers: {
           apikey: window.MRTD.key,
@@ -83,16 +83,22 @@
       });
   }
 
-  /* One entry per tower, carrying its best evolution. */
+  /* One entry per variant, carrying its best evolution. A tower
+     and its shiny are two entries, because they are two separate
+     things to equip — you take one or the other into a match. */
   function condense(rows) {
     var best = {};
 
     rows.forEach(function (row) {
-      var current = best[row.tower_key];
+      var shiny = Boolean(row.shiny);
+      var name = window.MRTD.stats.variantName(row.tower_key, shiny);
+      var current = best[name];
 
       if (!current || row.evolution > current.evolution) {
-        best[row.tower_key] = {
+        best[name] = {
+          name: name,
           key: row.tower_key,
+          shiny: shiny,
           evolution: row.evolution,
           copies: row.copies
         };
@@ -104,7 +110,8 @@
         return best[name];
       })
       .sort(function (a, b) {
-        return b.evolution - a.evolution;
+        /* Shinies lead their normal twin at equal evolution. */
+        return b.evolution - a.evolution || (b.shiny ? 1 : 0) - (a.shiny ? 1 : 0);
       });
   }
 
@@ -114,7 +121,7 @@
 
   function ownedEntry(name) {
     return owned.filter(function (entry) {
-      return entry.key === name;
+      return entry.name === name;
     })[0];
   }
 
@@ -132,11 +139,17 @@
 
     card.className = className;
     card.type = "button";
-    card.dataset.tower = entry.key;
+    card.dataset.tower = entry.name;
     card.dataset.evolution = String(entry.evolution);
+
+    if (entry.shiny) {
+      card.dataset.shiny = "true";
+    }
 
     var icon = document.createElement("img");
     icon.className = "loadout__icon";
+    /* Same art either way — a shiny is marked by its frame, not
+       by a second set of drawings. */
     icon.src = artFor(entry.key);
     icon.alt = window.MRTD.stats.towers[entry.key].label;
     card.appendChild(icon);
@@ -148,7 +161,9 @@
 
     var meta = document.createElement("span");
     meta.className = "loadout__meta";
-    meta.textContent = entry.evolution > 0 ? "Evo " + entry.evolution : "Base";
+    meta.textContent =
+      (entry.shiny ? "Shiny · " : "") +
+      (entry.evolution > 0 ? "Evo " + entry.evolution : "Base");
     card.appendChild(meta);
 
     return card;
@@ -164,7 +179,7 @@
       if (entry) {
         var filled = towerCard(entry, "loadout__slot is-filled");
 
-        filled.addEventListener("click", unequip.bind(null, entry.key));
+        filled.addEventListener("click", unequip.bind(null, entry.name));
         slotsHost.appendChild(filled);
       } else {
         var empty = document.createElement("div");
@@ -179,7 +194,7 @@
     owned.forEach(function (entry) {
       var card = towerCard(entry, "loadout__card");
 
-      card.classList.toggle("is-equipped", equipped.indexOf(entry.key) >= 0);
+      card.classList.toggle("is-equipped", equipped.indexOf(entry.name) >= 0);
       card.addEventListener("click", function () {
         showDetail(entry);
       });
@@ -237,10 +252,11 @@
   function showDetail(entry) {
     var stats = window.MRTD.stats;
     var name = entry.key;
+    var shiny = entry.shiny;
     var evolution = entry.evolution;
-    var damage = stats.damage(name, 1, evolution);
+    var damage = stats.damage(name, 1, evolution, shiny);
     var cooldown = stats.cooldown(name);
-    var coins = stats.coins(name, 1, evolution);
+    var coins = stats.coins(name, 1, evolution, shiny);
     var reach = stats.range(name, 1, evolution) / stats.rangePerTile;
 
     detail.textContent = "";
@@ -248,6 +264,7 @@
     var title = document.createElement("p");
     title.className = "inspect__title";
     title.textContent =
+      (shiny ? "Shiny " : "") +
       stats.towers[name].label +
       (evolution ? "  ·  Evo " + evolution : "  ·  Base");
     detail.appendChild(title);
@@ -278,8 +295,14 @@
       );
     }
 
+    if (shiny) {
+      detail.appendChild(statRow("Shiny", stats.shinySummary(name)));
+    }
+
     var action = document.createElement("button");
-    var isEquipped = equipped.indexOf(name) >= 0;
+    /* Equipping is per variant, so a shiny and its normal twin
+       can both sit in the loadout at once. */
+    var isEquipped = equipped.indexOf(entry.name) >= 0;
 
     action.className = "inspect__action";
     action.type = "button";
@@ -288,9 +311,9 @@
 
     action.addEventListener("click", function () {
       if (isEquipped) {
-        unequip(name);
+        unequip(entry.name);
       } else {
-        equip(name);
+        equip(entry.name);
       }
 
       showDetail(entry);
@@ -318,11 +341,26 @@
     render();
   }
 
-  /* Developer mode owns everything at full evolution. */
+  /* Developer mode owns everything at full evolution, shiny and
+     normal both, so shinies can be tested without waiting on a
+     1% roll. */
   function everything() {
-    return Object.keys(window.MRTD.stats.towers).map(function (name) {
-      return { key: name, evolution: window.MRTD.stats.maxEvolution, copies: 1 };
+    var stats = window.MRTD.stats;
+    var all = [];
+
+    Object.keys(stats.towers).forEach(function (name) {
+      [false, true].forEach(function (shiny) {
+        all.push({
+          name: stats.variantName(name, shiny),
+          key: name,
+          shiny: shiny,
+          evolution: stats.maxEvolution,
+          copies: 1
+        });
+      });
     });
+
+    return all;
   }
 
   function refresh() {
@@ -362,8 +400,10 @@
     return equipped.slice();
   };
 
-  /* The evolution a tower fights at: the best copy owned, or the
-     ceiling in developer mode. */
+  /* The evolution a tower fights at: the best copy owned of that
+     exact variant, or the ceiling in developer mode. Takes the
+     variant name, so a shiny reports its own evolution and not
+     its normal twin's. */
   window.MRTD.evolutionOf = function (name) {
     if (window.MRTD.dev) {
       return window.MRTD.stats.maxEvolution;

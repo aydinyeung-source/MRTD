@@ -74,7 +74,7 @@
 
   function loadHeld() {
     return api(
-      "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0"
+      "/rest/v1/player_towers?select=tower_key,evolution,copies,shiny&copies=gt.0"
     );
   }
 
@@ -142,41 +142,64 @@
   /* Every tower in the game, rarest first, each carrying the
      tiers actually held. Towers you own nothing of are dropped
      after the grouping, not before, so the order never depends
-     on what happens to be in your collection. */
+     on what happens to be in your collection.
+
+     A tower and its shiny are two groups, never one. They cannot
+     merge into each other, so showing their tiers side by side
+     would only invite trying. */
   function groups() {
     var stats = window.MRTD.stats;
+    var out = [];
 
-    return Object.keys(stats.towers)
+    Object.keys(stats.towers)
       .filter(matches)
-      .map(function (key) {
-        return {
-          key: key,
-          rarity: rarityOf(key),
-          tiers: held
+      .forEach(function (key) {
+        [true, false].forEach(function (shiny) {
+          var tiers = held
             .filter(function (row) {
-              return row.tower_key === key;
+              return row.tower_key === key && Boolean(row.shiny) === shiny;
             })
             .sort(function (a, b) {
               return a.evolution - b.evolution;
-            })
-        };
-      })
-      .filter(function (group) {
-        return group.tiers.length > 0;
-      })
-      .sort(function (a, b) {
-        var byRarity =
-          stats.rarityRank(a.rarity) - stats.rarityRank(b.rarity);
+            });
 
-        /* Within a rarity, alphabetical — an arbitrary order
-           would shuffle every time the data came back. */
-        return byRarity || labelFor(a.key).localeCompare(labelFor(b.key));
+          if (tiers.length) {
+            out.push({
+              key: key,
+              shiny: shiny,
+              rarity: rarityOf(key),
+              tiers: tiers
+            });
+          }
+        });
       });
+
+    return out.sort(function (a, b) {
+      var byRarity = stats.rarityRank(a.rarity) - stats.rarityRank(b.rarity);
+
+      if (byRarity) {
+        return byRarity;
+      }
+
+      /* Within a rarity, alphabetical — an arbitrary order would
+         shuffle every time the data came back — and a shiny sits
+         directly above the normal copy of the same tower. */
+      return (
+        labelFor(a.key).localeCompare(labelFor(b.key)) ||
+        (b.shiny ? 1 : 0) - (a.shiny ? 1 : 0)
+      );
+    });
   }
 
   function buildCard(row) {
+    var shiny = Boolean(row.shiny);
     var card = element("article", "tower-card");
+
     card.dataset.evolution = String(row.evolution);
+
+    if (shiny) {
+      card.dataset.shiny = "true";
+    }
 
     var icon = document.createElement("img");
     icon.className = "tower-card__icon";
@@ -184,7 +207,13 @@
     icon.alt = labelFor(row.tower_key);
     card.appendChild(icon);
 
-    card.appendChild(element("p", "tower-card__name", labelFor(row.tower_key)));
+    card.appendChild(
+      element(
+        "p",
+        "tower-card__name",
+        (shiny ? "Shiny " : "") + labelFor(row.tower_key)
+      )
+    );
 
     var meta =
       row.evolution === 0
@@ -200,7 +229,7 @@
       button.type = "button";
 
       button.addEventListener("click", function () {
-        merge(row.tower_key, row.evolution, button);
+        merge(row.tower_key, row.evolution, shiny, button);
       });
 
       card.appendChild(button);
@@ -235,9 +264,25 @@
          stylesheet colours it from one rule. */
       section.dataset.rarity = group.rarity;
 
+      if (group.shiny) {
+        section.dataset.shiny = "true";
+      }
+
       var head = element("div", "collection__group-head");
-      head.appendChild(element("h3", "collection__group-title", labelFor(group.key)));
-      head.appendChild(element("p", "collection__group-rarity", group.rarity));
+      head.appendChild(
+        element(
+          "h3",
+          "collection__group-title",
+          (group.shiny ? "Shiny " : "") + labelFor(group.key)
+        )
+      );
+      head.appendChild(
+        element(
+          "p",
+          "collection__group-rarity",
+          group.shiny ? group.rarity + " · shiny" : group.rarity
+        )
+      );
 
       var total = group.tiers.reduce(function (sum, row) {
         return sum + row.copies;
@@ -271,13 +316,20 @@
      same as the Towers tab treats it — a single copy, so nothing
      offers a merge that would not really happen. */
   function everything() {
-    return Object.keys(window.MRTD.stats.towers).map(function (key) {
-      return {
-        tower_key: key,
-        evolution: window.MRTD.stats.maxEvolution,
-        copies: 1
-      };
+    var all = [];
+
+    Object.keys(window.MRTD.stats.towers).forEach(function (key) {
+      [false, true].forEach(function (shiny) {
+        all.push({
+          tower_key: key,
+          evolution: window.MRTD.stats.maxEvolution,
+          copies: 1,
+          shiny: shiny
+        });
+      });
     });
+
+    return all;
   }
 
   function refresh() {
@@ -301,7 +353,7 @@
       });
   }
 
-  function merge(key, evolution, button) {
+  function merge(key, evolution, shiny, button) {
     button.disabled = true;
     setStatus("Merging...");
 
@@ -310,12 +362,16 @@
       body: {
         target_key: key,
         from_evolution: evolution,
+        /* Which line to merge. The database pairs like with like,
+           so a shiny is never consumed by a normal merge. */
+        p_shiny: shiny,
         sandbox: Boolean(window.MRTD.dev)
       }
     })
       .then(function (next) {
         setStatus(
-          labelFor(key) + " reached evolution " + next + " · " +
+          (shiny ? "Shiny " : "") + labelFor(key) +
+            " reached evolution " + next + " · " +
             window.MRTD.stats.evolutionSummary(key, next)
         );
         return refresh();
