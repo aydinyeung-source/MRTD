@@ -27,9 +27,16 @@
   var MERGE = {
     damage: { mode: "multiply", factor: Math.sqrt(5) }, // 2.2360
     range: { mode: "multiply", factor: 1.1 },           // +10% per merge
-    /* Flat, not compounding: a farm is worth 100 per merge level,
-       so a level 10 pays 1000 rather than six figures. */
-    coins: { mode: "add", amount: 100 },
+    /* Root 3, so every two merges is exactly x3 income and a
+       level 10 farm pays 14,029 a wave.
+
+       This was a flat +100 a merge, which topped out at 1,000.
+       With only three farms paying that is 3,000 a wave, and a
+       fully merged Quantum costs 5000 x 2^9 = 2,560,000 — over
+       850 waves of saving, so the top of the buy list was not
+       reachable in any run anyone would actually play. Root 3
+       brings the same purchase to about 60 waves. */
+    coins: { mode: "multiply", factor: Math.sqrt(3) },  // 1.7320
     health: { mode: "multiply", factor: Math.sqrt(5) }, // PLACEHOLDER — unspecified
     boost: { mode: "add", amount: 2.5, percent: true }
   };
@@ -87,14 +94,23 @@
      arrive. */
   /* dps is what an enemy deals to an ally blocking its path. It
      scales with the same wave curve as health. */
+  /* weight divides pushback, so a heavier enemy is shoved less by
+     the same Fan. It affects nothing else. */
   var ENEMIES = {
     /* The opening fodder. Weak enough that the one dagger a player
        can afford at wave 1 actually kills things. */
-    crawler: { label: "Crawler", hp: 60, speed: 1, dps: 12, bounty: 12, colour: "#8a7f9c" },
-    grunt: { label: "Grunt", hp: 250, speed: 1.2, dps: 50, bounty: 25, colour: "#7a5c8a" },
-    runner: { label: "Runner", hp: 200, speed: 2.6, dps: 40, bounty: 20, colour: "#c98f6a" },
-    brute: { label: "Brute", hp: 1200, speed: 0.6, dps: 240, bounty: 120, colour: "#5a6b52" }
+    crawler: { label: "Crawler", hp: 60, speed: 1, dps: 12, bounty: 12, weight: 0.6, colour: "#8a7f9c" },
+    grunt: { label: "Grunt", hp: 250, speed: 1.2, dps: 50, bounty: 25, weight: 1, colour: "#7a5c8a" },
+    runner: { label: "Runner", hp: 200, speed: 2.6, dps: 40, bounty: 20, weight: 0.8, colour: "#c98f6a" },
+    /* Slow and very heavy: a Fan barely moves one. */
+    brute: { label: "Brute", hp: 1200, speed: 0.6, dps: 240, bounty: 120, weight: 2.5, colour: "#5a6b52" }
   };
+
+  function weightOf(kind) {
+    var enemy = ENEMIES[kind];
+
+    return enemy && enemy.weight ? enemy.weight : 1;
+  }
 
   /* PLACEHOLDER wave shape. Endless, so everything scales forever. */
   var WAVE = {
@@ -275,6 +291,54 @@
       damage: 150, range: 42, cooldown: 0.1, cost: 5000, // 1500 dps, 0.30 per cash
       attack: { shape: "circle", angle: 360 }
     },
+    fan: {
+      /* Hits everything around it and shoves it back down the
+         path. The damage is ordinary for the price — what 4000
+         buys is the pushback, which is worth most exactly when
+         you are losing, and nothing at all when the lane is
+         already clear. */
+      label: "Fan", role: "damage",
+      damage: 60, range: 15, cooldown: 0.5, cost: 4000, // 120 dps
+      attack: { shape: "circle", angle: 360 },
+
+      /* Tiles an enemy is pushed back per hit, before its weight
+         is taken off. Deliberately flat: it never scales with
+         merge or evolution, because a pushback that grows would
+         eventually exceed how fast anything can walk and stop the
+         game outright.
+
+         Pushback is an effect, so it does not stack — two Fans
+         hitting the same enemy shove it as hard as the stronger
+         of them, not as hard as both. */
+      pushback: 0.4
+    },
+    clocktower: {
+      /* A piercing shot down the lane, and once every five
+         minutes it stops time.
+
+         The attack is only decent for 5000 — Quantum out damages
+         it three to one. The ability is what is being bought. */
+      label: "Clock Tower", role: "damage",
+      damage: 900, range: 45, cooldown: 2, cost: 5000, // 450 dps
+      /* The beam carries on through whatever it hits, so a shot
+         lined up with the lane catches everything standing in
+         it. Width is the corridor either side of the line. */
+      attack: { shape: "pierce", width: 12 },
+
+      /* Timings are game seconds, so they run at whatever speed
+         the match is set to.
+
+         The ability belongs to the board, not to the tower — one
+         timer no matter how many Clock Towers are standing. Per
+         timers would mean five of them held time still forever,
+         which is not a strategy, it is an off switch. */
+      ability: {
+        every: 300,
+        lasts: 60,
+        /* Enemies take double while frozen. */
+        damage: 2
+      }
+    },
     djtv: {
       /* Does all three boosters' jobs at once, at the same
          strength each. One of these replaces a Beacon, a Forge
@@ -335,6 +399,8 @@
 
   var RARITY = {
     quantum: "godly",
+    clocktower: "godly",
+    fan: "mythic",
     djtv: "mythic",
     icecannon: "mythic",
     beacon: "legendary",
@@ -661,6 +727,21 @@
 
   /* Is a target inside the firing arc? Angles in radians.
      Cones face wherever the tower is aimed. */
+  /* How far this tower shoves what it hits, in tiles. Flat, so it
+     is the same at merge 1 and merge 10. */
+  function pushbackOf(key) {
+    var tower = TOWERS[key];
+
+    return tower && tower.pushback ? tower.pushback : 0;
+  }
+
+  /* The timed ability a tower carries, or null. */
+  function abilityOf(key) {
+    var tower = TOWERS[key];
+
+    return tower && tower.ability ? tower.ability : null;
+  }
+
   function inArc(key, towerAngle, targetAngle) {
     var attack = attackOf(key);
 
@@ -798,6 +879,9 @@
     attack: attackOf,
     damageAtDistance: damageAtDistance,
     inArc: inArc,
+    pushback: pushbackOf,
+    weight: weightOf,
+    ability: abilityOf,
     damage: damage,
     range: range,
     health: health,

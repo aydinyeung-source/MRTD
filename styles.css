@@ -406,6 +406,21 @@ body::after {
   color: #9d4b45;
 }
 
+/* Clock Tower charge, and the freeze itself. */
+.match__stat--clock {
+  padding: 5px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: rgba(249, 251, 252, 0.9);
+  color: var(--ink-soft);
+}
+
+.match__stat--clock.is-active {
+  border-color: #5e84d6;
+  background-color: #5e84d6;
+  color: #f9fbfc;
+}
+
 /* What the run is currently worth. */
 .match__stat--reward {
   padding: 5px 11px;

@@ -44,7 +44,8 @@
   var MAX_LEVEL = 10;
   var TOWER_KEYS = [
     "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner",
-    "beacon", "forge", "metronome", "djtv", "quantum", "icecannon"
+    "beacon", "forge", "metronome", "djtv", "quantum", "icecannon",
+    "fan", "clocktower"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -70,6 +71,8 @@
     metronome: { body: "#6a5a7f", accent: "#b79ce0", plan: "aura" },
     djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" },
     quantum: { body: "#1b2b3a", accent: "#5fe3d0", plan: "orbit" },
+    fan: { body: "#2f3f46", accent: "#9fd6e4", plan: "blades" },
+    clocktower: { body: "#2a2436", accent: "#e0c063", plan: "clock" },
     icecannon: { body: "#5b7f9c", accent: "#cfeaf7", plan: "frost" }
   };
 
@@ -94,6 +97,7 @@
   var waveDisplay = document.getElementById("match-wave");
   var timeDisplay = document.getElementById("match-time");
   var aliveDisplay = document.getElementById("match-alive");
+  var clockDisplay = document.getElementById("match-clock");
   var beatenDisplay = document.getElementById("match-beaten");
   var payoutDisplay = document.getElementById("match-payout");
   var gameover = document.getElementById("gameover");
@@ -131,6 +135,11 @@
   var SPIN_RATE = 16;
   var SPIN_DECAY = 1.6;
   var RECOIL_DECAY = 7;
+  var PULSE_DECAY = 4;
+
+  /* Towers animated by their own moving parts rather than by a
+     shot leaving them. */
+  var SPINNERS = ["blender", "quantum", "fan"];
 
   var cash = 0;
   var baseHp = 0;
@@ -141,6 +150,19 @@
   var waveActive = false;
   var running = false;
   var lastFrame = 0;
+
+  /* =========================================================
+     Timestop
+
+     The Clock Tower holds the board still. The charge belongs to
+     the board, not to any one tower: five Clock Towers charge one
+     timer rather than five of their own, because per tower
+     timers would mean enough of them stop time permanently.
+
+     `charge` counts up in game seconds, so it runs at whatever
+     speed the match is set to. `left` is how much of the freeze
+     remains. */
+  var timestop = { charge: 0, left: 0 };
 
   /* Bonus paid the moment a wave is cleared, on top of farm income. */
   var WAVE_BONUS = 100;
@@ -728,9 +750,14 @@
     });
   }
 
-  /* Quantum: a core with particles orbiting it, one more each
-     merge, on a tilted ring. */
-  function planOrbit(token, radius, level) {
+  /* Quantum: a core with electrons orbiting it, one more each
+     merge, on a tilted ring.
+
+     The orbit itself holds still and the electrons travel around
+     it — that motion IS the attack animation, so Quantum needs no
+     tracer and no pulse. It hits everything in reach at once, and
+     nothing pointed at one enemy could say that honestly. */
+  function planOrbit(token, radius, level, spin) {
     var particles = 3 + level;
 
     ctx.strokeStyle = token.accent;
@@ -745,7 +772,7 @@
     ctx.fillStyle = token.accent;
 
     for (var i = 0; i < particles; i += 1) {
-      var angle = (i / particles) * Math.PI * 2;
+      var angle = (i / particles) * Math.PI * 2 + (spin || 0);
 
       ctx.beginPath();
       ctx.arc(
@@ -759,6 +786,47 @@
     }
 
     ctx.restore();
+  }
+
+  /* Clock Tower: a face with two hands, gaining a marker every
+     couple of merges. The hands turn with its charge rather than
+     with anything it shoots. */
+  function planClock(token, radius, level, spin) {
+    var markers = 4 + Math.floor(level / 2) * 2;
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.07);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 1.15, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (var i = 0; i < markers; i += 1) {
+      var angle = (i / markers) * Math.PI * 2;
+
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * radius * 0.92, Math.sin(angle) * radius * 0.92);
+      ctx.lineTo(Math.cos(angle) * radius * 1.12, Math.sin(angle) * radius * 1.12);
+      ctx.stroke();
+    }
+
+    /* Minute hand runs twelve times faster than the hour hand,
+       the same as a real face. */
+    var turn = spin || 0;
+
+    ctx.lineWidth = Math.max(1.4, radius * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(turn - Math.PI / 2) * radius * 0.95,
+               Math.sin(turn - Math.PI / 2) * radius * 0.95);
+    ctx.stroke();
+
+    ctx.lineWidth = Math.max(1.4, radius * 0.13);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(turn / 12 - Math.PI / 2) * radius * 0.6,
+               Math.sin(turn / 12 - Math.PI / 2) * radius * 0.6);
+    ctx.stroke();
   }
 
   /* Ice Cannon: frost spikes radiating from the barrel, gaining
@@ -794,7 +862,8 @@
     field: planField,
     barrels: planBarrels,
     barrel: planBarrel,
-    gate: planGate
+    gate: planGate,
+    clock: planClock
   };
 
   function drawTopTower(tower, x, y, size) {
@@ -815,7 +884,10 @@
     ctx.translate(x + size / 2, y + size / 2);
     ctx.rotate(tower.angle || 0);
 
-    /* Blades keep turning while the blender is cutting. */
+    /* Blades and vanes turn the whole housing while they are
+       cutting. Orbits and clock faces do not — those draw their
+       own moving parts from the spin value instead, so the ring
+       and the dial stay put while what travels on them moves. */
     if (token.plan === "blades") {
       ctx.rotate(tower.spin || 0);
     }
@@ -826,7 +898,7 @@
     }
 
     if (!isField && PLANS[token.plan]) {
-      PLANS[token.plan](token, radius, tower.level);
+      PLANS[token.plan](token, radius, tower.level, tower.spin || 0);
     }
 
     ctx.beginPath();
@@ -853,7 +925,7 @@
     ctx.stroke();
 
     if (isField) {
-      PLANS[token.plan](token, radius, tower.level);
+      PLANS[token.plan](token, radius, tower.level, tower.spin || 0);
     }
 
     ctx.restore();
@@ -982,12 +1054,42 @@
     ctx.strokeRect(x + inset, y + inset, size - inset * 2, size - inset * 2);
   }
 
+  /* The ring an all round attack throws out. Widens and fades as
+     it goes, so a Quantum reads as hitting everything at once
+     rather than aiming at one thing. */
+  function drawPulse(tower, x, y, size) {
+    var strength = tower.pulse;
+
+    if (!strength) {
+      return;
+    }
+
+    var evolution = evolutionFor(tower);
+    var reach =
+      (stats.range(tower.key, tower.level, evolution) / stats.rangePerTile) *
+      size;
+
+    ctx.beginPath();
+    ctx.arc(
+      x + size / 2,
+      y + size / 2,
+      reach * (1 - strength) + size * 0.3,
+      0,
+      Math.PI * 2
+    );
+    ctx.strokeStyle = "rgba(94, 132, 214, " + strength * 0.5 + ")";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
   function drawTower(tower, x, y, size) {
     var sprite = sprites[tower.key] && sprites[tower.key][tower.level];
 
     if (tower.shiny) {
       drawShinyMark(x, y, size);
     }
+
+    drawPulse(tower, x, y, size);
 
     if (!sprite) {
       drawTopTower(tower, x, y, size);
@@ -1330,11 +1432,18 @@
 
   function drawShots() {
     shots.forEach(function (shot) {
+      var fade = Math.max(0, shot.life * 4);
+
       ctx.beginPath();
       ctx.moveTo(shot.fromX, shot.fromY);
       ctx.lineTo(shot.toX, shot.toY);
-      ctx.strokeStyle = "rgba(34, 42, 47, " + Math.max(0, shot.life * 4) + ")";
-      ctx.lineWidth = 2;
+      /* A piercing beam is drawn heavier, so it reads as
+         something that went through rather than a tracer that
+         stopped at one enemy. */
+      ctx.strokeStyle = shot.wide
+        ? "rgba(94, 132, 214, " + fade + ")"
+        : "rgba(34, 42, 47, " + fade + ")";
+      ctx.lineWidth = shot.wide ? 6 : 2;
       ctx.stroke();
     });
   }
@@ -1388,6 +1497,15 @@
     drawField();
     drawPortal();
     drawBase();
+
+    /* A wash over the whole board while time is stopped, so it is
+       obvious at a glance why nothing is walking. Drawn under the
+       towers, which stay at full strength — they are the things
+       still working. */
+    if (frozen()) {
+      ctx.fillStyle = "rgba(120, 168, 224, 0.16)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     /* Cover is only drawn for a tower you are hovering or have
        open in the stats panel — showing every cone at once made
@@ -1547,6 +1665,63 @@
 
 
 
+  /* =========================================================
+     Timestop
+     ========================================================= */
+
+  function frozen() {
+    return timestop.left > 0;
+  }
+
+  /* Damage dealt to enemies right now. Doubled while time is
+     stopped, which is the other half of what a Clock Tower is
+     for — the freeze is only worth as much as what you do with
+     it. */
+  function damageMultiplier() {
+    var ability = stats.ability("clocktower");
+
+    return frozen() && ability ? ability.damage : 1;
+  }
+
+  /* The strongest Clock Tower ability on the board. They share
+     one charge, so more of them is more damage, never more
+     uptime. */
+  function clockAbility() {
+    var found = null;
+
+    Object.keys(towers).forEach(function (position) {
+      if (towers[position].key === "clocktower") {
+        found = stats.ability("clocktower");
+      }
+    });
+
+    return found;
+  }
+
+  function tickTimestop(delta) {
+    var ability = clockAbility();
+
+    if (!ability) {
+      /* No Clock Tower standing: the charge drains away rather
+         than banking while one is sold and rebought. */
+      timestop.charge = 0;
+      timestop.left = 0;
+      return;
+    }
+
+    if (timestop.left > 0) {
+      timestop.left = Math.max(0, timestop.left - delta);
+      return;
+    }
+
+    timestop.charge += delta;
+
+    if (timestop.charge >= ability.every) {
+      timestop.charge = 0;
+      timestop.left = ability.lasts;
+    }
+  }
+
   /* Towers shoot the enemy furthest along the path, which is the
      one closest to the base. */
   function fire(position, tower, delta) {
@@ -1601,6 +1776,16 @@
       stats.cooldown(tower.key) / (1 + boostFor(position, "cooldown") / 100);
 
     var targets = attack.shape === "single" ? [primary] : inRange;
+    var aimAngle = Math.atan2(aim.y - origin.y, aim.x - origin.x);
+
+    /* A piercing shot carries on through whatever it hits, so the
+       corridor either side of the line is what matters rather
+       than the distance to the tower. */
+    var corridor =
+      attack.shape === "pierce"
+        ? ((attack.width || 10) / 2 / stats.rangePerTile) * view.size
+        : 0;
+    var push = stats.pushback(tower.key);
 
     targets.forEach(function (enemy) {
       var point = enemyAt(enemy);
@@ -1612,7 +1797,18 @@
       if (attack.shape === "cone") {
         var angle = Math.atan2(dy, dx);
 
-        if (!stats.inArc(tower.key, Math.atan2(aim.y - origin.y, aim.x - origin.x), angle)) {
+        if (!stats.inArc(tower.key, aimAngle, angle)) {
+          return;
+        }
+      }
+
+      if (attack.shape === "pierce") {
+        /* Distance from the beam line, and never behind the
+           tower — the shot goes one way. */
+        var along = dx * Math.cos(aimAngle) + dy * Math.sin(aimAngle);
+        var across = Math.abs(-dx * Math.sin(aimAngle) + dy * Math.cos(aimAngle));
+
+        if (along < 0 || across > corridor) {
           return;
         }
       }
@@ -1622,21 +1818,54 @@
       enemy.hp -= stats.boosted(
         stats.damageAtDistance(tower.key, tower.level, evolution, statDistance, tower.shiny),
         boostFor(position, "damage")
-      );
+      ) * damageMultiplier();
+
+      /* Pushback is an effect, so it does not stack: the biggest
+         shove landing on an enemy this tick is the one it feels,
+         however many Fans are covering it. Recorded here and
+         applied once every tower has fired.
+
+         Weight divides it — a brute barely moves. */
+      if (push) {
+        enemy.shove = Math.max(
+          enemy.shove || 0,
+          push / stats.weight(enemy.kind)
+        );
+      }
     });
 
     recordFiring(tower, origin, aim);
   }
 
-  /* What firing looks like, per tower. */
+  /* What firing looks like, per tower.
+
+     This used to end with "anything else is a sniper", which is
+     why Quantum drew a tracer at one enemy while damaging every
+     enemy around it — the beam pointed at whichever target it
+     happened to aim at and told the player nothing true. What a
+     shot looks like follows the attack SHAPE now, and only the
+     towers with a signature of their own are named. */
   function recordFiring(tower, origin, aim) {
     if (lowGraphics) {
       return;
     }
 
-    if (tower.key === "blender") {
-      /* Blades wind up while it is cutting and coast down after. */
+    var attack = stats.attack(tower.key);
+    var shape = attack ? attack.shape : "single";
+
+    /* Towers whose own moving parts are the animation. The
+       blender's blades, Quantum's electrons and the Fan's vanes
+       all wind up while firing and coast down after, and none of
+       them wants a beam pointed at one enemy on top. */
+    if (SPINNERS.indexOf(tower.key) >= 0) {
       tower.spinPower = 1;
+      return;
+    }
+
+    /* Anything else that hits all around itself throws a ring
+       rather than pointing. */
+    if (shape === "circle") {
+      tower.pulse = 1;
       return;
     }
 
@@ -1653,15 +1882,33 @@
       return;
     }
 
-    /* Sniper and shotgunner kick back and leave a tracer. */
+    /* Sniper, shotgunner and the Clock Tower kick back and leave
+       a tracer. A piercing beam is drawn out to the full range
+       rather than stopping at the target, because that is what it
+       actually hits. */
     tower.recoil = 1;
+
+    var toX = aim.x;
+    var toY = aim.y;
+
+    if (shape === "pierce") {
+      var evolution = evolutionFor(tower);
+      var reach =
+        (stats.range(tower.key, tower.level, evolution) / stats.rangePerTile) *
+        view.size;
+      var angle = Math.atan2(aim.y - origin.y, aim.x - origin.x);
+
+      toX = origin.x + Math.cos(angle) * reach;
+      toY = origin.y + Math.sin(angle) * reach;
+    }
 
     shots.push({
       fromX: origin.x,
       fromY: origin.y,
-      toX: aim.x,
-      toY: aim.y,
-      life: 0.12
+      toX: toX,
+      toY: toY,
+      life: shape === "pierce" ? 0.2 : 0.12,
+      wide: shape === "pierce"
     });
   }
 
@@ -1740,6 +1987,23 @@
 
       if (tower.recoil) {
         tower.recoil = Math.max(0, tower.recoil - RECOIL_DECAY * delta);
+      }
+
+      /* The ring an all round attack throws out, fading as it
+         widens. */
+      if (tower.pulse) {
+        tower.pulse = Math.max(0, tower.pulse - PULSE_DECAY * delta);
+      }
+
+      /* A Clock Tower's hands show its charge rather than its
+         shooting: the hour hand comes round once per ability, so
+         the dial itself is the countdown. */
+      if (tower.key === "clocktower") {
+        var ability = stats.ability("clocktower");
+
+        tower.spin = ability
+          ? (timestop.charge / ability.every) * Math.PI * 24
+          : 0;
       }
     });
 
@@ -1891,10 +2155,13 @@
     /* Movement, then anything that reached the base. */
     var end = view.path.length - 1;
 
+    tickTimestop(delta);
     fightAllies(delta);
 
     enemies.forEach(function (enemy) {
-      if (enemy.blocked) {
+      /* Frozen enemies do not walk. Allies keep going — the stop
+         is the player's, not the board's. */
+      if (enemy.blocked || frozen()) {
         return;
       }
 
@@ -1924,6 +2191,17 @@
     Object.keys(towers).forEach(function (position) {
       fire(position, towers[position], delta);
       spawnAllies(position, towers[position], delta);
+    });
+
+    /* Every Fan has now had its say, so the strongest shove on
+       each enemy is applied — once, not once per Fan. Progress
+       counts tiles walked from the portal, so subtracting walks
+       it backwards, and it never goes back through the portal. */
+    enemies.forEach(function (enemy) {
+      if (enemy.shove) {
+        enemy.progress = Math.max(0, enemy.progress - enemy.shove);
+        enemy.shove = 0;
+      }
     });
 
     shots = shots.filter(function (shot) {
@@ -2144,6 +2422,22 @@
     /* Everything on the path, including whatever is still queued
        to spawn this wave. */
     aliveDisplay.textContent = String(enemies.length + spawnQueue.length);
+
+    /* Either counting down the freeze or counting up to the next
+       one. Hidden entirely when no Clock Tower is standing, since
+       there is nothing to charge. */
+    if (clockDisplay) {
+      var ability = clockAbility();
+
+      clockDisplay.hidden = !ability;
+
+      if (ability) {
+        clockDisplay.classList.toggle("is-active", frozen());
+        clockDisplay.textContent = frozen()
+          ? "TIME STOPPED " + Math.ceil(timestop.left) + "s"
+          : "Timestop in " + Math.ceil(ability.every - timestop.charge) + "s";
+      }
+    }
 
     /* What the run is worth if it ended right now. Surviving a
        wave is enough — tanking one with the base still counts. */
@@ -2926,6 +3220,7 @@
     wave = 0;
     wavesSurvived = 0;
     waveActive = false;
+    timestop = { charge: 0, left: 0 };
 
     /* The same breather as between waves, so there is time to
        place towers before anything walks in. */

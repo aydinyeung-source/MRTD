@@ -343,6 +343,12 @@
           nothing — you start with your starting cash only.
         </p>
         <p>
+          Farm income multiplies by <strong>×1.73</strong> per merge, so every
+          two merges is exactly three times the money and a level 10 farm pays
+          <strong>14,029</strong> a wave. Only your best three farms pay, so
+          merging them is the only way income grows.
+        </p>
+        <p>
           An enemy that reaches the base costs it <strong>whatever health it
           had left</strong>. Wounding something still counts even if it gets
           through.
@@ -432,6 +438,8 @@
       <p class="match__stat"><span id="match-wave">0</span> wave</p>
       <p class="match__stat match__stat--time"><span id="match-time">0:00</span></p>
       <p class="match__stat match__stat--alive"><span id="match-alive">0</span> alive</p>
+      <!-- Only while a Clock Tower is standing. -->
+      <p class="match__stat match__stat--clock" id="match-clock" hidden></p>
       <p class="match__stat match__stat--reward">
         <span id="match-beaten">0</span> survived ·
         <span id="match-payout">0</span> coins
