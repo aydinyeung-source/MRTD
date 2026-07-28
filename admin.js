@@ -221,17 +221,21 @@
 
   buildTowers();
 
+  var shinyBox = document.getElementById("admin-shiny");
+
   giveTowers.addEventListener("click", function () {
     var tower = towerSelect.value || null;
     var copies = Number(copiesInput.value);
+    var shiny = Boolean(shinyBox && shinyBox.checked);
 
-    confirmThen(giveTowers, "Give " + copies + " " +
+    confirmThen(giveTowers, "Give " + copies + " " + (shiny ? "shiny " : "") +
       (tower ? window.MRTD.stats.towers[tower].label : "random") + " card(s) to " +
       (target() ? "online players" : "everyone") + "?", function () {
       api("/rest/v1/rpc/admin_grant_towers", {
         p_tower: tower,
         p_copies: copies,
-        p_online_only: target()
+        p_online_only: target(),
+        p_shiny: shiny
       })
         .then(report("Gave cards to"))
         .catch(fail);

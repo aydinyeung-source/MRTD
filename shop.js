@@ -113,11 +113,16 @@
   /* stats.js is the only tower list that is guaranteed complete.
      The local one this file used to keep had five towers in it,
      so everything added since — the axe, the boosters, Quantum —
-     came out of the chest showing its raw key instead of a name. */
-  function labelFor(key) {
-    var tower = window.MRTD.stats.towers[key];
+     came out of the chest showing its raw key instead of a name.
 
-    return tower ? tower.label : key;
+     Pulls arrive as variants: 'sniper' or 'sniper#shiny'. Both
+     have to read as names, and a shiny has to say so. */
+  function labelFor(name) {
+    var variant = window.MRTD.stats.variantOf(name);
+    var tower = window.MRTD.stats.towers[variant.key];
+    var label = tower ? tower.label : variant.key;
+
+    return variant.shiny ? "Shiny " + label : label;
   }
 
 

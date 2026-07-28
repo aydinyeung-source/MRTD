@@ -1618,6 +1618,16 @@ body::after {
   color: #f9fbfc;
 }
 
+/* Sits in an admin__field, so it lines up with the inputs beside
+   it rather than hugging its label. */
+.admin__check-box {
+  align-self: flex-start;
+  width: 18px;
+  height: 18px;
+  margin: 8px 0;
+  accent-color: var(--glacier);
+}
+
 .admin__check {
   display: flex;
   align-items: center;

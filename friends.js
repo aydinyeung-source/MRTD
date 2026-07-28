@@ -320,7 +320,12 @@
     }
 
     return api(
+      /* Normal copies only. A trade moves cards by tower and
+         evolution alone, so offering a shiny here would hand over
+         the normal one instead. Shiny trading needs the trade
+         item itself to carry the flag first. */
       "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0" +
+        "&shiny=is.false" +
         "&order=tower_key.asc,evolution.desc"
     ).then(function (rows) {
       var chosen = towerSelect.value;
