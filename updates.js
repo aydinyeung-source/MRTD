@@ -62,9 +62,14 @@
     });
   }
 
-  openButton.addEventListener("click", function () {
-    panel.hidden = false;
-  });
+  /* The corner button is taken out for now, so there is nothing
+     to open the log with. Everything else stays wired: put the
+     button back in index.html and this works again untouched. */
+  if (openButton) {
+    openButton.addEventListener("click", function () {
+      panel.hidden = false;
+    });
+  }
 
   closeButton.addEventListener("click", function () {
     panel.hidden = true;
