@@ -4627,6 +4627,20 @@
   }
 
   function connect(runId, asHost) {
+    /* A run id that is not a number makes a topic name the RLS
+       policy cannot match — "run:undefined" fails the pattern,
+       the id comes back null, and the join is refused for a
+       reason that looks nothing like the cause. Caught here so
+       it reports itself instead. */
+    if (!/^[0-9]+$/.test(String(runId))) {
+      if (window.console) {
+        window.console.error("MRTD: bad run id for channel", runId);
+      }
+
+      setStatusLine("No run to join — playing alone");
+      return;
+    }
+
     mp.on = true;
     mp.host = Boolean(asHost);
     mp.runId = runId;
