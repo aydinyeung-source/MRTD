@@ -145,6 +145,11 @@
      shot leaving them. */
   var SPINNERS = ["blender", "quantum", "fan"];
 
+  /* Most enemies on the path at once. Anything still owed waits
+     in the queue rather than being cancelled, so the wave is the
+     same size — it just does not all arrive at once. */
+  var MAX_ALIVE = 1000;
+
   var cash = 0;
   var baseHp = 0;
   var wave = 0;
@@ -1813,7 +1818,6 @@
       attack.shape === "pierce"
         ? ((attack.width || 10) / 2 / stats.rangePerTile) * view.size
         : 0;
-    var push = stats.pushback(tower.key);
 
     targets.forEach(function (enemy) {
       var point = enemyAt(enemy);
@@ -1848,18 +1852,6 @@
         boostFor(position, "damage")
       ) * damageMultiplier();
 
-      /* Pushback is an effect, so it does not stack: the biggest
-         shove landing on an enemy this tick is the one it feels,
-         however many Fans are covering it. Recorded here and
-         applied once every tower has fired.
-
-         Weight divides it — a brute barely moves. */
-      if (push) {
-        enemy.shove = Math.max(
-          enemy.shove || 0,
-          push / stats.weight(enemy.kind)
-        );
-      }
     });
 
     recordFiring(tower, origin, aim);
@@ -2170,8 +2162,16 @@
 
     elapsed += delta;
 
-    /* Spawning. */
-    if (waveActive && spawnQueue.length) {
+    /* Spawning.
+
+       Held at MAX_ALIVE. Everything on the path is moved, drawn
+       and collision checked every frame, so the frame rate falls
+       away with the count — deep waves queue thousands and the
+       game was running at a few frames a second. The queue is not
+       thrown away, only paused: the moment something dies or
+       leaks, the next one walks in. Nothing is lost, the wave
+       just arrives at a rate the browser can draw. */
+    if (waveActive && spawnQueue.length && enemies.length < MAX_ALIVE) {
       spawnTimer -= delta;
 
       if (spawnTimer <= 0) {
@@ -2193,10 +2193,18 @@
         return;
       }
 
-      var factor = slowAt(enemyAt(enemy));
+      var point = enemyAt(enemy);
+      var factor = slowAt(point);
+      var push = pushAt(point, enemy.kind);
 
+      /* Slow and pushback multiply rather than compete, so
+         standing in both is slower than either — and, because
+         both are shares of movement rather than distances, the
+         result can approach nothing without ever going backwards.
+         That is what stops a wave lasting forever. */
       enemy.slowed = factor < 1;
-      enemy.progress += enemy.speed * factor * delta;
+      enemy.pushed = push < 1;
+      enemy.progress += enemy.speed * factor * push * delta;
     });
 
     enemies = enemies.filter(function (enemy) {
@@ -2221,16 +2229,6 @@
       spawnAllies(position, towers[position], delta);
     });
 
-    /* Every Fan has now had its say, so the strongest shove on
-       each enemy is applied — once, not once per Fan. Progress
-       counts tiles walked from the portal, so subtracting walks
-       it backwards, and it never goes back through the portal. */
-    enemies.forEach(function (enemy) {
-      if (enemy.shove) {
-        enemy.progress = Math.max(0, enemy.progress - enemy.shove);
-        enemy.shove = 0;
-      }
-    });
 
     shots = shots.filter(function (shot) {
       shot.life -= delta;
@@ -2363,6 +2361,47 @@
   /* The strongest slow covering a point, as a speed multiplier.
      Slows do not stack — two Ice Cannons overlapping give one
      Ice Cannon's worth. */
+  /* The strongest pushback covering a point, as the share of its
+     pace an enemy keeps.
+
+     Read from where the enemy is standing rather than applied
+     when a Fan fires, which is what makes it an effect. The
+     earlier version shoved on each shot, so two Fans on
+     different cooldowns landed two shoves a second and the
+     "strongest wins" rule never saw them together — it only ever
+     compared shoves inside one frame. Reading position instead
+     means any number of Fans is exactly as strong as the best of
+     them, and firing rate has nothing to do with it. */
+  function pushAt(point, kind) {
+    var factor = 1;
+    var weight = stats.weight(kind);
+
+    Object.keys(towers).forEach(function (at) {
+      var tower = towers[at];
+      var pushback = stats.pushback(tower.key);
+
+      if (!pushback) {
+        return;
+      }
+
+      var parts = at.split(",");
+      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+      var dx = point.x - centre.x;
+      var dy = point.y - centre.y;
+      var reach =
+        (stats.range(tower.key, tower.level, evolutionFor(tower)) /
+          stats.rangePerTile) *
+        view.size;
+      var kept = stats.pushFactor(pushback, weight);
+
+      if (Math.sqrt(dx * dx + dy * dy) <= reach && kept < factor) {
+        factor = kept;
+      }
+    });
+
+    return factor;
+  }
+
   function slowAt(point) {
     var factor = 1;
 

@@ -313,32 +313,29 @@
          you are losing, and nothing at all when the lane is
          already clear. */
       label: "Fan", role: "damage",
-      damage: 60, range: 15, cooldown: 0.5, cost: 4000, // 120 dps
+      damage: 60, range: 15, cooldown: 1, cost: 4000, // 60 dps
       attack: { shape: "circle", angle: 360 },
 
-      /* Tiles an enemy is pushed back per hit, before its weight
-         is taken off. Deliberately flat: it never scales with
-         merge or evolution, because a pushback that grows would
-         eventually exceed how fast anything can walk and stop the
-         game outright.
+      /* How much of its own movement an enemy loses each second
+         while standing in a Fan: half a second's worth of ground
+         per second, before weight.
 
-         This shipped at 0.4 and stopped the game outright anyway,
-         because a slow and a pushback compound in a way neither
-         does alone. A slow halves how far an enemy walks between
-         hits; the shove is a fixed distance and does not care.
-         Put an Ice Cannon over a Fan and a slowed crawler lost
-         0.83 tiles a second, a grunt 0.20, a brute 0.02 — the
-         lane ran backwards and the wave never ended.
+         This is a FRACTION of what the enemy would have walked,
+         not a distance in tiles, and that is the whole point.
+         The first version was a fixed shove per hit, which meant
+         an Ice Cannon slowing an enemy halved how far it walked
+         while the shove stayed the same size — the two crossed
+         over and the lane ran backwards forever. Taking a share
+         of movement can slow an enemy to a crawl and can never
+         reverse it, however many effects land at once.
 
-         0.1 leaves every enemy moving forwards even at half
-         speed, the slowest being a slowed crawler at 0.17 tiles
-         a second. It is a heavy slow rather than a wall, which is
-         what a pushback should be.
+         Being an effect it does not stack: the strongest Fan
+         covering an enemy is the one it feels, and firing rate no
+         longer comes into it at all. Cooldown is only damage now.
 
-         Pushback is an effect, so it does not stack — two Fans
-         hitting the same enemy shove it as hard as the stronger
-         of them, not as hard as both. */
-      pushback: 0.1
+         Weight divides it, so a brute keeps four fifths of its
+         pace and a crawler about a sixth. */
+      pushback: 0.5
     },
     clocktower: {
       /* A piercing shot down the lane, and once every five
@@ -757,12 +754,31 @@
 
   /* Is a target inside the firing arc? Angles in radians.
      Cones face wherever the tower is aimed. */
-  /* How far this tower shoves what it hits, in tiles. Flat, so it
-     is the same at merge 1 and merge 10. */
+  /* The share of its own movement this tower takes off an enemy
+     each second. Flat, so it is the same at merge 1 and merge 10
+     — a pushback that grew would eventually take all of it. */
   function pushbackOf(key) {
     var tower = TOWERS[key];
 
     return tower && tower.pushback ? tower.pushback : 0;
+  }
+
+  /* What is left of an enemy's pace once a pushback has taken its
+     share, given how heavy the enemy is.
+
+     Floored well above zero. A factor of 0 is a wall, and a wall
+     on an endless map is a wave that never finishes — the exact
+     failure this rewrite exists to remove. It multiplies with a
+     slow rather than being compared against it, so an Ice Cannon
+     over a Fan is slower than either and still moving. */
+  var PUSH_FLOOR = 0.15;
+
+  function pushFactor(pushback, weight) {
+    if (!pushback) {
+      return 1;
+    }
+
+    return Math.max(PUSH_FLOOR, 1 - pushback / (weight || 1));
   }
 
   /* The timed ability a tower carries, or null. */
@@ -912,6 +928,7 @@
     damageAtDistance: damageAtDistance,
     inArc: inArc,
     pushback: pushbackOf,
+    pushFactor: pushFactor,
     weight: weightOf,
     ability: abilityOf,
     damage: damage,
