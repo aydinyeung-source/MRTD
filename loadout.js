@@ -20,6 +20,20 @@
     return window.MRTD.stats.loadoutSlots(level);
   }
 
+  /* Frozen for as long as this player is tied to a run, present
+     in it or not.
+
+     Stepping out of a match, rebuilding the loadout in the lobby
+     and coming back would let a player answer a wave they had
+     already seen — walk out on the boss, swap in whatever counters
+     it, walk back. The towers already on the board are what you
+     committed to; the hotbar has to be the same. */
+  function lockedByRun() {
+    var party = window.MRTD.party ? window.MRTD.party() : null;
+
+    return Boolean(party && party.runId);
+  }
+
   var slotsHost = document.getElementById("loadout-slots");
   var heading = document.getElementById("loadout-heading");
   var ownedHost = document.getElementById("loadout-owned");
@@ -222,7 +236,10 @@
       ownedHost.appendChild(card);
     });
 
-    if (!owned.length) {
+    if (lockedByRun()) {
+      status.textContent =
+        "Locked while your run is going — this is the loadout you took in.";
+    } else if (!owned.length) {
       status.textContent = "No towers yet. Open a chest in the Shop.";
     } else if (!equipped.length) {
       status.textContent =
@@ -327,8 +344,11 @@
 
     action.className = "inspect__action";
     action.type = "button";
-    action.textContent = isEquipped ? "Unequip" : "Equip";
-    action.disabled = !isEquipped && equipped.length >= slots();
+    action.textContent = lockedByRun()
+      ? "Locked — run in progress"
+      : isEquipped ? "Unequip" : "Equip";
+    action.disabled = lockedByRun() ||
+      (!isEquipped && equipped.length >= slots());
 
     action.addEventListener("click", function () {
       if (isEquipped) {
@@ -375,7 +395,8 @@
   });
 
   function equip(name) {
-    if (equipped.indexOf(name) >= 0 || equipped.length >= slots()) {
+    if (lockedByRun() || equipped.indexOf(name) >= 0 ||
+        equipped.length >= slots()) {
       return;
     }
 
@@ -385,6 +406,10 @@
   }
 
   function unequip(name) {
+    if (lockedByRun()) {
+      return;
+    }
+
     equipped = equipped.filter(function (entry) {
       return entry !== name;
     });

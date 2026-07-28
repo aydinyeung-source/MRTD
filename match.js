@@ -4741,6 +4741,26 @@
   window.MRTD = window.MRTD || {};
   window.MRTD.matchIsMultiplayer = multiplayer;
 
+  /* Is the board up. Asked by the party panel before it pulls
+     anyone into a run, so a player already in one is never
+     dragged into it a second time. */
+  window.MRTD.matchOpen = function () {
+    return !root.hidden;
+  };
+
+  /* Taken into the run without pressing anything. The leader
+     starting is the decision; everyone else agreed to that when
+     they joined the party, and making them press Play as well
+     only means the run starts four separate times. */
+  window.MRTD.enterRun = function (runId, asHost) {
+    if (!root.hidden) {
+      return;
+    }
+
+    connect(runId, asHost);
+    window.MRTD.load("Joining the match", 1200, open);
+  };
+
   function open() {
     root.hidden = false;
     buildHotbar();

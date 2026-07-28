@@ -56,6 +56,10 @@
   var announced = {};
   var popupTimer = null;
 
+  /* How often the panel is currently asking. Changes with what
+     the party is doing — see pollRate. */
+  var rate = POLL_MS;
+
   /* =========================================================
      Supabase
      ========================================================= */
@@ -377,6 +381,46 @@
      Actions
      ========================================================= */
 
+  /* The leader has started; everyone else goes in.
+
+     Only for players the run says are PRESENT. Someone who
+     stepped out is deliberately not in it, and pulling them back
+     the moment they reached the lobby would make leaving
+     impossible — that is what the Rejoin button is for. */
+  function followLeader() {
+    if (!state.run_id || !state.run_present) {
+      return;
+    }
+
+    if (!window.MRTD.enterRun || !window.MRTD.matchOpen) {
+      return;
+    }
+
+    /* The leader is already in the match it just started, and
+       anyone mid-run is already where this would send them. */
+    if (window.MRTD.matchOpen()) {
+      return;
+    }
+
+    window.MRTD.enterRun(state.run_id, isLeader());
+  }
+
+  /* Polled harder while a party is sitting in the lobby, because
+     that is the one moment the delay is felt: everybody is
+     looking at the screen waiting for the leader. Three seconds
+     of nothing happening after they press it reads as broken.
+
+     Back to the slow rate once a run exists, when nothing on
+     this panel is time critical any more. */
+  function pollRate() {
+    return inParty() && !state.run_id ? 1000 : POLL_MS;
+  }
+
+  function repoll() {
+    window.clearInterval(poll);
+    poll = window.setInterval(refresh, pollRate());
+  }
+
   function act(button, promise, done) {
     button.disabled = true;
     setStatus("");
@@ -404,6 +448,15 @@
         state.invites = state.invites || [];
         render(results[1]);
         announce();
+        followLeader();
+
+        /* Only restarted when the interval would actually change,
+           since resetting it every poll would keep pushing the
+           next one further away. */
+        if (pollRate() !== rate) {
+          rate = pollRate();
+          repoll();
+        }
       })
       .catch(function (error) {
         setStatus(error.message, true);
@@ -541,9 +594,11 @@
     refresh();
 
     /* Polled even while the panel is shut, so an invite shows on
-       the corner button without it being open. */
-    window.clearInterval(poll);
-    poll = window.setInterval(refresh, POLL_MS);
+       the corner button without it being open — and so a run the
+       leader starts pulls this player in whether or not they are
+       looking at the party panel. */
+    rate = pollRate();
+    repoll();
   });
 
   document.addEventListener("mrtd:locked", function () {
