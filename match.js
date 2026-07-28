@@ -50,7 +50,15 @@
 
   /* Towers with drawn top down artwork. Everything else uses the
      plan views below, which are built in code. */
-  var ART_TOWERS = ["sniper"];
+  /* Towers with uploaded SVG artwork rather than a drawn plan
+     view.
+
+     Empty on purpose. The sniper was the only one, and being the
+     only one is exactly what was wrong with it — fifteen towers
+     drawn in one hand and one photographed in another. It uses
+     the same plan view as everything else now, and its files are
+     still in towers/sniper/ if it ever leads a full set. */
+  var ART_TOWERS = [];
 
   /* Five, or six with the Loadout slot upgrade. loadout.js reads
      the same helper, so the two cannot drift apart. */
@@ -690,15 +698,54 @@
     );
   }
 
+  /* Sniper: a long barrel over a bipod, with a scope behind it.
+     Everything grows with the merge level — the barrel longest,
+     because reach is what the tower is for and length is the one
+     thing that reads at this size.
+
+     Kept deliberately narrow. The shotgunner is the other tower
+     that points, and it is two short fat barrels; from above,
+     thin and long against short and wide is the whole difference
+     between them. */
   function planBarrel(token, radius, level) {
-    var length = radius * (1.2 + level * 0.09);
+    var length = radius * (1.35 + level * 0.11);
+    var width = radius * 0.14;
+
+    /* Bipod, splayed under the muzzle end. */
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.07);
+
+    [-1, 1].forEach(function (side) {
+      ctx.beginPath();
+      ctx.moveTo(0, -length * 0.55);
+      ctx.lineTo(side * radius * 0.42, -length * 0.55 + radius * 0.38);
+      ctx.stroke();
+    });
 
     ctx.fillStyle = token.accent;
-    ctx.fillRect(-radius * 0.13, -length, radius * 0.26, length);
+    ctx.fillRect(-width, -length, width * 2, length);
 
-    if (level >= 6) {
-      ctx.fillRect(-radius * 0.26, -length, radius * 0.52, radius * 0.18);
+    /* Muzzle brake, from halfway up the merges. */
+    if (level >= 5) {
+      ctx.fillRect(-radius * 0.28, -length, radius * 0.56, radius * 0.14);
     }
+
+    /* A second, longer barrel once it is nearly maxed — the
+       silhouette has to keep changing or the last few merges
+       look like nothing happened. */
+    if (level >= 8) {
+      ctx.fillRect(-width * 0.5, -length - radius * 0.3, width, radius * 0.3);
+    }
+
+    /* Scope, sitting behind the receiver. */
+    ctx.fillStyle = token.body;
+    ctx.fillRect(-radius * 0.2, -radius * 0.5, radius * 0.4, radius * 0.55);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.06);
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.22, radius * 0.16, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   /* Spawner: a gate with bars, gaining one per merge. */
