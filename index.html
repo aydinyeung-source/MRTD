@@ -370,6 +370,11 @@
           goes down without returning to the hotbar between each one.
         </p>
         <p>
+          <strong>Q</strong> fires the Clock Tower's timestop once it has
+          charged. The button beside the hotbar shows how long is left, and
+          nothing is wasted by waiting — it stays charged until you use it.
+        </p>
+        <p>
           Clicking still does everything the keys do. <strong>Right click</strong>
           reads a placed tower's full stats, or puts down whatever you are
           holding. <strong>Esc</strong> cancels.
@@ -440,8 +445,6 @@
       <p class="match__stat"><span id="match-wave">0</span> wave</p>
       <p class="match__stat match__stat--time"><span id="match-time">0:00</span></p>
       <p class="match__stat match__stat--alive"><span id="match-alive">0</span> alive</p>
-      <!-- Only while a Clock Tower is standing. -->
-      <p class="match__stat match__stat--clock" id="match-clock" hidden></p>
       <p class="match__stat match__stat--reward">
         <span id="match-beaten">0</span> survived ·
         <span id="match-payout">0</span> coins
@@ -467,6 +470,13 @@
 
       <div class="hotbar" id="hotbar"></div>
       <div class="levels" id="levels" hidden></div>
+
+      <!-- Only while a Clock Tower is standing. -->
+      <button class="ability" id="match-ability" type="button" hidden>
+        <span class="ability__key">Q</span>
+        <span class="ability__name">Timestop</span>
+        <span class="ability__state" id="match-ability-state">—</span>
+      </button>
 
       <button class="match__button" id="match-graphics" type="button">Graphics: full</button>
       <button class="match__button" id="match-forfeit" type="button">Forfeit</button>

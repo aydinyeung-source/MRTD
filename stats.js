@@ -326,7 +326,9 @@
       attack: { shape: "pierce", width: 12 },
 
       /* Timings are game seconds, so they run at whatever speed
-         the match is set to.
+         the match is set to. `every` is how long it takes to
+         charge, not how often it fires — once charged it waits
+         for the player to press Q.
 
          The ability belongs to the board, not to the tower — one
          timer no matter how many Clock Towers are standing. Per

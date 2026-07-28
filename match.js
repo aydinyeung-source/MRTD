@@ -97,7 +97,8 @@
   var waveDisplay = document.getElementById("match-wave");
   var timeDisplay = document.getElementById("match-time");
   var aliveDisplay = document.getElementById("match-alive");
-  var clockDisplay = document.getElementById("match-clock");
+  var abilityButton = document.getElementById("match-ability");
+  var abilityState = document.getElementById("match-ability-state");
   var beatenDisplay = document.getElementById("match-beaten");
   var payoutDisplay = document.getElementById("match-payout");
   var gameover = document.getElementById("gameover");
@@ -160,9 +161,11 @@
      timers would mean enough of them stop time permanently.
 
      `charge` counts up in game seconds, so it runs at whatever
-     speed the match is set to. `left` is how much of the freeze
-     remains. */
-  var timestop = { charge: 0, left: 0 };
+     speed the match is set to. Once it is full the ability waits
+     on the player rather than firing itself — a freeze spent at
+     the wrong moment is a freeze wasted, and only the player can
+     see the wave coming. `left` is how much of it remains. */
+  var timestop = { charge: 0, ready: false, left: 0 };
 
   /* Bonus paid the moment a wave is cleared, on top of farm income. */
   var WAVE_BONUS = 100;
@@ -1705,6 +1708,7 @@
       /* No Clock Tower standing: the charge drains away rather
          than banking while one is sold and rebought. */
       timestop.charge = 0;
+      timestop.ready = false;
       timestop.left = 0;
       return;
     }
@@ -1714,12 +1718,33 @@
       return;
     }
 
+    if (timestop.ready) {
+      return;
+    }
+
     timestop.charge += delta;
 
     if (timestop.charge >= ability.every) {
-      timestop.charge = 0;
-      timestop.left = ability.lasts;
+      timestop.charge = ability.every;
+      timestop.ready = true;
     }
+  }
+
+  /* Q, or the button. Does nothing unless it is charged and not
+     already running. */
+  function useTimestop() {
+    var ability = clockAbility();
+
+    if (!ability || !timestop.ready || timestop.left > 0) {
+      return;
+    }
+
+    timestop.ready = false;
+    timestop.charge = 0;
+    timestop.left = ability.lasts;
+
+    refreshHud();
+    draw();
   }
 
   /* Towers shoot the enemy furthest along the path, which is the
@@ -2423,19 +2448,27 @@
        to spawn this wave. */
     aliveDisplay.textContent = String(enemies.length + spawnQueue.length);
 
-    /* Either counting down the freeze or counting up to the next
-       one. Hidden entirely when no Clock Tower is standing, since
-       there is nothing to charge. */
-    if (clockDisplay) {
+    /* The ability button: counting down the freeze, announcing
+       itself ready, or charging. Hidden entirely when no Clock
+       Tower is standing, since there is nothing to charge. */
+    if (abilityButton) {
       var ability = clockAbility();
 
-      clockDisplay.hidden = !ability;
+      abilityButton.hidden = !ability;
 
       if (ability) {
-        clockDisplay.classList.toggle("is-active", frozen());
-        clockDisplay.textContent = frozen()
-          ? "TIME STOPPED " + Math.ceil(timestop.left) + "s"
-          : "Timestop in " + Math.ceil(ability.every - timestop.charge) + "s";
+        abilityButton.classList.toggle("is-active", frozen());
+        abilityButton.classList.toggle(
+          "is-ready",
+          timestop.ready && !frozen()
+        );
+        abilityButton.disabled = !timestop.ready || frozen();
+
+        abilityState.textContent = frozen()
+          ? Math.ceil(timestop.left) + "s"
+          : timestop.ready
+            ? "Ready"
+            : Math.ceil(ability.every - timestop.charge) + "s";
       }
     }
 
@@ -3109,6 +3142,12 @@
 
     var pressed = event.key.toLowerCase();
 
+    if (pressed === "q") {
+      event.preventDefault();
+      useTimestop();
+      return;
+    }
+
     if (pressed === "f" || pressed === "e") {
       if (placing) {
         event.preventDefault();
@@ -3116,6 +3155,8 @@
       }
     }
   });
+
+  abilityButton.addEventListener("click", useTimestop);
 
   /* Clicking away closes the level picker. */
   document.addEventListener("pointerdown", function (event) {
@@ -3220,7 +3261,7 @@
     wave = 0;
     wavesSurvived = 0;
     waveActive = false;
-    timestop = { charge: 0, left: 0 };
+    timestop = { charge: 0, ready: false, left: 0 };
 
     /* The same breather as between waves, so there is time to
        place towers before anything walks in. */

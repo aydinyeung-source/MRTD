@@ -406,19 +406,75 @@ body::after {
   color: #9d4b45;
 }
 
-/* Clock Tower charge, and the freeze itself. */
-.match__stat--clock {
-  padding: 5px 11px;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background-color: rgba(249, 251, 252, 0.9);
+/* =========================================================
+   Ability button
+
+   Sits beside the hotbar, because it is the same kind of thing:
+   something you press at a moment of your choosing.
+   ========================================================= */
+
+.ability {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 14px;
+  border: 2px solid var(--rule);
+  border-radius: 12px;
+  background-color: var(--paper-raised);
+  font-family: var(--mono);
   color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 240ms var(--ease-soft),
+              background-color 240ms var(--ease-soft),
+              transform 240ms var(--ease-soft);
 }
 
-.match__stat--clock.is-active {
+.ability__key {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+}
+
+.ability__name {
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.ability__state {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Charged and waiting on the player. */
+.ability.is-ready {
+  border-color: #5e84d6;
+  transform: translateY(-3px);
+}
+
+.ability.is-ready .ability__state {
+  color: #5e84d6;
+}
+
+/* Running. Disabled, because pressing it again does nothing. */
+.ability.is-active {
   border-color: #5e84d6;
   background-color: #5e84d6;
+}
+
+.ability.is-active .ability__key,
+.ability.is-active .ability__name,
+.ability.is-active .ability__state {
   color: #f9fbfc;
+}
+
+/* Still charging. */
+.ability:disabled:not(.is-active) {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* What the run is currently worth. */
