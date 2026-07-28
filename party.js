@@ -393,8 +393,18 @@
 
   /* Enemy health multiplies by this. Solo is 1, and a party of
      one is also 1 — a party you are alone in should not make the
-     game harder for no reason. */
+     game harder for no reason.
+
+     Counted from who is actually IN the run, not from who is in
+     the party. Someone sitting in the lobby while four play must
+     not make those four's enemies a fifth tougher, and someone
+     who stepped out mid-run must not keep the wave scaled for a
+     player who is no longer shooting anything. */
   window.MRTD.partySize = function () {
+    if (state.run_id) {
+      return Math.max(1, Number(state.run_present_count) || 1);
+    }
+
     return Math.max(1, state.members.length || 1);
   };
 
@@ -404,7 +414,15 @@
       leader: state.leader,
       status: state.status,
       isLeader: isLeader(),
-      members: state.members.slice()
+      members: state.members.slice(),
+
+      /* The run this player is tied to, and whether they are
+         currently in it. Absent from a live run is the state that
+         means "rejoin", and it is the only way to tell that from
+         "no run at all". */
+      runId: state.run_id || null,
+      runPresent: Boolean(state.run_present),
+      runPlayers: Number(state.run_present_count) || 0
     };
   };
 
@@ -419,17 +437,49 @@
         state = next;
         state.members = state.members || [];
         state.invites = state.invites || [];
+        render([]);
       }
 
-      return window.MRTD.partySize();
+      return {
+        runId: state.run_id || null,
+        players: window.MRTD.partySize()
+      };
     });
   };
 
-  window.MRTD.endParty = function () {
-    return rpc("end_party_run").catch(function () {
-      /* A run ending is not worth an error in the player's
-         face — the party reverts on its own next poll. */
+  /* Back into the run you walked out of. The database refuses if
+     it has finished or if everyone else has gone, so the answer
+     to "can I still get back in" is asked rather than guessed. */
+  window.MRTD.rejoinRun = function () {
+    return rpc("rejoin_run").then(function (runId) {
+      return refresh().then(function () {
+        return runId;
+      });
     });
+  };
+
+  /* Stepping out. Towers stay behind and keep working; the seat
+     stays claimed so this player can come back to it. */
+  window.MRTD.leaveRun = function () {
+    return rpc("leave_run").catch(function () {
+      /* Worth trying, not worth blocking the way out of a match
+         over. The run ends by itself once nobody is present. */
+    });
+  };
+
+  window.MRTD.endParty = function (waves) {
+    return rpc("end_party_run", { p_waves: Math.max(0, waves || 0) })
+      .catch(function () {
+        /* A run ending is not worth an error in the player's
+           face — the party reverts on its own next poll. */
+      });
+  };
+
+  /* Somewhere for the match to put a party failure, since the
+     match screen has no status line of its own for this. */
+  window.MRTD.partyProblem = function (text) {
+    setStatus(text, true);
+    panel.hidden = false;
   };
 
   window.MRTD.refreshParty = refresh;

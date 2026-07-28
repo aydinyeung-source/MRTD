@@ -2034,6 +2034,14 @@
       return;
     }
 
+    /* One charge for the whole board, so a guest asks rather than
+       freezing its own copy of a game everyone else is still
+       playing at full speed. */
+    if (mp.on && !mp.host) {
+      ask("timestop", {});
+      return;
+    }
+
     timestop.ready = false;
     timestop.charge = 0;
     timestop.left = ability.lasts;
@@ -2252,11 +2260,44 @@
      intermission opens, or the moment Skip is pressed — so the
      money is in hand while there is still time to spend it.
      Wave 1 pays nothing; you begin with starting cash only. */
+  /* Everyone in the run. In a solo game that is one person, and
+     every payment below is written as though it might not be. */
+  function eachPlayer(fn) {
+    var ids = Object.keys(mp.wallets);
+
+    if (!ids.length) {
+      ids = [me()];
+    }
+
+    ids.forEach(fn);
+  }
+
+  /* Kill money goes to every player in full, not split between
+     them. Divided five ways it would mean the more of you there
+     are the poorer everyone gets, on a wave with five times the
+     health — the opposite of what bringing friends should do. */
+  function awardAll(amount) {
+    if (!(amount > 0)) {
+      return;
+    }
+
+    eachPlayer(function (who) {
+      setWallet(who, wallet(who) + amount);
+    });
+  }
+
   function payWave() {
+    /* The wave bonus is paid to each player in full for the same
+       reason: it is a flat 100, and splitting it would make
+       joining a party a pay cut. */
+    eachPlayer(payWaveFor);
+  }
+
+  function payWaveFor(who) {
     var total = WAVE_BONUS;
     var farmed = 0;
     var earners = [];
-    var mine = me();
+    var mine = who;
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
@@ -2290,7 +2331,14 @@
       spendParticles(earner.position);
     });
 
-    cash += total;
+    setWallet(who, wallet(who) + total);
+
+    /* Only ever announced to the person being paid. The host runs
+       this for everybody and would otherwise narrate four other
+       people's farms across its own screen. */
+    if (who !== me()) {
+      return;
+    }
 
     notifyCash(WAVE_BONUS, "wave " + (wave + 1));
 
@@ -2531,10 +2579,10 @@
         if (enemy.boss) {
           /* Paid in proportion, so two halves of a Cleaver are
              worth what the whole was rather than doubling it. */
-          cash += stats.bossBounty(wave) * enemy.share;
+          awardAll(stats.bossBounty(wave) * enemy.share);
           split.push(enemy);
         } else {
-          cash += stats.waveBounty(enemy.kind, wave);
+          awardAll(stats.waveBounty(enemy.kind, wave));
         }
 
         return false;
@@ -2610,21 +2658,61 @@
 
     lastFrame = timestamp;
 
-    /* Fixed slices, so 2x and 10x are genuinely the same game
-       running faster rather than a coarser one. */
-    var remaining = delta * speed;
-    var steps = 0;
+    if (mp.on && !mp.host) {
+      /* A guest simulates nothing. It carries the enemies it was
+         last told about along their own path at their own speed,
+         and every tick puts them back where the host says they
+         are. Without that they would only move ten times a
+         second and the whole board would stutter.
 
-    while (remaining > 0 && steps < MAX_STEPS && running) {
-      update(Math.min(STEP, remaining));
-      remaining -= STEP;
-      steps += 1;
+         Nothing else is guessed at — no shooting, no money, no
+         health. Guessing those would mean showing a kill that
+         did not happen. */
+      enemies.forEach(function (enemy) {
+        enemy.progress += enemy.speed * delta * speed;
+      });
+
+      advanceEffects(delta * speed);
+    } else {
+      /* Fixed slices, so 2x and 10x are genuinely the same game
+         running faster rather than a coarser one. */
+      var remaining = delta * speed;
+      var steps = 0;
+
+      while (remaining > 0 && steps < MAX_STEPS && running) {
+        update(Math.min(STEP, remaining));
+        remaining -= STEP;
+        steps += 1;
+      }
+
+      broadcast(timestamp);
     }
 
     refreshHud();
     draw();
 
     window.requestAnimationFrame(loop);
+  }
+
+  /* The host talking. Ticks carry what moves; the full picture
+     goes out every few seconds so a client that missed something
+     is corrected without having to notice it had. */
+  function broadcast(now) {
+    if (!mp.on || !mp.host) {
+      return;
+    }
+
+    if (now - mp.lastSnapshot >= SNAPSHOT_MS) {
+      mp.lastSnapshot = now;
+      mp.lastTick = now;
+      sendSnapshot();
+      return;
+    }
+
+    if (now - mp.lastTick >= TICK_MS) {
+      mp.lastTick = now;
+      sendTick();
+    }
   }
 
   /* =========================================================
@@ -2954,7 +3042,16 @@
     payoutDisplay.textContent = isDev()
       ? "0"
       : String(stats.runReward(wavesSurvived));
-    exitButton.disabled = baseHp > 0;
+    /* Solo, leaving is only allowed once the base has fallen —
+       otherwise a losing run could be walked out of and its waves
+       banked anyway.
+
+       In a party it is allowed any time, because leaving costs
+       you the reward rather than saving it: the run carries on
+       without you, your towers keep fighting, and end_party_run
+       pays only the players still there. */
+    exitButton.disabled = baseHp > 0 && !mp.on;
+    exitButton.textContent = mp.on && baseHp > 0 ? "Step out" : "Leave";
 
     /* Skip is offered once the wave has finished spawning and
        there is still something left to kill. The two buttons do
@@ -2996,22 +3093,49 @@
     );
   }
 
-  function sell(from) {
+  /* The authoritative sale. `who` is checked against the tower
+     rather than trusted, so a guest asking to sell a partner's
+     tower is refused by the host rather than by their own
+     browser being polite about it. */
+  function hostSell(from, who) {
     var tower = towers[from];
 
     /* The refund goes to whoever paid, so selling something that
        is not yours would be taking their money. Dragging already
        refuses to pick up a partner's tower; this is the same rule
        where the money actually moves. */
-    if (!tower || tower.owner !== me()) {
-      return;
+    if (!tower || tower.owner !== who) {
+      return false;
     }
 
     var refund = stats.sellValue(tower.key, tower.level);
 
-    cash += refund;
-    notifyCash(refund, "sold");
+    setWallet(who, wallet(who) + refund);
     delete towers[from];
+
+    if (who === me()) {
+      notifyCash(refund, "sold");
+    }
+
+    return true;
+  }
+
+  function sell(from) {
+    var tower = towers[from];
+
+    if (!tower || tower.owner !== me()) {
+      return;
+    }
+
+    if (mp.on && !mp.host) {
+      ask("sell", { at: from });
+      return;
+    }
+
+    if (hostSell(from, me())) {
+      sendBuilt();
+    }
+
     refreshHud();
   }
 
@@ -3341,6 +3465,87 @@
     });
   }
 
+  /* The authoritative placement. Everything that puts a tower on
+     the board comes through here — this player clicking, and the
+     host acting on a guest's request — so the rules are checked
+     once instead of once per browser.
+
+     `order` carries who is buying and what they are buying,
+     because in a party the two are not the same person. */
+  function commitPlace(order) {
+    var owner = order.owner;
+    var at = key(order.col, order.row);
+
+    if (!buildable(order.col, order.row)) {
+      return false;
+    }
+
+    var wanted = {
+      key: order.key,
+      shiny: Boolean(order.shiny),
+      level: order.level,
+      owner: owner
+    };
+    var occupant = towers[at];
+
+    /* Buying onto a matching tower merges straight into it, so a
+       bought level 4 dropped on a level 4 becomes a level 5. */
+    if (occupant && !canMerge(wanted, occupant)) {
+      return false;
+    }
+
+    /* Merging never breaches the limit, only new placements do,
+       and the limit belongs to the buyer rather than the board. */
+    if (!occupant && placed(owner) >= order.limit) {
+      return false;
+    }
+
+    var price = stats.buyCost(order.key, order.level);
+
+    if (!order.free) {
+      if (price > wallet(owner)) {
+        return false;
+      }
+
+      setWallet(owner, wallet(owner) - price);
+    }
+
+    towers[at] = {
+      key: order.key,
+      /* An occupant can only be here if canMerge allowed it, and
+         that already requires the same owner — so this is always
+         the buyer either way. Written out rather than assumed,
+         because the day that changes this is where it breaks. */
+      owner: occupant ? occupant.owner : owner,
+      shiny: Boolean(order.shiny),
+      level: occupant ? occupant.level + 1 : order.level,
+      evolution: occupant ? evolutionFor(occupant) : order.evolution,
+      cooldown: 0,
+      angle: occupant ? occupant.angle || 0 : 0
+    };
+
+    return true;
+  }
+
+  function hostPlace(data) {
+    if (commitPlace({
+      owner: data.who,
+      col: data.col,
+      row: data.row,
+      key: data.key,
+      shiny: data.shiny,
+      level: data.level,
+      /* Sent by the guest, because only their browser knows what
+         they own and what they have upgraded. */
+      evolution: data.evolution,
+      limit: data.limit,
+      free: data.free
+    })) {
+      sendBuilt();
+      refreshHud();
+    }
+  }
+
   function place(tile) {
     if (!tile || !placing) {
       return;
@@ -3352,51 +3557,32 @@
       return;
     }
 
-    var at = key(tile[0], tile[1]);
-
-    if (!buildable(tile[0], tile[1])) {
-      return;
-    }
-
-    var occupant = towers[at];
-
-    /* Buying onto a matching tower merges straight into it, so a
-       bought level 4 dropped on a level 4 becomes a level 5. */
-    if (occupant && !canMerge(placing, occupant)) {
-      return;
-    }
-
-    /* Merging never breaches the limit, only new placements do. */
-    if (!occupant && placed() >= placementLimit()) {
-      return;
-    }
-
-
-    var price = stats.buyCost(placing.key, placing.level);
-
-    if (!isDev()) {
-      if (price > cash) {
-        return;
-      }
-
-      cash -= price;
-    }
-
-    towers[at] = {
+    var order = {
+      owner: me(),
+      col: tile[0],
+      row: tile[1],
       key: placing.key,
-      /* An occupant can only be here if canMerge allowed it, and
-         that already requires the same owner — so this is always
-         me either way. Written out rather than assumed, because
-         the day that changes this is where it breaks. */
-      owner: occupant ? occupant.owner : me(),
       shiny: Boolean(placing.shiny),
-      level: occupant ? occupant.level + 1 : placing.level,
-      evolution: occupant
-        ? evolutionFor(occupant)
-        : evolutionOf(stats.variantName(placing.key, placing.shiny)),
-      cooldown: 0,
-      angle: occupant ? occupant.angle || 0 : 0
+      level: placing.level,
+      evolution: evolutionOf(stats.variantName(placing.key, placing.shiny)),
+      limit: placementLimit(),
+      free: isDev()
     };
+
+    /* A guest asks; it appears when the host says so. Placing it
+       locally first and correcting later would show a tower that
+       might not be there, and on a shared board the correction
+       is somebody else's tower already standing on the tile. */
+    if (mp.on && !mp.host) {
+      ask("place", order);
+      placing = null;
+      return;
+    }
+
+    if (commitPlace(order)) {
+      sendBuilt();
+    }
+
     placing = null;
     refreshHud();
   }
@@ -3702,8 +3888,6 @@
   }
 
   function drop(from, target) {
-    var tower = towers[from];
-
     if (!target || !buildable(target[0], target[1])) {
       return;
     }
@@ -3712,6 +3896,25 @@
 
     if (to === from) {
       return;
+    }
+
+    if (mp.on && !mp.host) {
+      ask("move", { from: from, to: to });
+      return;
+    }
+
+    if (hostMove(from, to, me())) {
+      sendBuilt();
+    }
+  }
+
+  /* Moving, merging and swapping, all of which are the same
+     gesture from the player's side. */
+  function hostMove(from, to, who) {
+    var tower = towers[from];
+
+    if (!tower || tower.owner !== who || !towers[from]) {
+      return false;
     }
 
     var occupant = towers[to];
@@ -3730,17 +3933,24 @@
         angle: tower.angle || 0
       };
       delete towers[from];
-      return;
+      return true;
     }
 
     if (!occupant) {
       towers[to] = tower;
       delete towers[from];
-      return;
+      return true;
+    }
+
+    /* Swapping is only yours with yours. Trading places with a
+       partner's tower would move something they placed. */
+    if (occupant.owner !== who) {
+      return false;
     }
 
     towers[to] = tower;
     towers[from] = occupant;
+    return true;
   }
 
   /* =========================================================
@@ -3758,6 +3968,21 @@
     portraitMode = null;
     elapsed = 0;
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
+
+    /* Everyone starts with their own purse. Seeded from the party
+       so the host can pay people who have not placed anything
+       yet — an empty wallets map would mean the first wave paid
+       only whoever happened to build first. */
+    mp.wallets = {};
+    setWallet(me(), cash);
+
+    if (mp.on && window.MRTD.party) {
+      window.MRTD.party().members.forEach(function (member) {
+        if (mp.wallets[member.id] === undefined) {
+          mp.wallets[member.id] = cash;
+        }
+      });
+    }
     baseHp = stats.baseHp;
     wave = 0;
     wavesSurvived = 0;
@@ -3791,7 +4016,15 @@
       : "Banking...";
     gameover.hidden = false;
 
-    banking = bankRun(wavesSurvived);
+    /* A party run is banked by end_party_run, which pays every
+       player still present in one statement. Calling bank_run as
+       well would pay this player twice — and only this player,
+       which is worse than either. */
+    banking = mp.on
+      ? window.MRTD.endParty(wavesSurvived).then(function () {
+          gameoverNote.textContent = "Banked for everyone still here";
+        })
+      : bankRun(wavesSurvived);
   }
 
   /* Credit the coins server side. The reward is recalculated in
@@ -3843,6 +4076,378 @@
     });
   }
 
+  /* =========================================================
+     Multiplayer
+
+     One player simulates and everybody else watches and asks.
+     The host runs exactly the same update() a solo player runs;
+     guests do not simulate at all. That is the whole design, and
+     it is chosen over everyone running the same simulation from
+     the same seed because that only works while every client
+     agrees forever — one divergence and two players are playing
+     different games without either being told.
+
+     Three kinds of message:
+
+       s  snapshot   everything, on join and every few seconds
+       t  tick       what changes constantly, ten times a second
+       i  input      a guest asking the host to do something
+
+     Towers are not in the tick. They change when somebody acts
+     and not otherwise, so they ride the snapshot and a `built`
+     event instead of being resent sixty times a minute.
+
+     WHAT A GUEST IS TRUSTED WITH: the evolution of the tower it
+     is placing, because only that player's browser knows what
+     they own. A guest could claim more. It is friends-only co-op
+     and the lie costs nobody else anything — rewards come from
+     Postgres and are counted in waves, not towers — but it is a
+     lie the host cannot currently catch.
+     ========================================================= */
+
+  var TICK_MS = 100;
+  var SNAPSHOT_MS = 3000;
+
+  var mp = {
+    on: false,
+    host: false,
+    runId: null,
+
+    /* playerId -> match cash. The host owns this; everyone else
+       has the copy from the last tick. */
+    wallets: {},
+
+    lastTick: 0,
+    lastSnapshot: 0,
+
+    /* Set while a guest is applying what the host sent, so the
+       same functions that broadcast a change do not rebroadcast
+       one they were told about. */
+    applying: false
+  };
+
+  function multiplayer() {
+    return mp.on;
+  }
+
+  function isHost() {
+    return !mp.on || mp.host;
+  }
+
+  /* Cash is per player. The host keeps everyone's and spends out
+     of the same map, so there is one place a balance lives. */
+  function wallet(who) {
+    var id = who || me();
+
+    if (mp.wallets[id] === undefined) {
+      mp.wallets[id] = stats.startingCashFor(upgradeLevel("starting_cash"));
+    }
+
+    return mp.wallets[id];
+  }
+
+  function setWallet(who, amount) {
+    mp.wallets[who || me()] = amount;
+
+    if ((who || me()) === me()) {
+      cash = amount;
+    }
+  }
+
+  /* =========================================================
+     Serialising
+
+     Compact on purpose. A thousand enemies at ten ticks a second
+     is the one message that could actually saturate a phone, so
+     they travel as arrays of numbers rather than named fields.
+     ========================================================= */
+
+  function packEnemies() {
+    return enemies.map(function (enemy) {
+      return [
+        enemy.kind,
+        enemy.boss || 0,
+        Math.round(enemy.hp),
+        Math.round(enemy.maxHp),
+        Math.round(enemy.progress * 1000) / 1000,
+        enemy.share || 1,
+        (enemy.slowed ? 1 : 0) |
+          (enemy.pushed ? 2 : 0) |
+          (enemy.immune ? 4 : 0) |
+          (enemy.healing ? 8 : 0)
+      ];
+    });
+  }
+
+  function unpackEnemies(rows) {
+    return (rows || []).map(function (row) {
+      return {
+        kind: row[0],
+        boss: row[1] || null,
+        hp: row[2],
+        maxHp: row[3],
+        progress: row[4],
+        share: row[5],
+        slowed: Boolean(row[6] & 1),
+        pushed: Boolean(row[6] & 2),
+        immune: Boolean(row[6] & 4),
+        healing: Boolean(row[6] & 8),
+        speed: row[1] ? stats.boss.speed : stats.enemies[row[0]].speed
+      };
+    });
+  }
+
+  function packTowers() {
+    var out = {};
+
+    Object.keys(towers).forEach(function (at) {
+      var tower = towers[at];
+
+      out[at] = [
+        tower.key,
+        tower.owner,
+        tower.level,
+        tower.evolution,
+        tower.shiny ? 1 : 0,
+        Math.round((tower.angle || 0) * 100) / 100
+      ];
+    });
+
+    return out;
+  }
+
+  function unpackTowers(packed) {
+    var out = {};
+
+    Object.keys(packed || {}).forEach(function (at) {
+      var row = packed[at];
+
+      out[at] = {
+        key: row[0],
+        owner: row[1],
+        level: row[2],
+        evolution: row[3],
+        shiny: Boolean(row[4]),
+        angle: row[5],
+        cooldown: 0
+      };
+    });
+
+    return out;
+  }
+
+  function packAllies() {
+    return allies.map(function (ally) {
+      return [
+        Math.round(ally.progress * 1000) / 1000,
+        Math.round(ally.hp),
+        Math.round(ally.maxHp)
+      ];
+    });
+  }
+
+  function unpackAllies(rows) {
+    return (rows || []).map(function (row) {
+      return { progress: row[0], hp: row[1], maxHp: row[2] };
+    });
+  }
+
+  /* =========================================================
+     Sending
+     ========================================================= */
+
+  function sendSnapshot() {
+    window.MRTD.net.send("s", {
+      towers: packTowers(),
+      enemies: packEnemies(),
+      allies: packAllies(),
+      wave: wave,
+      survived: wavesSurvived,
+      baseHp: Math.round(baseHp),
+      active: waveActive,
+      breakLeft: Math.round(breakLeft * 10) / 10,
+      queued: spawnQueue.length,
+      timestop: timestop,
+      wallets: mp.wallets,
+      elapsed: Math.round(elapsed)
+    });
+  }
+
+  function sendTick() {
+    window.MRTD.net.send("t", {
+      enemies: packEnemies(),
+      allies: packAllies(),
+      baseHp: Math.round(baseHp),
+      wave: wave,
+      survived: wavesSurvived,
+      active: waveActive,
+      breakLeft: Math.round(breakLeft * 10) / 10,
+      queued: spawnQueue.length,
+      timestop: timestop,
+      wallets: mp.wallets
+    });
+  }
+
+  /* Towers move rarely, so they are announced when they change
+     rather than carried by every tick. */
+  function sendBuilt() {
+    if (!mp.on || !mp.host) {
+      return;
+    }
+
+    window.MRTD.net.send("b", { towers: packTowers(), wallets: mp.wallets });
+  }
+
+  function ask(action, detail) {
+    var message = detail || {};
+
+    message.a = action;
+    message.who = me();
+    window.MRTD.net.send("i", message);
+  }
+
+  /* =========================================================
+     Receiving
+     ========================================================= */
+
+  function applySnapshot(data) {
+    mp.applying = true;
+
+    towers = unpackTowers(data.towers);
+    enemies = unpackEnemies(data.enemies);
+    allies = unpackAllies(data.allies);
+    wave = data.wave;
+    wavesSurvived = data.survived;
+    baseHp = data.baseHp;
+    waveActive = data.active;
+    breakLeft = data.breakLeft;
+    mp.wallets = data.wallets || {};
+    timestop = data.timestop || timestop;
+    elapsed = data.elapsed || elapsed;
+    cash = wallet(me());
+
+    mp.applying = false;
+    refreshHud();
+    draw();
+  }
+
+  function applyTick(data) {
+    mp.applying = true;
+
+    enemies = unpackEnemies(data.enemies);
+    allies = unpackAllies(data.allies);
+    baseHp = data.baseHp;
+    wave = data.wave;
+    wavesSurvived = data.survived;
+    waveActive = data.active;
+    breakLeft = data.breakLeft;
+    timestop = data.timestop || timestop;
+    mp.wallets = data.wallets || mp.wallets;
+    cash = wallet(me());
+
+    mp.applying = false;
+  }
+
+  /* A guest asking for something. Everything a guest can do is
+     something the host performs on their behalf, so the rules —
+     can they afford it, is the tile free, is it their tower —
+     are checked in one place rather than five browsers. */
+  function handleInput(data) {
+    if (!mp.host || !data || !data.who) {
+      return;
+    }
+
+    if (data.a === "hello") {
+      sendSnapshot();
+      return;
+    }
+
+    if (data.a === "place") {
+      hostPlace(data);
+      return;
+    }
+
+    if (data.a === "sell") {
+      hostSell(data.at, data.who);
+      return;
+    }
+
+    if (data.a === "move") {
+      hostMove(data.from, data.to, data.who);
+      return;
+    }
+
+    if (data.a === "wave") {
+      startWave();
+      return;
+    }
+
+    if (data.a === "timestop") {
+      useTimestop();
+    }
+  }
+
+  function connect(runId, asHost) {
+    mp.on = true;
+    mp.host = Boolean(asHost);
+    mp.runId = runId;
+    mp.wallets = {};
+    mp.lastTick = 0;
+    mp.lastSnapshot = 0;
+
+    window.MRTD.net.on("s", function (data) {
+      if (!mp.host) {
+        applySnapshot(data);
+      }
+    });
+
+    window.MRTD.net.on("t", function (data) {
+      if (!mp.host) {
+        applyTick(data);
+      }
+    });
+
+    window.MRTD.net.on("b", function (data) {
+      if (!mp.host) {
+        towers = unpackTowers(data.towers);
+        mp.wallets = data.wallets || mp.wallets;
+        cash = wallet(me());
+        refreshHud();
+        draw();
+      }
+    });
+
+    window.MRTD.net.on("i", handleInput);
+
+    /* The host answering a newcomer is the same message a guest
+       sends on joining, so a rejoin needs no separate path. */
+    window.MRTD.net.on("_open", function () {
+      if (!mp.host) {
+        ask("hello", {});
+      }
+    });
+
+    window.MRTD.net.connect("run:" + runId);
+  }
+
+  function disconnect() {
+    if (!mp.on) {
+      return;
+    }
+
+    ["s", "t", "b", "i", "_open"].forEach(function (event) {
+      window.MRTD.net.off(event);
+    });
+
+    window.MRTD.net.disconnect();
+    mp.on = false;
+    mp.host = false;
+    mp.runId = null;
+  }
+
+  window.MRTD = window.MRTD || {};
+  window.MRTD.matchIsMultiplayer = multiplayer;
+
   function open() {
     root.hidden = false;
     buildHotbar();
@@ -3858,7 +4463,10 @@
   }
 
   function close() {
-    if (baseHp > 0) {
+    /* A party run can be stepped out of while it is still going.
+       A solo one cannot, or a losing run could be abandoned and
+       banked as though it had been survived. */
+    if (baseHp > 0 && !mp.on) {
       return;
     }
 
@@ -3867,13 +4475,54 @@
     root.hidden = true;
   }
 
-  if (playButton) {
-    playButton.addEventListener("click", function () {
-      /* Deliberately unhurried: two to five seconds. */
-      var wait = 2000 + Math.floor(Math.random() * 3000);
+  /* Play means one of three things, and which one is decided by
+     what the party says rather than by a separate button:
 
+       nothing going on   a solo run, as always
+       leader, in a party start it for everyone
+       already in a run   go back to the one you left
+
+     A guest whose leader has not started yet has nothing to press
+     — the run does not exist, so there is nothing to join. Their
+     Play button becomes the wait. */
+  function beginPlay() {
+    var party = window.MRTD.party ? window.MRTD.party() : null;
+    var wait = 2000 + Math.floor(Math.random() * 3000);
+
+    /* Somewhere to go back to takes priority over starting
+       anything new — the database refuses a second run anyway,
+       and this makes Play do the thing that will work. */
+    if (party && party.runId && !party.runPresent) {
+      window.MRTD.rejoinRun().then(function (runId) {
+        connect(runId, false);
+        window.MRTD.load("Rejoining", wait, open);
+      }).catch(function () {
+        window.MRTD.load("Preparing the field", wait, open);
+      });
+      return;
+    }
+
+    if (party && party.runId && party.runPresent) {
+      connect(party.runId, party.isLeader);
       window.MRTD.load("Preparing the field", wait, open);
-    });
+      return;
+    }
+
+    if (party && party.id && party.members.length > 1 && party.isLeader) {
+      window.MRTD.startParty().then(function (started) {
+        connect(started.runId, true);
+        window.MRTD.load("Preparing the field", wait, open);
+      }).catch(function (error) {
+        window.MRTD.partyProblem(error.message);
+      });
+      return;
+    }
+
+    window.MRTD.load("Preparing the field", wait, open);
+  }
+
+  if (playButton) {
+    playButton.addEventListener("click", beginPlay);
   }
 
   /* The lobby is re-entered through a full reload, so a player
@@ -3881,6 +4530,19 @@
      deployed since they started it — but never before the coins
      have finished banking. */
   function leave() {
+    /* Walking out of a party run mid-game is a leave, not an end.
+       The seat stays claimed and the towers stay standing, so
+       there is something to come back to — and no reward, since
+       leave_run marks this player absent and end_party_run only
+       pays the ones still here.
+
+       Not sent when the base has already fallen: the run is over
+       and end_party_run has closed it. */
+    if (mp.on && baseHp > 0 && window.MRTD.leaveRun) {
+      window.MRTD.leaveRun();
+    }
+
+    disconnect();
     close();
     window.MRTD.load("Returning to lobby", 1400, function () {
       Promise.resolve(banking).then(function () {
@@ -3891,11 +4553,28 @@
 
   exitButton.addEventListener("click", leave);
   gameoverLeave.addEventListener("click", leave);
-  startButton.addEventListener("click", startWave);
+  /* A guest asks the host to start; the host starts. Wave
+     timing is one thing for the whole board, so it cannot be
+     five browsers each deciding. */
+  startButton.addEventListener("click", function () {
+    if (mp.on && !mp.host) {
+      ask("wave", {});
+      return;
+    }
+
+    startWave();
+  });
 
   /* Skipping starts the next wave while stragglers are still on
      the path, and pays out as it goes. */
-  skipButton.addEventListener("click", beginNextWave);
+  skipButton.addEventListener("click", function () {
+    if (mp.on && !mp.host) {
+      ask("wave", {});
+      return;
+    }
+
+    beginNextWave();
+  });
 
   /* 2x is an upgrade. 10x only exists while an admin has switched
      it on, so players see no trace of it until then. */
