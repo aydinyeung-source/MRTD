@@ -27,6 +27,7 @@
   var coinsInput = document.getElementById("admin-coins");
   var chestsInput = document.getElementById("admin-chests");
   var towerSelect = document.getElementById("admin-tower");
+  var towerSearch = document.getElementById("admin-tower-search");
   var copiesInput = document.getElementById("admin-copies");
   var messageInput = document.getElementById("admin-message");
 
@@ -148,12 +149,84 @@
     });
   });
 
+  /* =========================================================
+     The card list
+
+     This was five hardcoded <option> tags, written when the game
+     had five towers — everything added since could not be granted
+     at all. It is built from stats.js now, so a new tower appears
+     here the moment it exists.
+
+     Rarest first, matching the Collection tab, with the rarity on
+     each line: the list is long enough that alphabetical order
+     alone makes the interesting ones hard to find.
+     ========================================================= */
+
+  function towerOrder() {
+    var stats = window.MRTD.stats;
+
+    return Object.keys(stats.towers).sort(function (a, b) {
+      var byRarity =
+        stats.rarityRank(stats.rarityOf(a)) -
+        stats.rarityRank(stats.rarityOf(b));
+
+      return byRarity || stats.towers[a].label.localeCompare(stats.towers[b].label);
+    });
+  }
+
+  function buildTowers() {
+    var stats = window.MRTD.stats;
+    var filter = towerSearch.value.trim().toLowerCase();
+    var chosen = towerSelect.value;
+
+    towerSelect.textContent = "";
+
+    /* Random stays whatever the filter is — it is not a tower. */
+    var random = document.createElement("option");
+    random.value = "";
+    random.textContent = "Random";
+    towerSelect.appendChild(random);
+
+    var shown = towerOrder().filter(function (key) {
+      return !filter || stats.towers[key].label.toLowerCase().indexOf(filter) >= 0;
+    });
+
+    shown.forEach(function (key) {
+      var option = document.createElement("option");
+
+      option.value = key;
+      option.textContent =
+        stats.towers[key].label + " · " + stats.rarityOf(key);
+      towerSelect.appendChild(option);
+    });
+
+    /* Keep the current pick if it survived the filter; otherwise
+       a single match selects itself, which is the whole point of
+       typing a name. */
+    if (chosen && shown.indexOf(chosen) >= 0) {
+      towerSelect.value = chosen;
+    } else if (shown.length === 1) {
+      towerSelect.value = shown[0];
+    }
+  }
+
+  towerSearch.addEventListener("input", buildTowers);
+
+  towerSearch.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      towerSearch.value = "";
+      buildTowers();
+    }
+  });
+
+  buildTowers();
+
   giveTowers.addEventListener("click", function () {
     var tower = towerSelect.value || null;
     var copies = Number(copiesInput.value);
 
     confirmThen(giveTowers, "Give " + copies + " " +
-      (tower || "random") + " card(s) to " +
+      (tower ? window.MRTD.stats.towers[tower].label : "random") + " card(s) to " +
       (target() ? "online players" : "everyone") + "?", function () {
       api("/rest/v1/rpc/admin_grant_towers", {
         p_tower: tower,

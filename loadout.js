@@ -402,6 +402,23 @@
         handbook.hidden = true;
       }
     });
+
+    /* Index entries scroll the panel rather than linking, so
+       reading the handbook never leaves a hash in the URL that
+       a reload would then jump to. */
+    handbook.addEventListener("click", function (event) {
+      var jump = event.target.dataset && event.target.dataset.jump;
+
+      if (!jump) {
+        return;
+      }
+
+      var section = document.getElementById(jump);
+
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
   }
   document.addEventListener("mrtd:locked", function () {
     owned = [];

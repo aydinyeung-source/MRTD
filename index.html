@@ -73,15 +73,14 @@
 
           <div class="admin__row">
             <label class="admin__field">
+              <span>Find</span>
+              <input class="admin__input" id="admin-tower-search" type="search"
+                     placeholder="Filter towers" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="admin__field">
               <span>Cards</span>
-              <select class="admin__input" id="admin-tower">
-                <option value="">Random</option>
-                <option value="dagger">Dagger</option>
-                <option value="blender">Blender</option>
-                <option value="farm">Farm</option>
-                <option value="shotgunner">Shotgunner</option>
-                <option value="sniper">Sniper</option>
-              </select>
+              <!-- Filled from stats.js so every tower is here. -->
+              <select class="admin__input" id="admin-tower"></select>
             </label>
             <label class="admin__field">
               <span>Copies</span>
@@ -253,7 +252,16 @@
     <div class="handbook__panel">
       <h2 class="handbook__title">Handbook</h2>
 
-      <section class="handbook__section">
+      <!-- Jumps to a section. Buttons rather than anchors so
+           opening the handbook never rewrites the URL. -->
+      <nav class="handbook__index">
+        <button class="handbook__jump" type="button" data-jump="handbook-merging">Merging</button>
+        <button class="handbook__jump" type="button" data-jump="handbook-evolutions">Evolutions</button>
+        <button class="handbook__jump" type="button" data-jump="handbook-money">Money and leaks</button>
+        <button class="handbook__jump" type="button" data-jump="handbook-controls">Controls</button>
+      </nav>
+
+      <section class="handbook__section" id="handbook-merging">
         <h3>Merging</h3>
         <p>
           Drop a tower onto another of the <strong>same type and the same
@@ -272,7 +280,7 @@
         </p>
       </section>
 
-      <section class="handbook__section">
+      <section class="handbook__section" id="handbook-evolutions">
         <h3>Evolutions</h3>
         <p>
           Duplicate cards from chests merge into evolutions, two of a level
@@ -283,9 +291,14 @@
         <p>
           Every evolution adds <strong>10%</strong>, compounding, so a fully
           evolved tower is <strong>×2.59</strong>. What it improves depends on
-          the tower: damage towers gain damage, farms gain cash, spawners gain
-          health, boosters gain a flat +3% boost and +5 range. Range grows
-          10% per evolution for everyone.
+          the tower: damage towers gain damage, farms gain cash, boosters gain
+          a flat +3% boost and +5 range. Range grows 10% per evolution for
+          everyone.
+        </p>
+        <p>
+          Spawners are the exception. Their allies gain <strong>15%</strong>
+          health per evolution rather than 10%, reaching <strong>×4.05</strong>
+          fully evolved, while ally damage stays on the usual 10%.
         </p>
         <p>
           Evolution 10 needs <strong>1,024 copies</strong> of one tower, so
@@ -293,7 +306,7 @@
         </p>
       </section>
 
-      <section class="handbook__section">
+      <section class="handbook__section" id="handbook-money">
         <h3>Money and leaks</h3>
         <p>
           A cleared wave pays <strong>100</strong> plus every farm's output as
@@ -311,7 +324,7 @@
         </p>
       </section>
 
-      <section class="handbook__section">
+      <section class="handbook__section" id="handbook-controls">
         <h3>Controls</h3>
         <p>
           <strong>1</strong> to <strong>5</strong> pick a hotbar slot.
