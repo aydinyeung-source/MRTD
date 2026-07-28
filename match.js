@@ -156,6 +156,11 @@
      same size — it just does not all arrive at once. */
   var MAX_ALIVE = 1000;
 
+  /* How much faster an ability charges in developer mode. Stacks
+     with the speed setting, so 10x and dev together is a hundred
+     times, which is the point: it makes an ability testable. */
+  var DEV_CHARGE_RATE = 10;
+
   var cash = 0;
   var baseHp = 0;
   var wave = 0;
@@ -2001,7 +2006,18 @@
       return;
     }
 
-    timestop.charge += delta;
+    /* delta is game seconds, so the charge already runs at
+       whatever speed the match is set to — 300 game seconds is
+       150 real ones at 2x and 30 at 10x, without this function
+       knowing anything about it.
+
+       Developer mode is the part that could not be reached that
+       way: testing an ability on a five minute charge means five
+       minutes per attempt, or thirty seconds if you also happen
+       to have 10x switched on. It charges ten times faster
+       instead, so an ability meant to be used once a wave can be
+       used once a wave while it is being worked on. */
+    timestop.charge += delta * (isDev() ? DEV_CHARGE_RATE : 1);
 
     if (timestop.charge >= ability.every) {
       timestop.charge = ability.every;
@@ -2875,11 +2891,18 @@
         );
         abilityButton.disabled = !timestop.ready || frozen();
 
+        /* The countdown is in game seconds either way. In
+           developer mode it is also being spent ten times faster,
+           which is worth saying so the number is not mistaken for
+           what a player would wait. */
         abilityState.textContent = frozen()
           ? Math.ceil(timestop.left) + "s"
           : timestop.ready
             ? "Ready"
-            : Math.ceil(ability.every - timestop.charge) + "s";
+            : Math.ceil(
+                (ability.every - timestop.charge) /
+                  (isDev() ? DEV_CHARGE_RATE : 1)
+              ) + "s" + (isDev() ? " dev" : "");
       }
     }
 
