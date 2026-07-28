@@ -24,7 +24,9 @@
   var heading = document.getElementById("loadout-heading");
   var ownedHost = document.getElementById("loadout-owned");
   var status = document.getElementById("loadout-status");
+  /* The overlay, and the panel inside it that holds the stats. */
   var detail = document.getElementById("loadout-detail");
+  var detailPanel = document.getElementById("loadout-detail-panel");
 
   if (!slotsHost) {
     return;
@@ -194,7 +196,10 @@
       if (entry) {
         var filled = towerCard(entry, "loadout__slot is-filled");
 
-        filled.addEventListener("click", unequip.bind(null, entry.name));
+        /* Opens the same panel an owned card does, rather than
+           unequipping on the spot. One click used to remove a
+           tower with nothing shown and nothing to undo it. */
+        filled.addEventListener("click", showDetail.bind(null, entry));
         slotsHost.appendChild(filled);
       } else {
         var empty = document.createElement("div");
@@ -275,7 +280,7 @@
     var coins = stats.coins(name, 1, evolution, shiny);
     var reach = stats.range(name, 1, evolution) / stats.rangePerTile;
 
-    detail.textContent = "";
+    detailPanel.textContent = "";
 
     var title = document.createElement("p");
     title.className = "inspect__title";
@@ -283,36 +288,36 @@
       (shiny ? "Shiny " : "") +
       stats.towers[name].label +
       (evolution ? "  ·  Evo " + evolution : "  ·  Base");
-    detail.appendChild(title);
+    detailPanel.appendChild(title);
 
     var note = document.createElement("p");
     note.className = "inspect__note";
     note.textContent = "At merge level 1. Merging multiplies these.";
-    detail.appendChild(note);
+    detailPanel.appendChild(note);
 
     if (damage > 0) {
-      detail.appendChild(statRow("Damage", String(Math.round(damage))));
-      detail.appendChild(statRow("Cooldown", cooldown + "s"));
-      detail.appendChild(statRow("DPS", String(Math.round(damage / cooldown))));
+      detailPanel.appendChild(statRow("Damage", String(Math.round(damage))));
+      detailPanel.appendChild(statRow("Cooldown", cooldown + "s"));
+      detailPanel.appendChild(statRow("DPS", String(Math.round(damage / cooldown))));
     }
 
     if (coins > 0) {
-      detail.appendChild(statRow("Cash per wave", String(Math.round(coins))));
+      detailPanel.appendChild(statRow("Cash per wave", String(Math.round(coins))));
     }
 
-    detail.appendChild(statRow("Range", Math.round(reach * 10) / 10 + " tiles"));
-    detail.appendChild(statRow("Attack", describeAttack(name)));
-    detail.appendChild(statRow("Cost", String(stats.cost(name))));
-    detail.appendChild(statRow("Copies held", String(entry.copies)));
+    detailPanel.appendChild(statRow("Range", Math.round(reach * 10) / 10 + " tiles"));
+    detailPanel.appendChild(statRow("Attack", describeAttack(name)));
+    detailPanel.appendChild(statRow("Cost", String(stats.cost(name))));
+    detailPanel.appendChild(statRow("Copies held", String(entry.copies)));
 
     if (evolution) {
-      detail.appendChild(
+      detailPanel.appendChild(
         statRow("Evolution", stats.evolutionSummary(name, evolution))
       );
     }
 
     if (shiny) {
-      detail.appendChild(statRow("Shiny", stats.shinySummary(name)));
+      detailPanel.appendChild(statRow("Shiny", stats.shinySummary(name)));
     }
 
     var action = document.createElement("button");
@@ -332,12 +337,42 @@
         equip(entry.name);
       }
 
-      showDetail(entry);
+      /* Closes on the way out. The panel was opened to make one
+         decision, and leaving it up over a board that has just
+         changed underneath it only invites a second click on a
+         button that now means the opposite. */
+      closeDetail();
     });
 
-    detail.appendChild(action);
+    detailPanel.appendChild(action);
+
+    var close = document.createElement("button");
+
+    close.className = "inspect__close";
+    close.type = "button";
+    close.textContent = "Close";
+    close.addEventListener("click", closeDetail);
+    detailPanel.appendChild(close);
+
     detail.hidden = false;
   }
+
+  function closeDetail() {
+    detail.hidden = true;
+  }
+
+  /* Clicking the backdrop, but not the panel sitting on it. */
+  detail.addEventListener("click", function (event) {
+    if (event.target === detail) {
+      closeDetail();
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !detail.hidden) {
+      closeDetail();
+    }
+  });
 
   function equip(name) {
     if (equipped.indexOf(name) >= 0 || equipped.length >= slots()) {

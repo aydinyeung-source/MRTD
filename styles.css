@@ -230,6 +230,16 @@ body::after {
   }
 }
 
+/* For backdrops, which should not also move. */
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Placeholder screens: plain bold body text, set off-axis rather than centred. */
 .placeholder {
   display: inline-block;
@@ -799,11 +809,33 @@ body::after {
   color: var(--ink);
 }
 
-/* Same panel, sitting in the Towers tab rather than floating. */
-.inspect--inline {
+/* =========================================================
+   Tower detail
+
+   The Towers tab opens this for an owned card and for an
+   equipped slot alike — same panel, same stats, only the button
+   at the bottom differs. It used to appear at the end of the
+   list, which meant opening it from a slot at the top of the
+   screen put it somewhere you had to go looking for.
+   ========================================================= */
+
+.detail {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(24, 32, 36, 0.42);
+  animation: fade 160ms var(--ease-soft) both;
+}
+
+.inspect--modal {
   position: static;
-  width: min(300px, 100%);
-  margin-top: 20px;
+  width: min(320px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
 }
 
 .inspect__note {
@@ -828,6 +860,27 @@ body::after {
   cursor: pointer;
   transition: border-color 240ms var(--ease-soft),
               background-color 240ms var(--ease-soft);
+}
+
+/* Quieter than the action above it — it is the way out, not the
+   thing the panel was opened to do. */
+.inspect__close {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  border: 0;
+  border-radius: 8px;
+  background-color: transparent;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 240ms var(--ease-soft);
+}
+
+.inspect__close:hover {
+  color: var(--ink);
 }
 
 .inspect__action:hover:not(:disabled) {

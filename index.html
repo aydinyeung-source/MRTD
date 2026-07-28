@@ -146,7 +146,13 @@
           <p class="loadout__label">Owned</p>
           <p class="loadout__status" id="loadout-status"></p>
           <div class="loadout__owned" id="loadout-owned"></div>
-          <div class="inspect inspect--inline" id="loadout-detail" hidden></div>
+          <!-- Centred over the page rather than sitting at the
+               bottom of the list, so it reads the same whether it
+               was opened from an owned card or an equipped
+               slot. -->
+          <div class="detail" id="loadout-detail" hidden>
+            <div class="inspect inspect--modal" id="loadout-detail-panel"></div>
+          </div>
         </div>
       </section>
 
