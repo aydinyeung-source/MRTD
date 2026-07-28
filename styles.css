@@ -1755,6 +1755,21 @@ body::after {
   color: var(--glacier);
 }
 
+/* Same gold as the Collection tab, since the art is identical
+   and the frame is the only thing telling them apart. */
+.tradepick__card[data-shiny] {
+  background-image: linear-gradient(
+    100deg,
+    rgba(216, 165, 44, 0.16),
+    rgba(216, 165, 44, 0) 55%
+  );
+}
+
+.tradepick__card[data-shiny] .tradepick__name,
+.friends__name.is-shiny {
+  color: #b9861a;
+}
+
 .tradepick__icon {
   flex-shrink: 0;
   width: 26px;

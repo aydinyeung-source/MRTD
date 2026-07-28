@@ -349,13 +349,12 @@
     }
 
     return api(
-      /* Normal copies only. A trade moves cards by tower and
-         evolution alone, so offering a shiny here would hand over
-         the normal one instead. Shiny trading needs the trade
-         item itself to carry the flag first. */
-      "/rest/v1/player_towers?select=tower_key,evolution,copies&copies=gt.0" +
-        "&shiny=is.false" +
-        "&order=tower_key.asc,evolution.desc"
+      /* Shinies included now that a trade item can say which line
+         it means. Ordered so a shiny sits directly above the
+         normal copy of the same tier rather than somewhere else
+         in the list. */
+      "/rest/v1/player_towers?select=tower_key,evolution,copies,shiny&copies=gt.0" +
+        "&order=tower_key.asc,evolution.desc,shiny.desc"
     ).then(function (rows) {
       holdings = rows || [];
       renderPicker();
@@ -365,12 +364,13 @@
   /* How many of this tier are already on your side of the trade.
      Shown on the card so the picker and the offer never disagree
      about what has been put in. */
-  function offered(tower, evolution) {
+  function offered(tower, evolution, shiny) {
     var mine = me();
     var found = (currentItems || []).filter(function (item) {
       return item.player_id === mine &&
         item.tower_key === tower &&
-        item.evolution === evolution;
+        item.evolution === evolution &&
+        Boolean(item.shiny) === Boolean(shiny);
     })[0];
 
     return found ? found.copies : 0;
@@ -383,11 +383,19 @@
   }
 
   function pickCard(row) {
-    var already = offered(row.tower_key, row.evolution);
+    var shiny = Boolean(row.shiny);
+    var already = offered(row.tower_key, row.evolution, shiny);
     var card = element("div", "tradepick__card");
 
     if (already > 0) {
       card.classList.add("is-offered");
+    }
+
+    /* Gold frame, the same mark the Collection tab uses. The art
+       is identical, so without it a shiny and its normal twin are
+       two rows that look the same. */
+    if (shiny) {
+      card.dataset.shiny = "true";
     }
 
     var icon = document.createElement("img");
@@ -401,7 +409,8 @@
       element(
         "p",
         "tradepick__name",
-        label(row.tower_key) + (row.evolution ? " · Evo " + row.evolution : "")
+        (shiny ? "Shiny " : "") + label(row.tower_key) +
+          (row.evolution ? " · Evo " + row.evolution : "")
       )
     );
     text.appendChild(
@@ -440,7 +449,8 @@
         p_id: active.id,
         p_tower: row.tower_key,
         p_evolution: row.evolution,
-        p_copies: want
+        p_copies: want,
+        p_shiny: shiny
       })
         .then(fillTowerSelect)
         .catch(function (error) {
@@ -462,8 +472,15 @@
     pickHost.textContent = "";
 
     var shown = holdings.filter(function (row) {
-      return !pickQuery ||
-        label(row.tower_key).toLowerCase().indexOf(pickQuery) >= 0;
+      if (!pickQuery) {
+        return true;
+      }
+
+      /* "shiny" finds them all, which is the search anyone with
+         a few of them actually wants. */
+      var name = (row.shiny ? "shiny " : "") + label(row.tower_key);
+
+      return name.toLowerCase().indexOf(pickQuery) >= 0;
     });
 
     if (!shown.length) {
@@ -492,15 +509,22 @@
 
     items.forEach(function (item) {
       var line = element("div", "friends__line");
-
-      line.appendChild(
-        element(
-          "span",
-          "friends__name",
-          item.copies + "× " + label(item.tower_key) +
-            (item.evolution ? " · Evo " + item.evolution : "")
-        )
+      var shiny = Boolean(item.shiny);
+      var name = element(
+        "span",
+        "friends__name",
+        item.copies + "× " + (shiny ? "Shiny " : "") + label(item.tower_key) +
+          (item.evolution ? " · Evo " + item.evolution : "")
       );
+
+      /* Said in words and in gold. A Shiny Sniper and a Sniper
+         are worth very different things, and this is the moment
+         someone agrees to hand one over. */
+      if (shiny) {
+        name.classList.add("is-shiny");
+      }
+
+      line.appendChild(name);
 
       if (editable) {
         line.appendChild(button("Take back", function () {
@@ -508,7 +532,8 @@
             p_id: active.id,
             p_tower: item.tower_key,
             p_evolution: item.evolution,
-            p_copies: 0
+            p_copies: 0,
+            p_shiny: shiny
           })
             .then(fillTowerSelect)
             .catch(function (error) {
