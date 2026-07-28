@@ -204,6 +204,7 @@
     <div class="corner">
       <button class="corner__dev" id="updates-open" type="button">Updates</button>
       <button class="corner__dev" id="friends-open" type="button">Friends</button>
+      <button class="corner__dev" id="party-open" type="button"><span id="party-badge">Party</span></button>
       <button class="corner__dev" id="handbook-open" type="button">Handbook</button>
       <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
       <button class="corner__signout" id="signout" type="button">Sign out</button>
@@ -226,6 +227,48 @@
       <h2 class="handbook__title">Update log</h2>
       <div id="updates-list"></div>
       <button class="handbook__close" id="updates-close" type="button">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <div class="handbook" id="party" hidden>
+    <div class="handbook__panel">
+      <h2 class="handbook__title">Party</h2>
+
+      <section class="handbook__section">
+        <h3>Waiting on you</h3>
+        <div id="party-invites"></div>
+      </section>
+
+      <section class="handbook__section">
+        <h3>In the party</h3>
+        <div id="party-members"></div>
+      </section>
+
+      <section class="handbook__section">
+        <h3>Invite a friend</h3>
+        <div id="party-friends"></div>
+      </section>
+
+      <p class="party__note">
+        Up to five play one board together. Enemy health multiplies by
+        how many of you there are — double for two, triple for three —
+        but everyone earns their own cash and has their own placement
+        limit.
+      </p>
+      <p class="party__note">
+        The leader starts whenever they want. Anyone who has not accepted
+        by then is left behind rather than waited for, so a friend who
+        has not opened the game cannot hold the run up.
+      </p>
+
+      <p class="friends__status" id="party-status"></p>
+
+      <button class="handbook__close" id="party-leave" type="button" hidden>
+        Leave party
+      </button>
+      <button class="handbook__close" id="party-close" type="button">
         Close
       </button>
     </div>
@@ -557,6 +600,7 @@
   <script src="shop.js"></script>
   <script src="admin.js"></script>
   <script src="friends.js"></script>
+  <script src="party.js"></script>
   <script src="updates.js"></script>
   <script src="match.js"></script>
 </body>

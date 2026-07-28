@@ -417,6 +417,92 @@ body::after {
 }
 
 /* =========================================================
+   Party
+   ========================================================= */
+
+.party__member,
+.party__invite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.party__member:last-child,
+.party__invite:last-child {
+  border-bottom: 0;
+}
+
+.party__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.party__tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--glacier);
+}
+
+.party__small {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background-color: transparent;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 200ms var(--ease-soft), color 200ms var(--ease-soft);
+}
+
+.party__small:hover:not(:disabled) {
+  border-color: var(--glacier);
+  color: var(--glacier);
+}
+
+.party__small.is-primary {
+  border-color: var(--glacier);
+  color: var(--glacier);
+}
+
+.party__small:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.party__empty {
+  margin: 6px 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.party__note {
+  margin: 4px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+/* The corner button lights up while you are in a party, since
+   the count is what decides how hard the next run is. */
+#party-badge.is-on {
+  color: var(--glacier);
+  font-weight: 600;
+}
+
+/* =========================================================
    Boss health
 
    Across the top of the board, above everything the player

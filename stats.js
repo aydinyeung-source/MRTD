@@ -140,10 +140,31 @@
     spawnGap: 0.75    // seconds between spawns
   };
 
-  function waveEnemyHp(kind, wave) {
+  /* Most players a party can hold. */
+  var MAX_PARTY = 5;
+
+  /* Enemy health multiplies by the number of players: double for
+     two, triple for three, and so on.
+
+     Linear is the right shape because income is linear too — each
+     player earns the full wave payout and spends it themselves,
+     so five players bring five times the cash to a wave with five
+     times the health. What it does NOT cancel is merging, which
+     is superlinear: five separate players each buying their own
+     towers is weaker than one player with five times the money,
+     because merges multiply. So a full party is somewhat harder
+     than a solo run rather than exactly the same, which is the
+     way round it should be. */
+  function partyScale(players) {
+    return Math.min(MAX_PARTY, Math.max(1, players || 1));
+  }
+
+  function waveEnemyHp(kind, wave, players) {
     var enemy = ENEMIES[kind];
 
-    return enemy ? enemy.hp * Math.pow(WAVE.hpGrowth, wave - 1) : 0;
+    return enemy
+      ? enemy.hp * Math.pow(WAVE.hpGrowth, wave - 1) * partyScale(players)
+      : 0;
   }
 
   function waveEnemyDps(kind, wave) {
@@ -328,8 +349,10 @@
     return BOSS_ORDER[(number - 1) % BOSS_ORDER.length];
   }
 
-  function bossHp(wave) {
-    return waveEnemyHp("brute", wave) * BOSS.hpMultiple;
+  /* Scales with the party through waveEnemyHp, so a boss is worth
+     the same share of a wave however many are playing. */
+  function bossHp(wave, players) {
+    return waveEnemyHp("brute", wave, players) * BOSS.hpMultiple;
   }
 
   function bossBounty(wave) {
@@ -1069,6 +1092,8 @@
     enemies: ENEMIES,
     wave: WAVE,
     waveEnemyHp: waveEnemyHp,
+    maxParty: MAX_PARTY,
+    partyScale: partyScale,
     waveEnemyDps: waveEnemyDps,
     allyHealth: allyHealth,
     allyDamage: allyDamage,

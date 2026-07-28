@@ -1715,7 +1715,7 @@
       return;
     }
 
-    var hp = stats.waveEnemyHp(kind, wave);
+    var hp = stats.waveEnemyHp(kind, wave, players());
 
     enemies.push({
       kind: kind,
@@ -1736,7 +1736,7 @@
       return;
     }
 
-    var hp = stats.bossHp(wave) * share;
+    var hp = stats.bossHp(wave, players()) * share;
 
     enemies.push({
       /* Bosses take the brute's damage and weight lookups, so
@@ -1889,7 +1889,7 @@
               break;
             }
 
-            var hp = stats.waveEnemyHp("crawler", wave);
+            var hp = stats.waveEnemyHp("crawler", wave, players());
 
             enemies.push({
               kind: "crawler",
@@ -2622,6 +2622,14 @@
 
   function isDev() {
     return Boolean(window.MRTD && window.MRTD.dev);
+  }
+
+  /* How many are playing this run. Enemy health multiplies by it,
+     so it is read at spawn time rather than stored — a player
+     joining or dropping changes what arrives next, not what is
+     already walking. Solo is 1. */
+  function players() {
+    return window.MRTD.partySize ? window.MRTD.partySize() : 1;
   }
 
   function upgradeLevel(name) {
