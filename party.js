@@ -574,17 +574,27 @@
   /* Stepping out. Towers stay behind and keep working; the seat
      stays claimed so this player can come back to it. */
   window.MRTD.leaveRun = function () {
-    return rpc("leave_run").catch(function () {
+    return rpc("leave_run").catch(function (error) {
       /* Worth trying, not worth blocking the way out of a match
-         over. The run ends by itself once nobody is present. */
+         over — but a leave that failed is how a player gets
+         stuck in a run, so it says so rather than vanishing. */
+      if (window.console) {
+        window.console.error("MRTD: leave_run failed", error.message);
+      }
     });
   };
 
   window.MRTD.endParty = function (waves) {
     return rpc("end_party_run", { p_waves: Math.max(0, waves || 0) })
-      .catch(function () {
-        /* A run ending is not worth an error in the player's
-           face — the party reverts on its own next poll. */
+      .catch(function (error) {
+        /* Not put in the player's face — the party reverts on its
+           own next poll either way — but never swallowed either.
+           This failing silently is why a 400 here showed up as a
+           status code and nothing else, and the message is the
+           only part that says why. */
+        if (window.console) {
+          window.console.error("MRTD: end_party_run failed", error.message);
+        }
       });
   };
 
