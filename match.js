@@ -2256,9 +2256,20 @@
     var total = WAVE_BONUS;
     var farmed = 0;
     var earners = [];
+    var mine = me();
 
     Object.keys(towers).forEach(function (position) {
       var tower = towers[position];
+
+      /* Your farms pay you, and the three-paying rule is counted
+         per player rather than across the board. Pooling them
+         would mean whoever merges first takes the other four's
+         income away — with five players there would be three
+         paying farms between them instead of three each. */
+      if (tower.owner !== mine) {
+        return;
+      }
+
       var income = stats.coins(tower.key, tower.level, evolutionFor(tower), tower.shiny);
 
       if (income > 0) {
@@ -2771,8 +2782,31 @@
     return stats.placementLimit(upgradeLevel("placements"));
   }
 
-  function placed() {
-    return Object.keys(towers).length;
+  /* Who I am on this board. Solo runs still have an owner — the
+     alternative is two code paths that have to agree about which
+     towers are yours, and they would not. */
+  function me() {
+    return (window.MRTD.userId && window.MRTD.userId()) || "solo";
+  }
+
+  /* Towers standing that belong to a given player, or to me by
+     default.
+
+     The limit is per player, so a party of five can have five
+     times the towers on one board and nobody's building is
+     capped by anybody else's. Counting every tower on the board
+     would mean the first player to spend locks the rest out. */
+  function placed(owner) {
+    var who = owner || me();
+    var count = 0;
+
+    Object.keys(towers).forEach(function (at) {
+      if (towers[at].owner === who) {
+        count += 1;
+      }
+    });
+
+    return count;
   }
 
   /* =========================================================
@@ -2965,7 +2999,11 @@
   function sell(from) {
     var tower = towers[from];
 
-    if (!tower) {
+    /* The refund goes to whoever paid, so selling something that
+       is not yours would be taking their money. Dragging already
+       refuses to pick up a partner's tower; this is the same rule
+       where the money actually moves. */
+    if (!tower || tower.owner !== me()) {
       return;
     }
 
@@ -3346,6 +3384,11 @@
 
     towers[at] = {
       key: placing.key,
+      /* An occupant can only be here if canMerge allowed it, and
+         that already requires the same owner — so this is always
+         me either way. Written out rather than assumed, because
+         the day that changes this is where it breaks. */
+      owner: occupant ? occupant.owner : me(),
       shiny: Boolean(placing.shiny),
       level: occupant ? occupant.level + 1 : placing.level,
       evolution: occupant
@@ -3412,7 +3455,10 @@
 
     var at = key(tile[0], tile[1]);
 
-    if (!towers[at]) {
+    /* Only your own move. Right click still reads anyone's stats
+       — looking at a partner's build is useful, picking it up and
+       dropping it somewhere is not. */
+    if (!towers[at] || towers[at].owner !== me()) {
       return;
     }
 
@@ -3637,11 +3683,18 @@
   }
 
   /* A shiny and a normal are different towers for this purpose,
-     however identical they look on the board. */
+     however identical they look on the board.
+
+     So are two players' towers. Cash and placements are both per
+     player, and merging across that line would break it in the
+     worst direction: a partner's level 9 is worth 256 towers, and
+     anyone able to merge onto it could consume it by accident or
+     on purpose. You build your own. */
   function canMerge(source, target) {
     return Boolean(
       source && target &&
       source.key === target.key &&
+      source.owner === target.owner &&
       Boolean(source.shiny) === Boolean(target.shiny) &&
       source.level === target.level &&
       source.level < MAX_LEVEL
@@ -3666,6 +3719,10 @@
     if (canMerge(tower, occupant)) {
       towers[to] = {
         key: tower.key,
+        /* The one being dragged keeps its owner, so merging your
+           own two is still yours and dragging onto a partner's
+           does not hand yours over. */
+        owner: tower.owner,
         shiny: Boolean(tower.shiny),
         level: tower.level + 1,
         evolution: evolutionFor(tower),

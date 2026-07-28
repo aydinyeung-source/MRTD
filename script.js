@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.42.4";
+  var VERSION = "1.43.0";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -246,6 +246,13 @@
     return refresh(session.refresh_token)
       .then(function (renewed) {
         saveSession(renewed);
+
+        /* The live channel holds its own copy of the token and
+           is dropped by the server when the old one expires, so
+           it has to be told. REST calls read the session each
+           time and never notice. */
+        document.dispatchEvent(new CustomEvent("mrtd:token"));
+
         return renewed;
       })
       .catch(function () {
