@@ -342,6 +342,35 @@
     });
 
     leaveButton.hidden = !state.party_id;
+    refreshPlayButton();
+  }
+
+  /* Play means different things depending on the party, and one
+     of them is "not yet".
+
+     A member who is not the leader must not be able to start
+     anything: pressing it would give them a solo run, and then
+     the leader's start would quietly enrol them in a party run
+     they are not in and cannot see. Blocking it is what stops
+     that, and saying why is what stops it looking broken. */
+  function refreshPlayButton() {
+    var play = document.getElementById("play");
+
+    if (!play) {
+      return;
+    }
+
+    var inRun = Boolean(state.run_id);
+    var present = Boolean(state.run_present);
+    var waiting = inParty() && !isLeader() && !inRun;
+
+    play.disabled = waiting;
+
+    play.textContent = inRun && !present
+      ? "Rejoin"
+      : waiting
+        ? "Waiting for the leader"
+        : "Play";
   }
 
   /* =========================================================

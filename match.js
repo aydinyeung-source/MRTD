@@ -100,6 +100,10 @@
   var waveDisplay = document.getElementById("match-wave");
   var timeDisplay = document.getElementById("match-time");
   var aliveDisplay = document.getElementById("match-alive");
+  var netNote = document.getElementById("match-netnote");
+  var playersStrip = document.getElementById("match-players");
+  var netNoteTimer = null;
+
   var bossBar = document.getElementById("match-boss");
   var bossName = document.getElementById("match-boss-name");
   var bossNote = document.getElementById("match-boss-note");
@@ -2658,6 +2662,14 @@
 
     lastFrame = timestamp;
 
+    /* Kept up whether hosting or not — the list is what decides
+       who takes over, and it has to already exist at the moment
+       the host goes quiet. */
+    if (mp.on) {
+      pingPeers(timestamp);
+      considerPromotion(timestamp);
+    }
+
     if (mp.on && !mp.host) {
       /* A guest simulates nothing. It carries the enemies it was
          last told about along their own path at their own speed,
@@ -3004,6 +3016,7 @@
     aliveDisplay.textContent = String(enemies.length + spawnQueue.length);
 
     refreshBossBar();
+    refreshPlayers();
 
     /* The ability button: counting down the freeze, announcing
        itself ready, or charging. Hidden entirely when no Clock
@@ -4108,6 +4121,16 @@
   var TICK_MS = 100;
   var SNAPSHOT_MS = 3000;
 
+  /* How often each client says it is still here, and how long a
+     peer stays on the list without saying so. */
+  var PEER_PING_MS = 2000;
+  var PEER_STALE_MS = 6000;
+
+  /* Silence from the host before somebody else takes over. Long
+     enough that a slow frame or a brief wifi stumble does not
+     trigger it, short enough that a run does not sit frozen. */
+  var HOST_GONE_MS = 4000;
+
   var mp = {
     on: false,
     host: false,
@@ -4119,6 +4142,26 @@
 
     lastTick: 0,
     lastSnapshot: 0,
+
+    /* Everyone currently on the channel, id -> when they were
+       last heard from. Kept by every client, not just the host,
+       because the whole point is to survive the host going
+       quiet — and a list only the host maintains dies with it. */
+    peers: {},
+    lastPeerPing: 0,
+
+    /* id -> username, taken from the party when the run starts.
+       The channel carries ids; only the lobby knows names. */
+    names: {},
+
+    /* Who is simulating, as last heard. Tracked separately from
+       mp.host because everyone needs to know it, not just the
+       one it is true of. */
+    hostId: null,
+
+    /* When the host was last heard. Silence past HOST_GONE_MS is
+       what triggers an election. */
+    heardHost: 0,
 
     /* Set while a guest is applying what the host sent, so the
        same functions that broadcast a change do not rebroadcast
@@ -4307,6 +4350,171 @@
   }
 
   /* =========================================================
+     Host migration
+
+     A run must not end because the person simulating it closed
+     their laptop. The others are still playing, their towers are
+     still standing, and the wave is still coming.
+
+     So every client says "here" twice a second and keeps the
+     list. If the host goes quiet for four seconds, whoever is
+     first in that list by id promotes themselves and carries on
+     from the last snapshot they were sent.
+
+     Sorting by id is what makes it safe: it is the same answer
+     on every browser, so exactly one client promotes itself and
+     the rest simply start hearing ticks again. Picking "whoever
+     noticed first" would give two hosts and two versions of the
+     board.
+
+     Up to three seconds of simulation is lost — whatever
+     happened between the last snapshot and the host going. That
+     is a wave slightly rewound, against a run that would
+     otherwise be over.
+     ========================================================= */
+
+  function livePeers(now) {
+    return Object.keys(mp.peers).filter(function (id) {
+      return now - mp.peers[id] < PEER_STALE_MS;
+    }).sort();
+  }
+
+  function pingPeers(now) {
+    if (now - mp.lastPeerPing < PEER_PING_MS) {
+      return;
+    }
+
+    mp.lastPeerPing = now;
+    mp.peers[me()] = now;
+    window.MRTD.net.send("p", { who: me(), host: mp.host });
+  }
+
+  function considerPromotion(now) {
+    if (mp.host || !mp.heardHost) {
+      return;
+    }
+
+    if (now - mp.heardHost < HOST_GONE_MS) {
+      return;
+    }
+
+    var live = livePeers(now);
+
+    /* Everyone works out the same successor from the same list,
+       so only one client acts on it. */
+    if (!live.length || live[0] !== me()) {
+      return;
+    }
+
+    mp.host = true;
+    mp.hostId = me();
+    mp.heardHost = 0;
+    mp.lastSnapshot = 0;
+    mp.lastTick = 0;
+
+    /* Said out loud so the others stop waiting and start taking
+       ticks from here instead. */
+    window.MRTD.net.send("h", { who: me() });
+    sendSnapshot();
+    setStatusLine("You are running the match now");
+  }
+
+  /* =========================================================
+     Who is here
+
+     Read from the same peer list the handover uses, so the strip
+     and the election can never disagree about who is playing —
+     if a name is on screen, that client is one that could take
+     over, and when it stops saying "here" it leaves both at
+     once.
+
+     Rebuilt only when the line would actually read differently.
+     This is called every frame and the names change perhaps
+     twice a match. */
+  var lastRoster = "";
+
+  function nameOf(id) {
+    if (id === me()) {
+      return "You";
+    }
+
+    return mp.names[id] || "Player";
+  }
+
+  function refreshPlayers() {
+    if (!playersStrip) {
+      return;
+    }
+
+    if (!mp.on) {
+      playersStrip.hidden = true;
+      lastRoster = "";
+      return;
+    }
+
+    var now = window.performance.now();
+    var live = livePeers(now);
+
+    /* Always includes this player. Your own ping is on the same
+       clock as everyone else's, and a strip that briefly forgot
+       you existed would be alarming for no reason. */
+    if (live.indexOf(me()) < 0) {
+      live.push(me());
+      live.sort();
+    }
+
+    var roster = live.join(",") + "|" + (mp.host ? me() : "");
+
+    if (roster === lastRoster) {
+      return;
+    }
+
+    lastRoster = roster;
+    playersStrip.hidden = false;
+    playersStrip.textContent = "";
+
+    live.forEach(function (id) {
+      var tag = document.createElement("span");
+
+      tag.className = "players__tag";
+
+      if (id === me()) {
+        tag.classList.add("is-me");
+      }
+
+      tag.textContent = nameOf(id);
+
+      /* The one simulating carries a mark, because when it
+         changes hands mid-run the player wants to know it was
+         handed over rather than that something broke. */
+      if (mp.hostId === id) {
+        tag.classList.add("is-host");
+        tag.title = "Running the match";
+      }
+
+      playersStrip.appendChild(tag);
+    });
+  }
+
+  /* A one line note across the top of the board for things the
+     player did not do and needs to know about. */
+  function setStatusLine(text) {
+    if (!netNote) {
+      return;
+    }
+
+    netNote.textContent = text || "";
+    netNote.hidden = !text;
+
+    if (text) {
+      window.clearTimeout(netNoteTimer);
+      netNoteTimer = window.setTimeout(function () {
+        netNote.hidden = true;
+      }, 4000);
+    }
+  }
+
+  /* =========================================================
      Receiving
      ========================================================= */
 
@@ -4394,14 +4602,37 @@
     mp.wallets = {};
     mp.lastTick = 0;
     mp.lastSnapshot = 0;
+    mp.peers = {};
+    mp.lastPeerPing = 0;
+    mp.hostId = asHost ? me() : null;
+    mp.names = {};
+    lastRoster = "";
+
+    /* Names come from the party, since the channel only ever
+       carries ids. Read once at the start — someone who leaves
+       the party mid-run keeps their name on the strip, which is
+       what you want: they are still in the run. */
+    if (window.MRTD.party) {
+      window.MRTD.party().members.forEach(function (member) {
+        mp.names[member.id] = member.username;
+      });
+    }
+    /* A guest starts the clock now rather than at zero, so the
+       election cannot fire before the first tick has had a chance
+       to arrive. */
+    mp.heardHost = asHost ? 0 : window.performance.now();
 
     window.MRTD.net.on("s", function (data) {
+      mp.heardHost = window.performance.now();
+
       if (!mp.host) {
         applySnapshot(data);
       }
     });
 
     window.MRTD.net.on("t", function (data) {
+      mp.heardHost = window.performance.now();
+
       if (!mp.host) {
         applyTick(data);
       }
@@ -4419,6 +4650,61 @@
 
     window.MRTD.net.on("i", handleInput);
 
+    window.MRTD.net.on("p", function (data) {
+      if (!data || !data.who) {
+        return;
+      }
+
+      mp.peers[data.who] = window.performance.now();
+
+      if (data.host) {
+        mp.hostId = data.who;
+      }
+    });
+
+    /* Somebody else got there first. Two hosts is worse than
+       none, so a client that had promoted itself stands down the
+       moment it hears another claim — and by id order that can
+       only be someone with a better claim than mine. */
+    window.MRTD.net.on("h", function (data) {
+      if (!data || !data.who || data.who === me()) {
+        return;
+      }
+
+      if (mp.host && data.who < me()) {
+        mp.host = false;
+        setStatusLine("Someone else is running the match");
+      }
+
+      mp.hostId = data.who;
+      mp.heardHost = window.performance.now();
+
+      if (!mp.host) {
+        setStatusLine(nameOf(data.who) + " is running the match now");
+      }
+    });
+
+    /* Somebody leaving on purpose. The name comes off the strip
+       straight away rather than after the stale timeout.
+
+       If it was the host, backdating when it was last heard
+       makes the election fire on the very next frame instead of
+       after the silence timeout. Only if it was the host — doing
+       it for anyone would start an election every time a player
+       stepped out of a perfectly healthy run. */
+    window.MRTD.net.on("g", function (data) {
+      if (!data || !data.who || data.who === me()) {
+        return;
+      }
+
+      delete mp.peers[data.who];
+      setStatusLine(nameOf(data.who) + " stepped out");
+
+      if (data.host || data.who === mp.hostId) {
+        mp.heardHost = window.performance.now() - HOST_GONE_MS;
+      }
+    });
+
     /* The host answering a newcomer is the same message a guest
        sends on joining, so a rejoin needs no separate path. */
     window.MRTD.net.on("_open", function () {
@@ -4435,7 +4721,14 @@
       return;
     }
 
-    ["s", "t", "b", "i", "_open"].forEach(function (event) {
+    /* Anyone on the way out says so, rather than leaving the
+       others to notice six seconds of silence before the name
+       drops off the strip. Going quiet works too — that path
+       exists for crashes — but there is no reason to be vague
+       when the person leaving knows they are leaving. */
+    window.MRTD.net.send("g", { who: me(), host: mp.host });
+
+    ["s", "t", "b", "i", "p", "h", "g", "_open"].forEach(function (event) {
       window.MRTD.net.off(event);
     });
 

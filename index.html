@@ -555,6 +555,10 @@
       </button>
     </div>
 
+    <!-- Things that happened to the match rather than in it:
+         a host handover, a player stepping out. -->
+    <p class="netnote" id="match-netnote" hidden></p>
+
     <!-- Boss health, across the top. Shown only on a boss wave. -->
     <div class="bossbar" id="match-boss" hidden>
       <p class="bossbar__name">
@@ -566,6 +570,10 @@
       </div>
       <p class="bossbar__hp" id="match-boss-hp"></p>
     </div>
+
+    <!-- Who is on the board right now. Empty and hidden in a
+         solo run. -->
+    <div class="players" id="match-players" hidden></div>
 
     <div class="match__hud">
       <p class="match__stat"><span id="match-cash">0</span> cash</p>

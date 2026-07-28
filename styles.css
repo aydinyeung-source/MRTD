@@ -503,6 +503,75 @@ body::after {
 }
 
 /* =========================================================
+   Who is in the match
+
+   A strip above the hotbar. Hidden entirely in a solo run —
+   a list of one name is not information.
+   ========================================================= */
+
+.players {
+  position: absolute;
+  left: 50%;
+  bottom: 128px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.players__tag {
+  padding: 4px 11px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background-color: rgba(249, 251, 252, 0.92);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  animation: rise 200ms var(--ease-soft) both;
+}
+
+.players__tag.is-me {
+  border-color: var(--glacier);
+  color: var(--glacier);
+}
+
+/* The one simulating. Marked so a handover mid-run reads as a
+   handover rather than as something breaking. */
+.players__tag.is-host::after {
+  content: " ·";
+  color: #5e84d6;
+}
+
+.players__tag.is-host {
+  border-color: #5e84d6;
+}
+
+/* Match-level news: a host handover, someone stepping out. Sits
+   below the boss bar so the two never fight for the same line. */
+.netnote {
+  position: absolute;
+  top: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  margin: 0;
+  padding: 7px 14px;
+  border: 1px solid #5e84d6;
+  border-radius: 999px;
+  background-color: rgba(249, 251, 252, 0.95);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #3d5da8;
+  pointer-events: none;
+  animation: rise 240ms var(--ease-soft) both;
+}
+
+/* =========================================================
    Boss health
 
    Across the top of the board, above everything the player
