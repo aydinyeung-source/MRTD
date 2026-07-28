@@ -487,10 +487,15 @@
         <section class="tradeside">
           <p class="tradeside__label">You give <span id="trade-mine-lock"></span></p>
           <div id="trade-mine"></div>
-          <div class="tradeside__add">
-            <select class="admin__input" id="trade-tower"></select>
-            <input class="admin__input" id="trade-count" type="number" value="1" min="1">
-            <button class="friends__button" id="trade-put" type="button">Put in</button>
+          <!-- Your collection, in miniature. Every tower at every
+               evolution you hold, each with its own amount, so a
+               trade can be 2 evolution 2 DJTVs and 41 base
+               daggers at the same time. -->
+          <div class="tradepick">
+            <input class="tradepick__search" id="trade-search" type="search"
+                   placeholder="Search your collection..."
+                   autocomplete="off" spellcheck="false">
+            <div class="tradepick__list" id="trade-pick"></div>
           </div>
         </section>
 

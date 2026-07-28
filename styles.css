@@ -1698,10 +1698,131 @@ body::after {
   color: var(--glacier);
 }
 
-.tradeside__add {
+/* =========================================================
+   Trade picker
+
+   Your collection in miniature, inside the trade window. Scrolls
+   on its own so a long collection does not push the lock button
+   off the bottom of the screen.
+   ========================================================= */
+
+.tradepick {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+
+.tradepick__search {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background-color: var(--paper-raised);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.tradepick__search::placeholder {
+  color: var(--ink-muted);
+}
+
+.tradepick__search:focus {
+  outline: none;
+  border-color: var(--glacier);
+}
+
+.tradepick__list {
+  max-height: 240px;
+  margin-top: 8px;
+  overflow-y: auto;
+}
+
+.tradepick__card {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tradepick__card:last-child {
+  border-bottom: 0;
+}
+
+/* Already on your side of the table. */
+.tradepick__card.is-offered .tradepick__name {
+  color: var(--glacier);
+}
+
+.tradepick__icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.tradepick__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tradepick__name {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.tradepick__held {
+  margin: 1px 0 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+.tradepick__amount {
+  flex-shrink: 0;
+  width: 54px;
+  padding: 5px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background-color: var(--paper-raised);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+  color: var(--ink);
+}
+
+.tradepick__put {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background-color: transparent;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 200ms var(--ease-soft), color 200ms var(--ease-soft);
+}
+
+.tradepick__put:hover:not(:disabled) {
+  border-color: var(--glacier);
+  color: var(--glacier);
+}
+
+.tradepick__put:disabled,
+.tradepick__amount:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tradepick__empty {
+  margin: 10px 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-muted);
 }
 
 .tradewindow__status {

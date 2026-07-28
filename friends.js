@@ -41,9 +41,19 @@
   var theirsHost = document.getElementById("trade-theirs");
   var mineLock = document.getElementById("trade-mine-lock");
   var theirsLock = document.getElementById("trade-theirs-lock");
-  var towerSelect = document.getElementById("trade-tower");
-  var countInput = document.getElementById("trade-count");
-  var putButton = document.getElementById("trade-put");
+  var pickHost = document.getElementById("trade-pick");
+  var pickSearch = document.getElementById("trade-search");
+
+  /* Everything tradeable, as the database last reported it, and
+     the current filter. Kept so typing in the search box does not
+     have to go back to the server for every keystroke. */
+  var holdings = [];
+  var pickQuery = "";
+
+  /* True while your side is locked — the picker is read only
+     then, since changing an offer you have already committed to
+     is what the lock exists to prevent. */
+  var pickLocked = false;
   var lockButton = document.getElementById("trade-lock");
   var cancelButton = document.getElementById("trade-cancel");
   var tradeStatus = document.getElementById("trade-status");
@@ -54,6 +64,11 @@
 
   /* The trade currently on screen. */
   var active = null;
+
+  /* The trade's items as last read. The picker needs them to show
+     what is already in, and it renders on its own schedule, so it
+     cannot rely on being passed them. */
+  var currentItems = [];
   var invited = null;
 
   /* =========================================================
@@ -312,6 +327,20 @@
   /* The picker lists what the player actually holds, evolution by
      evolution, so an evolved stack can be put in as easily as a
      base one. */
+  /* =========================================================
+     The mini collection
+
+     A dropdown made you scroll a list of every tier you own to
+     find one line, set a number, and press a button — and then
+     do it again for the next. Putting in two evolution 2 DJTVs
+     and forty one base daggers meant working the same three
+     controls twice with no sight of what you had.
+
+     This is the collection in miniature instead: every tier you
+     hold, each with its own amount and its own button, and what
+     is already in the trade written on the card.
+     ========================================================= */
+
   function fillTowerSelect() {
     var mine = me();
 
@@ -328,33 +357,128 @@
         "&shiny=is.false" +
         "&order=tower_key.asc,evolution.desc"
     ).then(function (rows) {
-      var chosen = towerSelect.value;
+      holdings = rows || [];
+      renderPicker();
+    });
+  }
 
-      towerSelect.textContent = "";
+  /* How many of this tier are already on your side of the trade.
+     Shown on the card so the picker and the offer never disagree
+     about what has been put in. */
+  function offered(tower, evolution) {
+    var mine = me();
+    var found = (currentItems || []).filter(function (item) {
+      return item.player_id === mine &&
+        item.tower_key === tower &&
+        item.evolution === evolution;
+    })[0];
 
-      if (!rows.length) {
-        var empty = document.createElement("option");
+    return found ? found.copies : 0;
+  }
 
-        empty.textContent = "Nothing to trade";
-        empty.value = "";
-        towerSelect.appendChild(empty);
-        return;
-      }
+  function artFor(tower) {
+    return window.MRTD.towerArt
+      ? window.MRTD.towerArt(tower)
+      : "towers/" + tower + "/10.svg";
+  }
 
-      rows.forEach(function (row) {
-        var option = document.createElement("option");
+  function pickCard(row) {
+    var already = offered(row.tower_key, row.evolution);
+    var card = element("div", "tradepick__card");
 
-        option.value = row.tower_key + ":" + row.evolution;
-        option.textContent =
-          label(row.tower_key) +
-          (row.evolution ? " · Evo " + row.evolution : "") +
-          "  (" + row.copies + ")";
-        towerSelect.appendChild(option);
-      });
+    if (already > 0) {
+      card.classList.add("is-offered");
+    }
 
-      if (chosen) {
-        towerSelect.value = chosen;
-      }
+    var icon = document.createElement("img");
+    icon.className = "tradepick__icon";
+    icon.src = artFor(row.tower_key);
+    icon.alt = label(row.tower_key);
+    card.appendChild(icon);
+
+    var text = element("div", "tradepick__text");
+    text.appendChild(
+      element(
+        "p",
+        "tradepick__name",
+        label(row.tower_key) + (row.evolution ? " · Evo " + row.evolution : "")
+      )
+    );
+    text.appendChild(
+      element(
+        "p",
+        "tradepick__held",
+        row.copies + " owned" + (already ? "  ·  " + already + " in trade" : "")
+      )
+    );
+    card.appendChild(text);
+
+    var amount = document.createElement("input");
+    amount.className = "tradepick__amount";
+    amount.type = "number";
+    amount.min = "0";
+    /* You cannot offer what you do not hold, and the database
+       rechecks this at settle time anyway — this only saves the
+       round trip. */
+    amount.max = String(row.copies);
+    amount.value = String(already || 1);
+    amount.disabled = pickLocked;
+    card.appendChild(amount);
+
+    var put = element("button", "tradepick__put", already ? "Update" : "Put in");
+    put.type = "button";
+    put.disabled = pickLocked;
+
+    put.addEventListener("click", function () {
+      var want = Math.max(0, Math.min(Number(amount.value) || 0, row.copies));
+
+      put.disabled = true;
+
+      /* Setting rather than adding, so pressing it twice does not
+         quietly double an offer. Zero takes the line out. */
+      rpc("set_trade_item", {
+        p_id: active.id,
+        p_tower: row.tower_key,
+        p_evolution: row.evolution,
+        p_copies: want
+      })
+        .then(fillTowerSelect)
+        .catch(function (error) {
+          tradeStatus.textContent = error.message;
+          put.disabled = false;
+        });
+    });
+
+    card.appendChild(put);
+
+    return card;
+  }
+
+  function renderPicker() {
+    if (!pickHost) {
+      return;
+    }
+
+    pickHost.textContent = "";
+
+    var shown = holdings.filter(function (row) {
+      return !pickQuery ||
+        label(row.tower_key).toLowerCase().indexOf(pickQuery) >= 0;
+    });
+
+    if (!shown.length) {
+      pickHost.appendChild(
+        element(
+          "p",
+          "tradepick__empty",
+          holdings.length ? "Nothing by that name." : "Nothing to trade."
+        )
+      );
+      return;
+    }
+
+    shown.forEach(function (row) {
+      pickHost.appendChild(pickCard(row));
     });
   }
 
@@ -399,6 +523,8 @@
 
   function renderTrade(trade, items) {
     var mine = me();
+
+    currentItems = items || [];
     var other = trade.player_a === mine ? trade.player_b : trade.player_a;
     var iAmA = trade.player_a === mine;
     var myLock = iAmA ? trade.a_locked : trade.b_locked;
@@ -426,7 +552,11 @@
     theirsLock.textContent = theirLock ? "· locked" : "";
 
     lockButton.textContent = myLock ? "Unlock" : "Lock in";
-    putButton.disabled = myLock;
+
+    /* Redrawn every poll so the "in trade" counts stay true, and
+       so locking greys the whole picker rather than one button. */
+    pickLocked = myLock;
+    renderPicker();
 
     if (trade.status === "locked" && trade.locked_at) {
       var left = Math.max(
@@ -470,27 +600,32 @@
 
   function closeTrade() {
     active = null;
+    currentItems = [];
+    holdings = [];
+    pickLocked = false;
+
+    if (pickSearch) {
+      pickSearch.value = "";
+    }
+
+    pickQuery = "";
     windowEl.hidden = true;
   }
 
-  putButton.addEventListener("click", function () {
-    if (!active || !towerSelect.value) {
-      return;
-    }
+  if (pickSearch) {
+    pickSearch.addEventListener("input", function () {
+      pickQuery = pickSearch.value.trim().toLowerCase();
+      renderPicker();
+    });
 
-    var parts = towerSelect.value.split(":");
-
-    rpc("set_trade_item", {
-      p_id: active.id,
-      p_tower: parts[0],
-      p_evolution: Number(parts[1]),
-      p_copies: Number(countInput.value)
-    })
-      .then(fillTowerSelect)
-      .catch(function (error) {
-        tradeStatus.textContent = error.message;
-      });
-  });
+    pickSearch.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        pickSearch.value = "";
+        pickQuery = "";
+        renderPicker();
+      }
+    });
+  }
 
   lockButton.addEventListener("click", function () {
     if (!active) {
