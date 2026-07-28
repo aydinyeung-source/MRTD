@@ -3047,7 +3047,7 @@
   }
 
   function refreshHud() {
-    cashDisplay.textContent = isDev() ? "∞" : String(Math.floor(cash));
+    cashDisplay.textContent = sandboxRun() ? "∞" : String(Math.floor(cash));
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
     placedDisplay.textContent = placed() + " / " + placementLimit();
     waveDisplay.textContent = String(wave);
@@ -3099,7 +3099,7 @@
     /* What the run is worth if it ended right now. Surviving a
        wave is enough — tanking one with the base still counts. */
     beatenDisplay.textContent = String(wavesSurvived);
-    payoutDisplay.textContent = isDev()
+    payoutDisplay.textContent = sandboxRun()
       ? "0"
       : String(stats.runReward(wavesSurvived));
     /* Solo, leaving is only allowed once the base has fallen —
@@ -3348,7 +3348,7 @@
       return false;
     }
 
-    return isDev() || stats.buyCost(name, level) <= cash;
+    return sandboxRun() || stats.buyCost(name, level) <= cash;
   }
 
   /* Quick buy level 1 unlocks merge level 2, level 9 unlocks 10.
@@ -3391,7 +3391,7 @@
 
     var amount = document.createElement("span");
     amount.className = "levels__price";
-    amount.textContent = isDev() ? "free" : String(price);
+    amount.textContent = sandboxRun() ? "free" : String(price);
     row.appendChild(amount);
 
     row.addEventListener("click", function () {
@@ -3622,7 +3622,11 @@
          they own and what they have upgraded. */
       evolution: data.evolution,
       limit: data.limit,
-      free: data.free
+      /* Decided here, not taken from the guest. Their own
+         developer mode is theirs and does not make a run they
+         joined free — otherwise anyone could turn somebody
+         else's match into a sandbox by toggling it. */
+      free: sandboxRun()
     })) {
       sendBuilt();
       refreshHud();
@@ -3649,7 +3653,7 @@
       level: placing.level,
       evolution: evolutionOf(stats.variantName(placing.key, placing.shiny)),
       limit: placementLimit(),
-      free: isDev()
+      free: sandboxRun()
     };
 
     /* A guest asks; it appears when the host says so. Placing it
@@ -3826,7 +3830,7 @@
     if (
       again &&
       !placing &&
-      (isDev() || stats.buyCost(repeat.key, repeat.level) <= cash) &&
+      (sandboxRun() || stats.buyCost(repeat.key, repeat.level) <= cash) &&
       placed() < placementLimit()
     ) {
       placing = repeat;
@@ -4090,11 +4094,11 @@
     waveActive = false;
 
     gameoverWaves.textContent = String(wavesSurvived);
-    gameoverCoins.textContent = isDev()
+    gameoverCoins.textContent = sandboxRun()
       ? "0"
       : String(stats.runReward(wavesSurvived));
     gameoverNote.hidden = false;
-    gameoverNote.textContent = isDev()
+    gameoverNote.textContent = sandboxRun()
       ? "Dev mode — nothing banked"
       : "Banking...";
     gameover.hidden = false;
@@ -4102,10 +4106,19 @@
     /* A party run is banked by end_party_run, which pays every
        player still present in one statement. Calling bank_run as
        well would pay this player twice — and only this player,
-       which is worse than either. */
+       which is worse than either.
+
+       A sandbox run reports ZERO waves rather than skipping the
+       call. The run still has to be closed — leaving it open
+       would trap everyone in it — and the reward is worked out
+       from the wave count in Postgres, so nought waves is nought
+       coins for everybody without the browser being trusted to
+       say so. */
     banking = mp.on
-      ? window.MRTD.endParty(wavesSurvived).then(function () {
-          gameoverNote.textContent = "Banked for everyone still here";
+      ? window.MRTD.endParty(sandboxRun() ? 0 : wavesSurvived).then(function () {
+          gameoverNote.textContent = sandboxRun()
+            ? "Fun run — nothing banked for anyone"
+            : "Banked for everyone still here";
         })
       : bankRun(wavesSurvived);
   }
@@ -4229,6 +4242,16 @@
        one it is true of. */
     hostId: null,
 
+    /* True when the host started the run in developer mode.
+       Everyone builds for free, the host can wind it to 10x, and
+       nobody is paid a thing for it.
+
+       It is the HOST's developer mode that decides, not each
+       player's. A guest in developer mode joining a normal run
+       still pays for their towers — otherwise one player could
+       quietly make everybody else's run into a sandbox. */
+    sandbox: false,
+
     /* When the host was last heard. Silence past HOST_GONE_MS is
        what triggers an election. */
     heardHost: 0,
@@ -4241,6 +4264,12 @@
 
   function isHost() {
     return !mp.on || mp.host;
+  }
+
+  /* Is this run a free-for-all. True in a solo developer run, and
+     true for everyone in a party run whose host is a developer. */
+  function sandboxRun() {
+    return mp.on ? mp.sandbox : isDev();
   }
 
   /* Cash is per player. The host keeps everyone's and spends out
@@ -4368,6 +4397,8 @@
   function sendSnapshot() {
     window.MRTD.net.send("s", {
       speed: speed,
+      /* The host's developer mode, which the whole run adopts. */
+      sandbox: isDev(),
       towers: packTowers(),
       enemies: packEnemies(),
       allies: packAllies(),
@@ -4391,6 +4422,8 @@
          enemy back a tenth of a second's travel, ten times a
          second, and the whole wave would judder. */
       speed: speed,
+      /* The host's developer mode, which the whole run adopts. */
+      sandbox: isDev(),
       enemies: packEnemies(),
       allies: packAllies(),
       baseHp: Math.round(baseHp),
@@ -4605,6 +4638,18 @@
      ========================================================= */
 
   function applySnapshot(data) {
+    var wasSandbox = mp.sandbox;
+
+    mp.sandbox = Boolean(data.sandbox);
+
+    /* Announced when it first becomes true, so nobody has to
+       work out for themselves why their cash reads infinity —
+       and, more to the point, nobody plays forty waves under the
+       impression they are earning something. */
+    if (mp.sandbox && !wasSandbox) {
+      setStatusLine("Fun run — everything free, nothing banked");
+    }
+
     setSpeed(data.speed || 1);
     towers = unpackTowers(data.towers);
     enemies = unpackEnemies(data.enemies);
@@ -4624,6 +4669,7 @@
   }
 
   function applyTick(data) {
+    mp.sandbox = Boolean(data.sandbox);
     /* The board runs at the host's speed, so a guest adopts it
        rather than keeping its own. */
     setSpeed(data.speed || 1);
@@ -4807,6 +4853,8 @@
     /* The host answering a newcomer is the same message a guest
        sends on joining, so a rejoin needs no separate path. */
     window.MRTD.net.on("_open", function () {
+      /* Said once, on the first snapshot, rather than every
+         tick — see the sandbox handling in applySnapshot. */
       setStatusLine("Connected");
 
       if (!mp.host) {
@@ -5045,10 +5093,13 @@
 
   /* 2x is an upgrade. 10x only exists while an admin has switched
      it on, so players see no trace of it until then. */
+  /* Only the host ever calls this — guests adopt whatever speed
+     they are told. So a sandbox run means the host is a
+     developer, and 10x comes with that. */
   function speedChoices() {
-    var choices = isDev() || upgradeLevel("game_speed") ? [1, 2] : [1];
+    var choices = sandboxRun() || upgradeLevel("game_speed") ? [1, 2] : [1];
 
-    if (isDev() || (window.MRTD.feature && window.MRTD.feature("speed10"))) {
+    if (sandboxRun() || (window.MRTD.feature && window.MRTD.feature("speed10"))) {
       choices.push(10);
     }
 

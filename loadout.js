@@ -9,7 +9,24 @@
      uses, so the strongest version leads.
      ========================================================= */
 
-  var STORAGE_KEY = "mrtd.loadout";
+  /* Per account, not per browser.
+
+     It was one shared key, so two accounts in the same browser
+     shared one loadout — and since loading prunes it to what you
+     actually own, signing in as the second account rewrote the
+     first account's loadout down to whatever they had in common,
+     then saved that over it. Testing with two accounts wiped a
+     loadout every single time.
+
+     The old key is read once and adopted if this account has
+     nothing yet, so an existing loadout survives the change. */
+  var STORAGE_ROOT = "mrtd.loadout";
+
+  function storageKey() {
+    var id = window.MRTD.userId && window.MRTD.userId();
+
+    return id ? STORAGE_ROOT + "." + id : STORAGE_ROOT;
+  }
 
   /* Five, or six once the Loadout slot upgrade is bought. Read
      fresh every time rather than cached, so buying the upgrade
@@ -56,7 +73,14 @@
 
   function load() {
     try {
-      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      var saved = JSON.parse(localStorage.getItem(storageKey()));
+
+      /* Nothing under this account's key yet: inherit whatever
+         the old shared one held. Only once — the moment anything
+         is saved, this account has its own. */
+      if (!Array.isArray(saved)) {
+        saved = JSON.parse(localStorage.getItem(STORAGE_ROOT));
+      }
 
       return Array.isArray(saved) ? saved.slice(0, slots()) : [];
     } catch (error) {
@@ -66,7 +90,7 @@
 
   function save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(equipped));
+      localStorage.setItem(storageKey(), JSON.stringify(equipped));
     } catch (error) {
       /* Private browsing can refuse storage. */
     }
