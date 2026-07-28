@@ -322,10 +322,23 @@
          eventually exceed how fast anything can walk and stop the
          game outright.
 
+         This shipped at 0.4 and stopped the game outright anyway,
+         because a slow and a pushback compound in a way neither
+         does alone. A slow halves how far an enemy walks between
+         hits; the shove is a fixed distance and does not care.
+         Put an Ice Cannon over a Fan and a slowed crawler lost
+         0.83 tiles a second, a grunt 0.20, a brute 0.02 — the
+         lane ran backwards and the wave never ended.
+
+         0.1 leaves every enemy moving forwards even at half
+         speed, the slowest being a slowed crawler at 0.17 tiles
+         a second. It is a heavy slow rather than a wall, which is
+         what a pushback should be.
+
          Pushback is an effect, so it does not stack — two Fans
          hitting the same enemy shove it as hard as the stronger
          of them, not as hard as both. */
-      pushback: 0.4
+      pushback: 0.1
     },
     clocktower: {
       /* A piercing shot down the lane, and once every five
