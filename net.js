@@ -124,27 +124,32 @@
     push({
       topic: topic,
       event: "phx_join",
-      /* self: true so the sender also receives what it sends.
-         The host acts on its own messages through the same path
-         as everyone else's, which means one code path instead of
-         two that have to agree. */
       payload: {
         config: {
+          /* self: true so the sender also receives what it sends.
+             The host acts on its own messages through the same
+             path as everyone else's, which means one code path
+             instead of two that have to agree. */
           broadcast: { self: true, ack: false },
-          presence: { key: window.MRTD.userId ? window.MRTD.userId() : "" }
-        }
+          presence: { key: window.MRTD.userId ? window.MRTD.userId() : "" },
+
+          /* A private channel is checked against RLS on
+             realtime.messages before anyone is let on. Without
+             it the topic is open to anyone who can guess a run
+             id — they could not cheat with it, since rewards and
+             membership live in Postgres, but they could watch a
+             game they were not invited to. */
+          private: true
+        },
+
+        /* Carried in the join itself, not sent after it. A
+           private channel is authorised at the moment of joining,
+           so a token arriving a message later is a message too
+           late and the join is refused. */
+        access_token: jwt
       },
       ref: ref()
     });
-
-    if (jwt) {
-      push({
-        topic: topic,
-        event: "access_token",
-        payload: { access_token: jwt },
-        ref: ref()
-      });
-    }
   }
 
   function flush() {
@@ -219,6 +224,24 @@
           joined = true;
           emit("_open", {});
           flush();
+          return;
+        }
+
+        /* A private channel refuses anyone RLS does not recognise
+           as being in this run. Retrying forever would look
+           exactly like a slow connection, so it is reported
+           instead — the usual cause is a run that has ended, and
+           the answer is to go back to the lobby, not to wait. */
+        if (!ok && !joined) {
+          var reason =
+            (message.payload &&
+              message.payload.response &&
+              (message.payload.response.reason ||
+                message.payload.response.error)) ||
+            "not allowed on this channel";
+
+          wanted = false;
+          emit("_refused", { reason: reason });
         }
 
         return;
