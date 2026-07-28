@@ -183,6 +183,133 @@
     return pool;
   }
 
+  /* =========================================================
+     Bosses
+
+     Every tenth wave up to 100, then every fiftieth. A boss wave
+     is the boss plus a small escort — enough to keep the towers
+     busy, not enough to hide it.
+
+     Bosses scale off the brute of the same wave, so they ride
+     the same 1.12 curve as everything else and never need their
+     own table of numbers per wave.
+     ========================================================= */
+
+  function isBossWave(wave) {
+    if (!wave || wave < 10) {
+      return false;
+    }
+
+    return wave <= 100 ? wave % 10 === 0 : wave % 50 === 0;
+  }
+
+  /* Which boss this is, counting from the first. Used to pick one
+     from the roster, so they come round in order rather than at
+     random and a player learns them. */
+  function bossNumber(wave) {
+    if (!isBossWave(wave)) {
+      return 0;
+    }
+
+    return wave <= 100
+      ? wave / 10
+      : 10 + (wave - 100) / 50;
+  }
+
+  var BOSS = {
+    /* Health as a multiple of a brute at the same wave. */
+    hpMultiple: 25,
+    /* Slower than anything else — a boss is a wall, not a race. */
+    speed: 0.45,
+    /* Heavy enough that a Fan barely troubles it. */
+    weight: 4,
+    bountyMultiple: 20,
+    /* Ordinary enemies alongside it. */
+    escort: 6
+  };
+
+  /* The roster, in the order they appear.
+
+     Deliberately NOT here: stunning towers. During a wave the
+     player cannot change anything, so a stun is damage taken
+     away with nothing to answer it — every other ability asks
+     whether the build is good, that one only asks whether it was
+     lucky. Sapper slows nearby fire rate instead, which spreading
+     out actually answers. */
+  var BOSSES = {
+    warden: {
+      label: "Warden",
+      colour: "#43648c",
+      ability: "shield",
+      /* Absorbs this share of its health, and comes back this
+         often once broken. An absorb pool rather than immunity:
+         immunity at 10x speed is just waiting. */
+      shield: 0.3,
+      every: 12
+    },
+    brood: {
+      label: "Brood",
+      colour: "#6b4f8c",
+      ability: "spawn",
+      /* Crawlers of the current wave, so the escort keeps pace
+         without a second scaling rule. */
+      spawns: 4,
+      every: 8
+    },
+    cleaver: {
+      label: "Cleaver",
+      colour: "#8c5340",
+      ability: "split",
+      /* Two halves on death, at this share of full health each.
+         The halves do not split again — a chain would turn one
+         boss into an unbounded crowd. */
+      pieces: 2,
+      piece: 0.3
+    },
+    sapper: {
+      label: "Sapper",
+      colour: "#7d6a2f",
+      ability: "sap",
+      /* Towers within this many tiles fire at this share of
+         their rate. Not a stun: they keep working, and moving
+         damage further out answers it. */
+      radius: 6,
+      rate: 0.5
+    },
+    wraith: {
+      label: "Wraith",
+      colour: "#3f7a63",
+      ability: "regen",
+      /* Heals this share of full health a second, ONLY while no
+         tower can reach it. Tied to coverage rather than to
+         damage taken, because "not being shot" is a state the
+         player controls and "out-healing your damage" is one
+         they cannot — the second version makes a boss that never
+         dies and a wave that never ends. */
+      heal: 0.04
+    }
+  };
+
+  var BOSS_ORDER = ["warden", "brood", "cleaver", "sapper", "wraith"];
+
+  function bossFor(wave) {
+    var number = bossNumber(wave);
+
+    if (!number) {
+      return null;
+    }
+
+    return BOSS_ORDER[(number - 1) % BOSS_ORDER.length];
+  }
+
+  function bossHp(wave) {
+    return waveEnemyHp("brute", wave) * BOSS.hpMultiple;
+  }
+
+  function bossBounty(wave) {
+    return waveBounty("brute", wave) * BOSS.bountyMultiple;
+  }
+
   /* Meta coins taken back to the lobby, from the last wave BEATEN. */
   function runReward(wavesBeaten) {
     return Math.floor(5 * Math.pow(Math.max(0, wavesBeaten), 1.25));
@@ -344,7 +471,12 @@
          The attack is only decent for 5000 — Quantum out damages
          it three to one. The ability is what is being bought. */
       label: "Clock Tower", role: "damage",
-      damage: 900, range: 45, cooldown: 2, cost: 5000, // 450 dps
+      /* 45 worked out to 27.5 tiles fully merged and evolved, on
+         a map 15 tiles from centre to corner — its beam covered
+         the whole board and never had to be aimed. 20 lands at
+         12.2, so it holds a stretch of lane rather than all of
+         them. */
+      damage: 900, range: 20, cooldown: 2, cost: 5000, // 450 dps
       /* The beam carries on through whatever it hits, so a shot
          lined up with the lane catches everything standing in
          it. Width is the corridor either side of the line. */
@@ -917,6 +1049,13 @@
     waveBounty: waveBounty,
     waveCount: waveCount,
     wavePool: wavePool,
+    isBossWave: isBossWave,
+    bossNumber: bossNumber,
+    bossFor: bossFor,
+    bosses: BOSSES,
+    boss: BOSS,
+    bossHp: bossHp,
+    bossBounty: bossBounty,
     runReward: runReward,
     evolutionAll: EVOLUTION_ALL,
     cost: cost,

@@ -265,6 +265,7 @@
       <nav class="handbook__index">
         <button class="handbook__jump" type="button" data-jump="handbook-merging">Merging</button>
         <button class="handbook__jump" type="button" data-jump="handbook-evolutions">Evolutions</button>
+        <button class="handbook__jump" type="button" data-jump="handbook-bosses">Bosses</button>
         <button class="handbook__jump" type="button" data-jump="handbook-shinies">Shinies</button>
         <button class="handbook__jump" type="button" data-jump="handbook-money">Money and leaks</button>
         <button class="handbook__jump" type="button" data-jump="handbook-controls">Controls</button>
@@ -312,6 +313,33 @@
         <p>
           Evolution 10 needs <strong>1,024 copies</strong> of one tower, so
           treat it as a long chase rather than a target.
+        </p>
+      </section>
+
+      <section class="handbook__section" id="handbook-bosses">
+        <h3>Bosses</h3>
+        <p>
+          Every <strong>tenth wave up to 100</strong>, then every
+          <strong>fiftieth</strong>. A boss wave is the boss and a short
+          escort rather than a full wave on top of it. Its health shows across
+          the top of the board.
+        </p>
+        <p>
+          A boss has <strong>25×</strong> a brute's health for that wave, moves
+          slowly, and is heavy enough that a Fan only troubles it a little.
+          Killing one pays <strong>20×</strong> a brute's bounty.
+        </p>
+        <p>
+          Five come round in order, each asking something different of your
+          towers. <strong>Warden</strong> carries a shield worth 30% of its
+          health and gets it back every 12 seconds — burst through or it
+          returns. <strong>Brood</strong> sheds four crawlers every 8 seconds.
+          <strong>Cleaver</strong> breaks into two smaller bosses when it dies,
+          which do not break again. <strong>Sapper</strong> halves the fire
+          rate of towers within 6 tiles, so damage spread down the lane keeps
+          working. <strong>Wraith</strong> heals 4% of its health a second, but
+          <strong>only while no tower can reach it</strong> — a gap in your
+          coverage is the only thing that feeds it.
         </p>
       </section>
 
@@ -462,6 +490,19 @@
       <button class="match__button match__button--go" id="match-start" type="button">
         Start wave
       </button>
+    </div>
+
+    <!-- Boss health, across the top. Shown only on a boss wave. -->
+    <div class="bossbar" id="match-boss" hidden>
+      <p class="bossbar__name">
+        <span id="match-boss-name">Boss</span>
+        <span class="bossbar__note" id="match-boss-note"></span>
+      </p>
+      <div class="bossbar__track">
+        <div class="bossbar__fill" id="match-boss-fill"></div>
+        <div class="bossbar__shield" id="match-boss-shield"></div>
+      </div>
+      <p class="bossbar__hp" id="match-boss-hp"></p>
     </div>
 
     <div class="match__hud">

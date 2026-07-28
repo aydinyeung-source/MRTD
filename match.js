@@ -100,6 +100,13 @@
   var waveDisplay = document.getElementById("match-wave");
   var timeDisplay = document.getElementById("match-time");
   var aliveDisplay = document.getElementById("match-alive");
+  var bossBar = document.getElementById("match-boss");
+  var bossName = document.getElementById("match-boss-name");
+  var bossNote = document.getElementById("match-boss-note");
+  var bossFill = document.getElementById("match-boss-fill");
+  var bossShield = document.getElementById("match-boss-shield");
+  var bossHp = document.getElementById("match-boss-hp");
+
   var abilityButton = document.getElementById("match-ability");
   var abilityState = document.getElementById("match-ability-state");
   var beatenDisplay = document.getElementById("match-beaten");
@@ -1347,13 +1354,36 @@
      Swap for enemies/<kind>.svg when the drawings land. */
   function drawEnemy(enemy) {
     var point = pathPoint(enemy.progress);
-    var radius = view.size * 0.3;
+    var boss = enemy.boss && stats.bosses[enemy.boss];
+    /* Bosses are drawn far larger, and a Cleaver's pieces smaller
+       than the whole they came from. */
+    var radius = boss
+      ? view.size * (0.42 + 0.28 * enemy.share)
+      : view.size * 0.3;
     var definition = stats.enemies[enemy.kind];
 
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = definition.colour;
+    ctx.fillStyle = boss ? boss.colour : definition.colour;
     ctx.fill();
+
+    /* A shield reads as a ring standing off the body, and a
+       Wraith that has found a gap glows while it heals. */
+    if (boss && enemy.shield > 0) {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(120, 190, 235, 0.85)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    if (boss && enemy.healing) {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(120, 220, 160, 0.9)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
 
     /* Chilled enemies wash out, so a slowed crowd is obvious
        without reading anything. */
@@ -1637,7 +1667,16 @@
     spawnQueue = [];
 
     var pool = stats.wavePool(wave);
-    var count = stats.waveCount(wave);
+    var boss = stats.bossFor(wave);
+
+    /* A boss wave is the boss and a short escort, not a boss on
+       top of a full wave — the point is the one thing, with
+       enough company that the towers cannot all face it. */
+    var count = boss ? stats.boss.escort : stats.waveCount(wave);
+
+    if (boss) {
+      spawnQueue.push("boss:" + boss);
+    }
 
     for (var i = 0; i < count; i += 1) {
       spawnQueue.push(pool[Math.floor(Math.random() * pool.length)]);
@@ -1659,6 +1698,13 @@
   }
 
   function spawn(kind) {
+    /* The queue holds enemy kinds, except for the one entry that
+       names a boss. */
+    if (kind.indexOf("boss:") === 0) {
+      spawnBoss(kind.slice(5), 1, 0);
+      return;
+    }
+
     var hp = stats.waveEnemyHp(kind, wave);
 
     enemies.push({
@@ -1670,11 +1716,229 @@
     });
   }
 
+  /* `share` is how much of a full boss this one is — a whole boss
+     is 1, a Cleaver's halves are less. `progress` lets a split
+     appear where its parent died rather than back at the portal. */
+  function spawnBoss(key, share, progress) {
+    var definition = stats.bosses[key];
+
+    if (!definition) {
+      return;
+    }
+
+    var hp = stats.bossHp(wave) * share;
+
+    enemies.push({
+      /* Bosses take the brute's damage and weight lookups, so
+         everything that asks the enemy table still gets an
+         answer. What makes it a boss is the `boss` flag. */
+      kind: "brute",
+      boss: key,
+      share: share,
+      hp: hp,
+      maxHp: hp,
+      /* Only the Warden ever carries one, and only after its
+         first charge. */
+      shield: 0,
+      shieldMax: definition.shield ? hp * definition.shield : 0,
+      abilityTimer: definition.every || 0,
+      progress: progress || 0,
+      speed: stats.boss.speed
+    });
+  }
+
   function enemyAt(enemy) {
     return pathPoint(enemy.progress);
   }
 
+  /* Every point that damages an enemy goes through here, so a
+     shield cannot be missed by one of them. Absorbed damage is
+     spent on the shield first and the remainder carries through
+     — a shield delays a kill, it never wastes a shot. */
+  function hurt(enemy, amount) {
+    if (!(amount > 0)) {
+      return;
+    }
 
+    if (enemy.shield > 0) {
+      var absorbed = Math.min(enemy.shield, amount);
+
+      enemy.shield -= absorbed;
+      amount -= absorbed;
+    }
+
+    enemy.hp -= amount;
+
+    /* A Wraith only heals while nothing has touched it recently,
+       so being shot at all interrupts it. */
+    enemy.hitAt = elapsed;
+  }
+
+
+
+  /* =========================================================
+     Boss abilities
+
+     Ticked once a frame for every boss on the path. Each one is
+     a different question asked of the same build:
+
+       Warden   can you burst through a shield before it returns
+       Brood    can you clear adds and the boss at once
+       Cleaver  is your damage spread enough for what it leaves
+       Sapper   is all your damage sat in one place
+       Wraith   does your coverage have a hole in it
+
+     Nothing here stuns. During a wave the player cannot change
+     anything, so taking their towers away is not a question, it
+     is a penalty with no answer.
+     ========================================================= */
+
+  /* Is any tower close enough to shoot this point? Used only by
+     the Wraith, which heals when the answer is no. */
+  function covered(point) {
+    return Object.keys(towers).some(function (at) {
+      var tower = towers[at];
+
+      if (!stats.attack(tower.key)) {
+        return false;
+      }
+
+      var parts = at.split(",");
+      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+      var dx = point.x - centre.x;
+      var dy = point.y - centre.y;
+      var reach =
+        (stats.boosted(
+          stats.range(tower.key, tower.level, evolutionFor(tower)),
+          boostFor(at, "range")
+        ) /
+          stats.rangePerTile) *
+        view.size;
+
+      return Math.sqrt(dx * dx + dy * dy) <= reach;
+    });
+  }
+
+  /* How much a tower's fire rate is cut by Sappers standing near
+     it. An effect, so the strongest wins rather than several
+     Sappers multiplying into a standstill. */
+  function sapAt(position) {
+    var worst = 1;
+    var parts = position.split(",");
+    var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+
+    enemies.forEach(function (enemy) {
+      if (!enemy.boss) {
+        return;
+      }
+
+      var definition = stats.bosses[enemy.boss];
+
+      if (!definition || definition.ability !== "sap") {
+        return;
+      }
+
+      var point = enemyAt(enemy);
+      var dx = point.x - centre.x;
+      var dy = point.y - centre.y;
+      var reach = definition.radius * view.size;
+
+      if (Math.sqrt(dx * dx + dy * dy) <= reach && definition.rate < worst) {
+        worst = definition.rate;
+      }
+    });
+
+    return worst;
+  }
+
+  function tickBosses(delta) {
+    enemies.forEach(function (enemy) {
+      if (!enemy.boss || enemy.hp <= 0) {
+        return;
+      }
+
+      var definition = stats.bosses[enemy.boss];
+
+      if (!definition) {
+        return;
+      }
+
+      if (definition.ability === "shield") {
+        enemy.abilityTimer -= delta;
+
+        /* Comes back whole on a timer whether or not the last one
+           was broken, so the pressure is constant. */
+        if (enemy.abilityTimer <= 0) {
+          enemy.shield = enemy.shieldMax;
+          enemy.abilityTimer = definition.every;
+        }
+      }
+
+      if (definition.ability === "spawn") {
+        enemy.abilityTimer -= delta;
+
+        if (enemy.abilityTimer <= 0) {
+          enemy.abilityTimer = definition.every;
+
+          for (var i = 0; i < definition.spawns; i += 1) {
+            /* Held to the same cap as everything else, so a Brood
+               left alive cannot flood the board. */
+            if (enemies.length >= MAX_ALIVE) {
+              break;
+            }
+
+            var hp = stats.waveEnemyHp("crawler", wave);
+
+            enemies.push({
+              kind: "crawler",
+              hp: hp,
+              maxHp: hp,
+              /* Dropped where the parent is, not at the portal —
+                 they are being shed, not summoned from afar. */
+              progress: enemy.progress,
+              speed: stats.enemies.crawler.speed
+            });
+          }
+        }
+      }
+
+      if (definition.ability === "regen") {
+        /* Only while nothing can reach it. Tied to coverage
+           rather than to damage taken: out-healing damage makes a
+           boss that never dies, but walking through a gap in the
+           towers is something the player chose. */
+        if (!covered(enemyAt(enemy))) {
+          enemy.hp = Math.min(
+            enemy.maxHp,
+            enemy.hp + enemy.maxHp * definition.heal * delta
+          );
+          enemy.healing = true;
+        } else {
+          enemy.healing = false;
+        }
+      }
+    });
+  }
+
+  /* A Cleaver leaves two pieces where it fell. They are ordinary
+     bosses at a fraction of the health, and they do not split
+     again — a chain would turn one boss into a crowd without a
+     ceiling. */
+  function splitBoss(enemy) {
+    var definition = stats.bosses[enemy.boss];
+
+    if (!definition || definition.ability !== "split" || enemy.share < 1) {
+      return;
+    }
+
+    for (var i = 0; i < definition.pieces; i += 1) {
+      spawnBoss(
+        enemy.boss,
+        definition.piece,
+        Math.max(0, enemy.progress - i * 0.4)
+      );
+    }
+  }
 
   /* =========================================================
      Timestop
@@ -1805,8 +2069,13 @@
 
     /* A cooldown boost shortens the wait rather than lengthening
        it, so the percentage divides instead of multiplying. */
+    /* A Sapper standing near a tower stretches its wait rather
+       than stopping it — the tower keeps firing, just slower, and
+       damage placed further down the lane is unaffected. */
     tower.cooldown =
-      stats.cooldown(tower.key) / (1 + boostFor(position, "cooldown") / 100);
+      stats.cooldown(tower.key) /
+      (1 + boostFor(position, "cooldown") / 100) /
+      sapAt(position);
 
     var targets = attack.shape === "single" ? [primary] : inRange;
     var aimAngle = Math.atan2(aim.y - origin.y, aim.x - origin.x);
@@ -1847,11 +2116,13 @@
 
       var statDistance = (distance / view.size) * stats.rangePerTile;
 
-      enemy.hp -= stats.boosted(
-        stats.damageAtDistance(tower.key, tower.level, evolution, statDistance, tower.shiny),
-        boostFor(position, "damage")
-      ) * damageMultiplier();
-
+      hurt(
+        enemy,
+        stats.boosted(
+          stats.damageAtDistance(tower.key, tower.level, evolution, statDistance, tower.shiny),
+          boostFor(position, "damage")
+        ) * damageMultiplier()
+      );
     });
 
     recordFiring(tower, origin, aim);
@@ -2118,7 +2389,7 @@
           return b.progress - a.progress;
         });
 
-        inRange[0].hp -= ally.damage;
+        hurt(inRange[0], ally.damage);
         ally.cooldown = ally.reload;
       }
     });
@@ -2184,6 +2455,15 @@
     var end = view.path.length - 1;
 
     tickTimestop(delta);
+
+    /* Bosses hold still with everything else while time is
+       stopped — a shield recharging or a Brood shedding adds
+       through a freeze would make the Clock Tower worth less
+       exactly when it matters most. */
+    if (!frozen()) {
+      tickBosses(delta);
+    }
+
     fightAllies(delta);
 
     enemies.forEach(function (enemy) {
@@ -2195,7 +2475,7 @@
 
       var point = enemyAt(enemy);
       var factor = slowAt(point);
-      var push = pushAt(point, enemy.kind);
+      var push = pushAt(point, enemy);
 
       /* Slow and pushback multiply rather than compete, so
          standing in both is slower than either — and, because
@@ -2207,9 +2487,22 @@
       enemy.progress += enemy.speed * factor * push * delta;
     });
 
+    /* Splits are collected rather than pushed while filtering,
+       because adding to the array being filtered is how you get
+       pieces that never appear. */
+    var split = [];
+
     enemies = enemies.filter(function (enemy) {
       if (enemy.hp <= 0) {
-        cash += stats.waveBounty(enemy.kind, wave);
+        if (enemy.boss) {
+          /* Paid in proportion, so two halves of a Cleaver are
+             worth what the whole was rather than doubling it. */
+          cash += stats.bossBounty(wave) * enemy.share;
+          split.push(enemy);
+        } else {
+          cash += stats.waveBounty(enemy.kind, wave);
+        }
+
         return false;
       }
 
@@ -2223,6 +2516,8 @@
 
       return true;
     });
+
+    split.forEach(splitBoss);
 
     Object.keys(towers).forEach(function (position) {
       fire(position, towers[position], delta);
@@ -2372,9 +2667,11 @@
      compared shoves inside one frame. Reading position instead
      means any number of Fans is exactly as strong as the best of
      them, and firing rate has nothing to do with it. */
-  function pushAt(point, kind) {
+  function pushAt(point, enemy) {
     var factor = 1;
-    var weight = stats.weight(kind);
+    /* A boss has its own weight, well above anything else, so a
+       Fan slows one a little rather than holding it in place. */
+    var weight = enemy.boss ? stats.boss.weight : stats.weight(enemy.kind);
 
     Object.keys(towers).forEach(function (at) {
       var tower = towers[at];
@@ -2474,6 +2771,62 @@
   }
 
 
+  /* Health of every boss on the path at once, as one bar. A
+     Cleaver becomes three things and they are all the same fight,
+     so three bars would say less than one does. */
+  function refreshBossBar() {
+    if (!bossBar) {
+      return;
+    }
+
+    var present = enemies.filter(function (enemy) {
+      return enemy.boss;
+    });
+
+    bossBar.hidden = !present.length;
+
+    if (!present.length) {
+      return;
+    }
+
+    var definition = stats.bosses[present[0].boss];
+    var hp = 0;
+    var max = 0;
+    var shield = 0;
+    var healing = false;
+
+    present.forEach(function (enemy) {
+      hp += enemy.hp;
+      /* Measured against one whole boss, so a Cleaver's pieces
+         read as what is left of it rather than resetting the bar
+         to full the moment it splits. */
+      max += enemy.maxHp / enemy.share;
+      shield += enemy.shield;
+      healing = healing || enemy.healing;
+    });
+
+    max = Math.max(max / present.length, hp);
+
+    bossName.textContent = definition ? definition.label : "Boss";
+
+    bossNote.textContent = healing
+      ? "healing — nothing can reach it"
+      : shield > 0
+        ? "shielded"
+        : present.length > 1
+          ? present.length + " pieces"
+          : "";
+
+    bossFill.style.width = Math.max(0, (hp / max) * 100) + "%";
+    bossShield.style.width =
+      Math.min(100, (shield / max) * 100) + "%";
+    bossShield.hidden = shield <= 0;
+
+    bossHp.textContent =
+      formatHp(hp) + " / " + formatHp(max) +
+      (shield > 0 ? "  +" + formatHp(shield) : "");
+  }
+
   function refreshHud() {
     cashDisplay.textContent = isDev() ? "∞" : String(Math.floor(cash));
     hpDisplay.textContent = String(Math.max(0, Math.round(baseHp)));
@@ -2489,6 +2842,8 @@
     /* Everything on the path, including whatever is still queued
        to spawn this wave. */
     aliveDisplay.textContent = String(enemies.length + spawnQueue.length);
+
+    refreshBossBar();
 
     /* The ability button: counting down the freeze, announcing
        itself ready, or charging. Hidden entirely when no Clock
