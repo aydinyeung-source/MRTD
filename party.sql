@@ -41,9 +41,73 @@ create table if not exists public.party_invites (
   unique (party_id, to_player)
 );
 
+-- ============================================================
+-- Runs
+--
+-- A party is who you are with. A RUN is the match in progress,
+-- and they are separate on purpose: a player can walk out of a
+-- run and come back to it, and the run has to outlive their
+-- absence for that to work.
+--
+-- `present` is the whole point of run_players. Someone who
+-- leaves stays on the row with present = false, so:
+--
+--   their towers are still theirs and stay on the board
+--   they can rejoin the same run
+--   they cannot start or join a different one
+--   and if the run ends while they are away, they are not paid
+--
+-- A row is never deleted while a run lives. Deleting it would
+-- lose the answer to every one of those questions.
+-- ============================================================
+
+create table if not exists public.party_runs (
+  id          bigint generated always as identity primary key,
+  party_id    bigint not null references public.parties (id) on delete cascade,
+  status      text not null default 'running',
+  started_at  timestamptz not null default now(),
+  ended_at    timestamptz
+);
+
+create table if not exists public.run_players (
+  run_id      bigint not null references public.party_runs (id) on delete cascade,
+  player_id   uuid not null references auth.users (id) on delete cascade,
+  present     boolean not null default true,
+  left_at     timestamptz,
+  paid        boolean not null default false,
+  primary key (run_id, player_id)
+);
+
+-- Finding "the run this player is still tied to" happens on
+-- every join, leave and start, so it is worth an index.
+create index if not exists run_players_by_player
+  on public.run_players (player_id);
+
 alter table public.parties        enable row level security;
 alter table public.party_members  enable row level security;
 alter table public.party_invites  enable row level security;
+alter table public.party_runs     enable row level security;
+alter table public.run_players    enable row level security;
+
+drop policy if exists party_runs_read on public.party_runs;
+create policy party_runs_read on public.party_runs
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.run_players r
+      where r.run_id = party_runs.id and r.player_id = auth.uid()
+    )
+  );
+
+drop policy if exists run_players_read on public.run_players;
+create policy run_players_read on public.run_players
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.run_players mine
+      where mine.run_id = run_players.run_id and mine.player_id = auth.uid()
+    )
+  );
 
 
 -- ============================================================
@@ -329,6 +393,23 @@ end $$;
 -- gone rather than joining a run already in progress.
 -- ============================================================
 
+-- The run the caller is still tied to, present or not. Null once
+-- it has ended. This is what blocks starting a second run: while
+-- this returns something, you belong to a match already.
+create or replace function public.my_run()
+returns bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.run_id
+  from public.run_players r
+  join public.party_runs run on run.id = r.run_id
+  where r.player_id = auth.uid() and run.status = 'running'
+  limit 1;
+$$;
+
 create or replace function public.start_party_run()
 returns jsonb
 language plpgsql
@@ -336,7 +417,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  mine bigint;
+  mine    bigint;
+  fresh   bigint;
+  stale   bigint;
 begin
   mine := public.my_party();
 
@@ -351,6 +434,16 @@ begin
     raise exception 'Only the party leader can start';
   end if;
 
+  /* You belong to one match at a time. Someone who walked out of
+     a run that is still going has to go back to it or see it
+     finish — starting a fresh one would leave their towers
+     standing in a game they are no longer accountable to. */
+  stale := public.my_run();
+
+  if stale is not null then
+    raise exception 'You are still in a run — rejoin or wait for it to end';
+  end if;
+
   update public.parties set status = 'playing' where id = mine;
 
   /* Anyone who had not answered has missed it. Closing these
@@ -361,29 +454,156 @@ begin
   set status = 'declined'
   where party_id = mine and status = 'pending';
 
+  insert into public.party_runs (party_id) values (mine)
+  returning id into fresh;
+
+  /* Everyone in the party at this moment is in the run, and
+     anyone already tied to another run is skipped rather than
+     dragged into a second one. */
+  insert into public.run_players (run_id, player_id)
+  select fresh, m.player_id
+  from public.party_members m
+  where m.party_id = mine
+    and not exists (
+      select 1
+      from public.run_players r
+      join public.party_runs run on run.id = r.run_id
+      where r.player_id = m.player_id and run.status = 'running'
+    );
+
   return public.party_state();
 end $$;
 
-create or replace function public.end_party_run()
+-- Stepping out. The row stays, marked absent, so the towers keep
+-- their owner and the seat keeps its claim.
+create or replace function public.leave_run()
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  mine bigint;
+  mine      bigint;
+  remaining integer;
 begin
-  mine := public.my_party();
+  mine := public.my_run();
 
   if mine is null then
     return false;
   end if;
 
-  update public.parties
-  set status = 'open'
-  where id = mine and leader = auth.uid();
+  update public.run_players
+  set present = false, left_at = now()
+  where run_id = mine and player_id = auth.uid();
+
+  /* The last one out ends it. A run with nobody in it has no
+     host simulating it, so leaving it 'running' would block
+     everyone in it from ever starting another. */
+  select count(*) into remaining
+  from public.run_players
+  where run_id = mine and present;
+
+  if remaining = 0 then
+    update public.party_runs
+    set status = 'ended', ended_at = now()
+    where id = mine;
+
+    update public.parties set status = 'open'
+    where id = (select party_id from public.party_runs where id = mine);
+  end if;
 
   return true;
+end $$;
+
+-- Coming back. Only to the run you were already in, only while
+-- it is still going, and only while somebody is still there to
+-- be simulating it.
+create or replace function public.rejoin_run()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  mine    bigint;
+  present integer;
+begin
+  mine := public.my_run();
+
+  if mine is null then
+    raise exception 'That run has finished';
+  end if;
+
+  select count(*) into present
+  from public.run_players
+  where run_id = mine and present;
+
+  if present = 0 then
+    raise exception 'Everyone has left that run';
+  end if;
+
+  update public.run_players
+  set present = true, left_at = null
+  where run_id = mine and player_id = auth.uid();
+
+  return mine;
+end $$;
+
+-- Ends the run and pays whoever is still in it.
+--
+-- Called by the host when the base falls or the party leaves. The
+-- reward is worked out here rather than sent from the browser,
+-- because a client that names its own payout is a client that
+-- names a large one.
+create or replace function public.end_party_run(p_waves integer default 0)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  mine   bigint;
+  reward integer;
+  paid   integer := 0;
+begin
+  mine := public.my_run();
+
+  if mine is null then
+    return 0;
+  end if;
+
+  /* Same curve as a solo run: 5 x waves ^ 1.25. */
+  reward := floor(5 * power(greatest(p_waves, 0), 1.25))::integer;
+
+  update public.party_runs
+  set status = 'ended', ended_at = now()
+  where id = mine and status = 'running';
+
+  if not found then
+    return 0;
+  end if;
+
+  /* Present players only. Someone who walked out before the end
+     gets nothing — their towers went on helping, but they were
+     not there to see it through, and paying them would make
+     leaving strictly better than staying. */
+  with payees as (
+    update public.run_players
+    set paid = true
+    where run_id = mine and present and not paid
+    returning player_id
+  )
+  update public.profiles p
+  set coins = p.coins + reward
+  from payees
+  where p.id = payees.player_id;
+
+  get diagnostics paid = row_count;
+
+  update public.parties set status = 'open'
+  where id = (select party_id from public.party_runs where id = mine);
+
+  return paid;
 end $$;
 
 
@@ -405,14 +625,32 @@ set search_path = ''
 as $$
 declare
   mine    bigint;
+  run     bigint;
   result  jsonb;
 begin
   mine := public.my_party();
+  run := public.my_run();
 
   select jsonb_build_object(
     'party_id', mine,
     'leader', (select p.leader from public.parties p where p.id = mine),
     'status', (select p.status from public.parties p where p.id = mine),
+
+    /* The run the caller is tied to, if any, and whether they are
+       currently in it. A client that is absent from a live run
+       shows "Rejoin" rather than "Play". */
+    'run_id', run,
+    'run_present', coalesce((
+      select r.present from public.run_players r
+      where r.run_id = run and r.player_id = auth.uid()
+    ), false),
+
+    /* Who is actually on the board right now — this is the number
+       enemy health multiplies by. */
+    'run_present_count', coalesce((
+      select count(*) from public.run_players r
+      where r.run_id = run and r.present
+    ), 0),
     'members', coalesce((
       select jsonb_agg(
                jsonb_build_object('id', m.player_id, 'username', pr.username)
@@ -448,7 +686,10 @@ grant execute on function public.decline_party_invite(bigint) to authenticated;
 grant execute on function public.leave_party() to authenticated;
 grant execute on function public.kick_from_party(uuid) to authenticated;
 grant execute on function public.start_party_run() to authenticated;
-grant execute on function public.end_party_run() to authenticated;
+grant execute on function public.end_party_run(integer) to authenticated;
+grant execute on function public.my_run() to authenticated;
+grant execute on function public.leave_run() to authenticated;
+grant execute on function public.rejoin_run() to authenticated;
 grant execute on function public.party_state() to authenticated;
 
 select public.party_state() as state;

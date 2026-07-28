@@ -159,6 +159,33 @@
     return Math.min(MAX_PARTY, Math.max(1, players || 1));
   }
 
+  /* How money works with more than one player. Each rule says who
+     a given payment goes to.
+
+       farms    the owner of the farm, and only them. You place
+                your own, you are paid for your own, and the three
+                paying farms are counted per player rather than
+                across the board — otherwise one player merging
+                early would take the other four's income away.
+
+       wave     every player, in full each. It is a flat 100, so
+                paying it once and splitting it would make joining
+                a party a pay cut.
+
+       kills    every player, in full each. Not split. A bounty
+                divided five ways would mean the more of you there
+                are the poorer everyone gets, on a wave that is
+                five times as hard — the exact opposite of what
+                bringing friends should do.
+
+     Enemy health already multiplies by the party size, which is
+     what these are balanced against. */
+  var PARTY_INCOME = {
+    farms: "owner",
+    wave: "each",
+    kills: "each"
+  };
+
   function waveEnemyHp(kind, wave, players) {
     var enemy = ENEMIES[kind];
 
@@ -1094,6 +1121,7 @@
     waveEnemyHp: waveEnemyHp,
     maxParty: MAX_PARTY,
     partyScale: partyScale,
+    partyIncome: PARTY_INCOME,
     waveEnemyDps: waveEnemyDps,
     allyHealth: allyHealth,
     allyDamage: allyDamage,
