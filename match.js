@@ -3076,6 +3076,22 @@
 
     /* Counts down through the intermission, then starts itself. */
     jumpBox.hidden = !isDev();
+
+    /* Speed, auto-skip and the wave jump all steer the
+       simulation, and only one client is running one. A guest
+       pressing these changed nothing and looked broken doing it,
+       so they belong to whoever is hosting.
+
+       Speed still shows, because a guest needs to see how fast
+       the board is going even though they cannot set it. */
+    var steering = isHost();
+
+    speedButton.disabled = !steering;
+    autoButton.hidden = !steering;
+
+    if (!steering) {
+      jumpBox.hidden = true;
+    }
     startButton.disabled = !canStart();
     startButton.textContent =
       breakLeft > 0 ? "Start wave (" + Math.ceil(breakLeft) + ")" : "Start wave";
@@ -4163,10 +4179,6 @@
        what triggers an election. */
     heardHost: 0,
 
-    /* Set while a guest is applying what the host sent, so the
-       same functions that broadcast a change do not rebroadcast
-       one they were told about. */
-    applying: false
   };
 
   function multiplayer() {
@@ -4301,6 +4313,7 @@
 
   function sendSnapshot() {
     window.MRTD.net.send("s", {
+      speed: speed,
       towers: packTowers(),
       enemies: packEnemies(),
       allies: packAllies(),
@@ -4318,6 +4331,12 @@
 
   function sendTick() {
     window.MRTD.net.send("t", {
+      /* The host's speed setting, so guests carry enemies forward
+         at the rate the board is actually running. Without it a
+         guest on 1x watching a host on 10x would drag every
+         enemy back a tenth of a second's travel, ten times a
+         second, and the whole wave would judder. */
+      speed: speed,
       enemies: packEnemies(),
       allies: packAllies(),
       baseHp: Math.round(baseHp),
@@ -4519,8 +4538,7 @@
      ========================================================= */
 
   function applySnapshot(data) {
-    mp.applying = true;
-
+    setSpeed(data.speed || 1);
     towers = unpackTowers(data.towers);
     enemies = unpackEnemies(data.enemies);
     allies = unpackAllies(data.allies);
@@ -4534,13 +4552,14 @@
     elapsed = data.elapsed || elapsed;
     cash = wallet(me());
 
-    mp.applying = false;
     refreshHud();
     draw();
   }
 
   function applyTick(data) {
-    mp.applying = true;
+    /* The board runs at the host's speed, so a guest adopts it
+       rather than keeping its own. */
+    setSpeed(data.speed || 1);
 
     enemies = unpackEnemies(data.enemies);
     allies = unpackAllies(data.allies);
@@ -4553,7 +4572,6 @@
     mp.wallets = data.wallets || mp.wallets;
     cash = wallet(me());
 
-    mp.applying = false;
   }
 
   /* A guest asking for something. Everything a guest can do is
