@@ -2452,7 +2452,30 @@ body::after {
               color 320ms var(--ease-soft);
 }
 
+/* What a corner popup leaves behind once it has folded away.
+   Sits on the button it belongs to, and stays until the thing it
+   is counting has actually been dealt with. */
+.corner__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background-color: #9d4b45;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  color: #f9fbfc;
+  animation: rise 240ms var(--ease-soft) both;
+}
+
 .corner__dev {
+  position: relative;
   padding: 5px 11px;
   border: 1px solid var(--rule);
   border-radius: 8px;

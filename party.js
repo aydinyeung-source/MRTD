@@ -30,6 +30,16 @@
   var status = document.getElementById("party-status");
   var leaveButton = document.getElementById("party-leave");
   var badge = document.getElementById("party-badge");
+  var dot = document.getElementById("party-dot");
+
+  var popup = document.getElementById("partyrequest");
+  var popupText = document.getElementById("partyrequest-text");
+  var popupActions = document.getElementById("partyrequest-actions");
+
+  /* How long an invite sits in the corner before folding back to
+     the dot. Long enough to read and answer, short enough not to
+     sit over the lobby. */
+  var POPUP_MS = 10000;
 
   if (!panel) {
     return;
@@ -38,6 +48,13 @@
   /* Whatever party_state() last told us. */
   var state = { party_id: null, leader: null, status: null, members: [], invites: [] };
   var poll = null;
+
+  /* Invite ids already shown in the corner. An invite pops up
+     once — polling every three seconds would otherwise re-announce
+     the same one forever, and the dot is what carries it after
+     that. */
+  var announced = {};
+  var popupTimer = null;
 
   /* =========================================================
      Supabase
@@ -135,10 +152,72 @@
     return Boolean(state.party_id) && state.members.length > 1;
   }
 
+  /* =========================================================
+     The corner popup
+
+     Same place and shape as a trade request, because it is the
+     same kind of interruption: someone is asking for an answer.
+     It goes away by itself after ten seconds and leaves a dot
+     behind, so an invite arriving mid-lobby is noticed without
+     having to be dealt with then and there.
+     ========================================================= */
+
+  function hidePopup() {
+    window.clearTimeout(popupTimer);
+    popupTimer = null;
+    popup.hidden = true;
+  }
+
+  function showPopup(invite) {
+    popupText.textContent = "Player " + invite.from + " invited you to a party!";
+    popupActions.textContent = "";
+
+    var yes = element("button", "traderequest__button", "Join");
+    yes.type = "button";
+    yes.addEventListener("click", function () {
+      hidePopup();
+      act(yes, rpc("accept_party_invite", { p_id: invite.id }), "Joined.");
+    });
+
+    var no = element("button", "traderequest__button", "No");
+    no.type = "button";
+    no.addEventListener("click", function () {
+      hidePopup();
+      act(no, rpc("decline_party_invite", { p_id: invite.id }), "");
+    });
+
+    popupActions.appendChild(yes);
+    popupActions.appendChild(no);
+    popup.hidden = false;
+
+    window.clearTimeout(popupTimer);
+    popupTimer = window.setTimeout(hidePopup, POPUP_MS);
+  }
+
+  /* Announces the newest invite not yet shown. Only one at a
+     time — two popups in the same corner would sit on top of each
+     other, and the dot already says how many are waiting. */
+  function announce() {
+    var fresh = state.invites.filter(function (invite) {
+      return !announced[invite.id];
+    });
+
+    if (!fresh.length) {
+      return;
+    }
+
+    fresh.forEach(function (invite) {
+      announced[invite.id] = true;
+    });
+
+    showPopup(fresh[0]);
+  }
+
   function render(friends) {
     var mine = window.MRTD.userId();
     var size = state.members.length || 1;
     var full = size >= window.MRTD.stats.maxParty;
+    var waiting = state.invites.length;
 
     /* The corner button carries the count, so party size is
        visible without opening anything — it is the number that
@@ -146,6 +225,14 @@
     if (badge) {
       badge.textContent = inParty() ? "Party " + size + "/5" : "Party";
       badge.classList.toggle("is-on", inParty());
+    }
+
+    /* What the popup leaves behind. Stays until the invites are
+       actually answered, which is the point — a notice you can
+       miss is not a notice. */
+    if (dot) {
+      dot.hidden = !waiting;
+      dot.textContent = String(waiting);
     }
 
     membersHost.textContent = "";
@@ -287,6 +374,7 @@
         state.members = state.members || [];
         state.invites = state.invites || [];
         render(results[1]);
+        announce();
       })
       .catch(function (error) {
         setStatus(error.message, true);
@@ -383,6 +471,10 @@
     window.clearInterval(poll);
     poll = null;
     state = { party_id: null, leader: null, status: null, members: [], invites: [] };
+    /* Cleared on sign out, so the next account is told about its
+       own invites rather than inheriting these as already seen. */
+    announced = {};
+    hidePopup();
     panel.hidden = true;
     render([]);
   });

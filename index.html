@@ -203,7 +203,7 @@
 
     <div class="corner">
       <button class="corner__dev" id="friends-open" type="button">Friends</button>
-      <button class="corner__dev" id="party-open" type="button"><span id="party-badge">Party</span></button>
+      <button class="corner__dev" id="party-open" type="button"><span id="party-badge">Party</span><span class="corner__dot" id="party-dot" hidden>0</span></button>
       <button class="corner__dev" id="handbook-open" type="button">Handbook</button>
       <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
       <button class="corner__signout" id="signout" type="button">Sign out</button>
@@ -507,6 +507,13 @@
         <button class="friends__button" id="trade-cancel" type="button">Cancel trade</button>
       </div>
     </div>
+  </div>
+
+  <!-- Same corner and same shape as a trade request. Shows for
+       ten seconds, then folds back to a dot on the Party button. -->
+  <div class="traderequest" id="partyrequest" hidden>
+    <p class="traderequest__text" id="partyrequest-text"></p>
+    <div class="traderequest__actions" id="partyrequest-actions"></div>
   </div>
 
   <div class="traderequest" id="traderequest" hidden>
