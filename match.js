@@ -3662,16 +3662,16 @@
     speedButton.disabled = !steering;
     autoButton.hidden = !steering;
 
+    /* The wave jump stays with any developer, host or not — it
+       is asked for and performed where the simulation is, so it
+       moves the whole board either way. */
+
     /* Forfeit ends the run for everybody, so it belongs to the
        one person running it. Anyone else can Step out, which
        costs them their own reward and leaves the others playing
        — the difference between giving up and giving up on
        everyone's behalf. */
     forfeitButton.hidden = !steering;
-
-    if (!steering) {
-      jumpBox.hidden = true;
-    }
     startButton.disabled = !canStart();
     startButton.textContent =
       breakLeft > 0 ? "Start wave (" + Math.ceil(breakLeft) + ")" : "Start wave";
@@ -5352,6 +5352,15 @@
 
     if (data.a === "timestop") {
       useTimestop();
+      return;
+    }
+
+    /* Only from a developer, and the host decides that rather
+       than believing the sender. A guest saying "I am a
+       developer, jump to wave 500" is a guest ending everyone's
+       run. */
+    if (data.a === "jump" && isDev()) {
+      jumpToWave(data.wave);
     }
   }
 
@@ -5835,6 +5844,15 @@
 
     n = Math.min(n, MAX_JUMP);
 
+    /* A developer who is not the host asks for it instead. The
+       jump has to happen where the simulation is, or one player
+       ends up on wave 200 and everybody else stays on wave 3 —
+       two boards, one channel. */
+    if (mp.on && !mp.host) {
+      ask("jump", { wave: n });
+      return;
+    }
+
     enemies = [];
     allies = [];
     spawnQueue = [];
@@ -5847,6 +5865,17 @@
     wavesSurvived = Math.max(wavesSurvived, n - 1);
 
     startWave();
+
+    /* A jump is a discontinuity, not a change. Ticks carry what
+       moves and would get everyone there eventually, but "the
+       wave number stepped by 190 and every enemy vanished" is
+       exactly the moment a client should be handed the whole
+       picture rather than left to reconcile it. */
+    if (mp.on && mp.host) {
+      mp.lastSnapshot = window.performance.now();
+      sendSnapshot();
+    }
+
     refreshHud();
     draw();
   }
