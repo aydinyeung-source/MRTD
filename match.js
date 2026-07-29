@@ -1165,6 +1165,17 @@
 
     drawPulse(tower, x, y, size);
 
+    /* A shield eating a stun, for the moment it happens. Without
+       it, a Wasp diving a farm looks exactly like a Wasp diving
+       a farm and achieving something. */
+    if (tower.blocked > 0) {
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.52, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(120, 190, 235, " + Math.min(1, tower.blocked * 1.6) + ")";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
     /* Stunned. Drawn under the tower and left behind it too — a
        tower that has stopped shooting has to be findable at a
        glance, or the player only learns it happened from the
@@ -1808,6 +1819,7 @@
       spawnQueue.push(pool[Math.floor(Math.random() * pool.length)]);
     }
 
+    thinForHeralds();
     refreshHud();
   }
 
@@ -1821,6 +1833,37 @@
     }
 
     startWave();
+  }
+
+  /* Every Herald takes some of the wave with it.
+
+     A Herald means every tower on the board is shooting one
+     thing, so everything else walks past unopposed. At full wave
+     size that is not a hard wave, it is an unanswerable one —
+     the towers are working perfectly and the base still empties.
+
+     Thinning the rest is what turns it into a decision: kill the
+     Herald and the wave is easy, ignore it and the wave is
+     small. Heralds themselves are never removed. */
+  var HERALD_COSTS = 4;
+
+  function thinForHeralds() {
+    var heralds = spawnQueue.filter(function (kind) {
+      return kind === "herald";
+    }).length;
+
+    if (!heralds) {
+      return;
+    }
+
+    var removing = heralds * HERALD_COSTS;
+
+    for (var i = spawnQueue.length - 1; i >= 0 && removing > 0; i -= 1) {
+      if (spawnQueue[i] !== "herald") {
+        spawnQueue.splice(i, 1);
+        removing -= 1;
+      }
+    }
   }
 
   function spawn(kind) {
@@ -1855,7 +1898,7 @@
       return;
     }
 
-    var hp = stats.bossHp(wave, players()) * share;
+    var hp = stats.bossHp(wave, players(), key) * share;
 
     enemies.push({
       /* Bosses take the brute's damage and weight lookups, so
@@ -1950,15 +1993,22 @@
      whole time.
      ========================================================= */
 
-  /* Nearest tower that can actually be taken out of the fight.
-     Farms are skipped — stunning something with no attack is not
-     an attack, it just looks like one. */
+  /* Nearest tower, whatever it is.
+
+     Deliberately not filtered to towers worth hitting. A Wasp
+     cannot see a shield and does not know a farm has nothing to
+     interrupt — it dives the closest thing and finds out. That is
+     what lets a farm parked near the portal soak Wasps meant for
+     something that matters, and the moment this starts skipping
+     the towers that would waste one, that stops working. */
   function raidTarget(from, reach) {
     var best = null;
     var bestDistance = reach * view.size;
 
     Object.keys(towers).forEach(function (at) {
-      if (!stats.attack(towers[at].key) || towers[at].stunned > 0) {
+      /* Already stunned is the one thing it does skip: there is
+         nothing left to take away. */
+      if (towers[at].stunned > 0) {
         return;
       }
 
@@ -1977,10 +2027,32 @@
     return best;
   }
 
+  /* Shields stop STUNS and nothing else.
+
+     Not Heralds — a shield is about staying switched on, and a
+     taunt does not switch anything off, it changes what the tower
+     is pointed at. A shielded tower shoots the Herald with
+     everything, same as the rest. */
   function stunTower(at, seconds) {
-    if (towers[at]) {
-      towers[at].stunned = Math.max(towers[at].stunned || 0, seconds);
+    var tower = towers[at];
+
+    if (!tower) {
+      return;
     }
+
+    var shield = tower.shield === undefined
+      ? stats.shieldOf(tower.key)
+      : tower.shield;
+
+    if (shield > 0) {
+      /* Infinity stays infinity — a farm or a Quantum never runs
+         out, so a Wasp diving one achieves nothing at all. */
+      tower.shield = shield === Infinity ? Infinity : shield - 1;
+      tower.blocked = 0.6;
+      return;
+    }
+
+    tower.stunned = Math.max(tower.stunned || 0, seconds);
   }
 
   /* Returns true while the enemy is off the lane, so the mover
@@ -2710,6 +2782,27 @@
          widens. */
       if (tower.pulse) {
         tower.pulse = Math.max(0, tower.pulse - PULSE_DECAY * delta);
+      }
+
+      /* The flash when a shield eats a stun. */
+      if (tower.blocked) {
+        tower.blocked = Math.max(0, tower.blocked - delta);
+      }
+
+      /* Shields come back one at a time. Without this they would
+         be a handful of free stuns per match and then nothing,
+         which is no use at all by wave 200 — and with it, a
+         tower survives the first Wasp and the third but not
+         three at once. */
+      var full = stats.shieldOf(tower.key);
+
+      if (full !== Infinity && full > 0 && (tower.shield || 0) < full) {
+        tower.shieldTimer = (tower.shieldTimer || 0) + delta;
+
+        if (tower.shieldTimer >= stats.shieldRecharge) {
+          tower.shieldTimer = 0;
+          tower.shield = (tower.shield || 0) + 1;
+        }
       }
 
       /* A Clock Tower's hands show its charge rather than its
@@ -3796,6 +3889,20 @@
       inspect.appendChild(statLine("Shiny", stats.shinySummary(tower.key)));
     }
 
+    var shielded = stats.shieldOf(tower.key);
+
+    if (shielded > 0) {
+      inspect.appendChild(
+        statLine(
+          "Shield",
+          shielded === Infinity
+            ? "Never stunned"
+            : (tower.shield === undefined ? shielded : tower.shield) +
+              " / " + shielded + " stuns blocked"
+        )
+      );
+    }
+
     if (damage > 0) {
       inspect.appendChild(statLine("Damage", String(Math.round(damage))));
       inspect.appendChild(statLine("Cooldown", cooldown + "s"));
@@ -3926,6 +4033,11 @@
       shiny: Boolean(order.shiny),
       level: occupant ? occupant.level + 1 : order.level,
       evolution: occupant ? evolutionFor(occupant) : order.evolution,
+      /* A fresh tower starts with its full shield. Merging keeps
+         whatever the one underneath had spent, so stacking
+         towers is not a way to refill them. */
+      shield: occupant ? occupant.shield : stats.shieldOf(order.key),
+      shieldTimer: 0,
       cooldown: 0,
       angle: occupant ? occupant.angle || 0 : 0
     };
@@ -4339,6 +4451,9 @@
         shiny: Boolean(tower.shiny),
         level: tower.level + 1,
         evolution: evolutionFor(tower),
+        /* Carried across, so merging never refills a shield. */
+        shield: tower.shield,
+        shieldTimer: tower.shieldTimer || 0,
         cooldown: 0,
         angle: tower.angle || 0
       };
@@ -4703,7 +4818,9 @@
         /* So a guest can see which of its towers have been
            stunned, rather than watching them silently not
            shoot. */
-        Math.round((tower.stunned || 0) * 10) / 10
+        Math.round((tower.stunned || 0) * 10) / 10,
+        /* Infinity does not survive JSON, so it travels as -1. */
+        tower.shield === Infinity ? -1 : (tower.shield || 0)
       ];
     });
 
@@ -4724,6 +4841,7 @@
         shiny: Boolean(row[4]),
         angle: row[5],
         stunned: row[6] || 0,
+        shield: row[7] === -1 ? Infinity : (row[7] || 0),
         cooldown: 0
       };
     });

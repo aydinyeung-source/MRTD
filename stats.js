@@ -167,11 +167,62 @@
        so a Quantum covering forty enemies becomes a Quantum
        covering one. Killing it is the counter; ignoring it is
        not available. */
+    /* Deliberately frail for what it does — well under a brute,
+       barely over a grunt.
+
+       Health on a taunt is not difficulty, it is duration. Every
+       second a Herald lives is a second the whole board is
+       shooting one thing and everything else walks past
+       untouched, so a tough one does not make a hard wave, it
+       makes an unanswerable one. Cheap to kill is what turns it
+       into "shoot that first" rather than "watch the base
+       empty".
+
+       The bounty stays high. It is paying for the priority. */
     herald: {
-      label: "Herald", hp: 950, speed: 0.9, dps: 30, bounty: 75,
+      label: "Herald", hp: 300, speed: 0.9, dps: 30, bounty: 75,
       weight: 1.6, colour: "#4f7f8c", taunt: true
     }
   };
+
+  /* =========================================================
+     Tower shields
+
+     A shield stops a stun. It is spent doing it, and comes back
+     on a timer — so a shielded tower survives the first Wasp and
+     the third, but not three at once.
+
+     Infinity means it never runs out. Two towers have that and
+     both for the same reason: there is nothing in them to stop.
+     A farm has no attack to interrupt, and Quantum is the one
+     tower whose whole value is that it never stops firing.
+
+     A Wasp cannot tell. It picks the nearest tower and dives it
+     the same either way, so a farm parked near the portal eats
+     Wasps that would otherwise have reached something that
+     matters. Nothing says so anywhere in the game — it is there
+     to be worked out.
+
+     Everything else scales with rarity: the expensive towers are
+     harder to switch off. Easy to retune; this is the only place
+     it is written.
+     ========================================================= */
+
+  var SHIELD_RECHARGE = 20;
+
+  var SHIELDS = {
+    farm: Infinity,
+    quantum: Infinity,
+
+    clocktower: 2,
+    djtv: 1,
+    icecannon: 1,
+    fan: 1
+  };
+
+  function shieldOf(key) {
+    return SHIELDS[key] === undefined ? 0 : SHIELDS[key];
+  }
 
   function isFlying(kind) {
     var enemy = ENEMIES[kind];
@@ -479,7 +530,14 @@
       label: "Effigy",
       colour: "#3f6b52",
       taunt: true,
-      ability: "none"
+      ability: "none",
+
+      /* A fraction of a normal boss, for the same reason a
+         Herald is frail: on a taunt, health is how long the rest
+         of the wave goes unopposed. At the usual 25x a brute the
+         board would be locked onto one target for most of the
+         wave and everything else would simply arrive. */
+      hpScale: 0.35
     },
 
     wraith: {
@@ -527,9 +585,17 @@
   }
 
   /* Scales with the party through waveEnemyHp, so a boss is worth
-     the same share of a wave however many are playing. */
-  function bossHp(wave, players) {
-    return waveEnemyHp("brute", wave, players) * BOSS.hpMultiple;
+     the same share of a wave however many are playing.
+
+     hpScale lets one boss be softer than the rest without a
+     second table of numbers — only the Effigy uses it, and only
+     because a taunt that lives a long time is a wave nobody can
+     answer rather than a hard one. */
+  function bossHp(wave, players, key) {
+    var boss = key ? BOSSES[key] : null;
+    var scale = boss && boss.hpScale ? boss.hpScale : 1;
+
+    return waveEnemyHp("brute", wave, players) * BOSS.hpMultiple * scale;
   }
 
   function bossBounty(wave) {
@@ -1306,6 +1372,8 @@
     pushback: pushbackOf,
     pushFactor: pushFactor,
     weight: weightOf,
+    shieldOf: shieldOf,
+    shieldRecharge: SHIELD_RECHARGE,
     isFlying: isFlying,
     behaviour: behaviour,
     ability: abilityOf,
