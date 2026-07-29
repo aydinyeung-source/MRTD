@@ -229,6 +229,14 @@
         coins = Number((results[2][0] || {}).coins || 0);
 
         render();
+
+        /* The Towers tab asks how many loadout slots this player
+           has, and until this call returns the answer is five
+           whatever they bought. Telling it now is what makes a
+           sixth slot appear without needing another click. */
+        if (window.MRTD.refreshLoadout) {
+          window.MRTD.refreshLoadout();
+        }
       })
       .catch(function (error) {
         setStatus(error.message, true);

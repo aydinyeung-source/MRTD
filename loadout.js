@@ -82,7 +82,19 @@
         saved = JSON.parse(localStorage.getItem(STORAGE_ROOT));
       }
 
-      return Array.isArray(saved) ? saved.slice(0, slots()) : [];
+      /* Returned whole, NOT cut to the slot count.
+
+         upgrades.js fetches its levels asynchronously, so at the
+         moment this first runs, upgrade("loadout_slots") is
+         still 0 and slots() says five. Trimming here threw the
+         sixth entry away — and refresh() then saved the shorter
+         list straight back over the good one. The sixth slot
+         disappeared on every single load.
+
+         Anything past the slot count is ignored when rendering
+         and when the match reads the loadout, so keeping it
+         costs nothing and losing it cost the upgrade. */
+      return Array.isArray(saved) ? saved : [];
     } catch (error) {
       return [];
     }
@@ -269,7 +281,12 @@
       status.textContent =
         "Equip up to " + slots() + " towers to take into a match.";
     } else {
-      status.textContent = equipped.length + " of " + slots() + " slots filled.";
+      /* Capped, because the stored loadout can briefly hold more
+         than the slot count while the upgrade levels are still
+         being fetched, and "6 of 5 slots filled" reads as a
+         fault rather than as a moment. */
+      status.textContent =
+        Math.min(equipped.length, total) + " of " + total + " slots filled.";
     }
   }
 
