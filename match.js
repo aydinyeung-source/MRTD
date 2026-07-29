@@ -2938,10 +2938,16 @@
         mended = true;
       }
 
+      /* The whole shield back, not one charge of it. A Medic is
+         2000 and does no damage; giving it a drip feed would
+         make it worse than the tower you could have bought
+         instead, and the towers it protects would still fall
+         over to two Wasps in a row. */
       var full = stats.shieldOf(other.key);
 
       if (full !== Infinity && full > 0 && (other.shield || 0) < full) {
-        other.shield = (other.shield || 0) + 1;
+        other.shield = full;
+        other.shieldTimer = 0;
         mended = true;
       }
     });
@@ -4983,8 +4989,10 @@
   function sendSnapshot() {
     window.MRTD.net.send("s", {
       speed: speed,
-      /* The host's developer mode, which the whole run adopts. */
-      sandbox: isDev(),
+      /* Latched at the start of the run, not read live — see
+         connect. Sending isDev() here would let a host toggling
+         developer mode mid-run flip everybody's economy. */
+      sandbox: mp.sandbox,
       towers: packTowers(),
       enemies: packEnemies(),
       allies: packAllies(),
@@ -5008,8 +5016,10 @@
          enemy back a tenth of a second's travel, ten times a
          second, and the whole wave would judder. */
       speed: speed,
-      /* The host's developer mode, which the whole run adopts. */
-      sandbox: isDev(),
+      /* Latched at the start of the run, not read live — see
+         connect. Sending isDev() here would let a host toggling
+         developer mode mid-run flip everybody's economy. */
+      sandbox: mp.sandbox,
       enemies: packEnemies(),
       allies: packAllies(),
       baseHp: Math.round(baseHp),
@@ -5336,6 +5346,22 @@
     mp.peers = {};
     mp.lastPeerPing = 0;
     mp.hostId = asHost ? me() : null;
+
+    /* Set HERE for the host, and this is the whole of what was
+       wrong with fun runs.
+
+       mp.sandbox was only ever assigned by applySnapshot and
+       applyTick, and both of those are guest paths — the host
+       never ran either, so its own sandbox flag stayed false. It
+       broadcast sandbox: true to everyone else while behaving as
+       though the run were normal: it charged guests for towers
+       until they ran out, charged itself, and banked the run for
+       real at the end.
+
+       Latched at the start rather than read live, so a fun run
+       stays a fun run even if the simulation later passes to
+       somebody who is not a developer. */
+    mp.sandbox = asHost ? isDev() : false;
     mp.names = {};
     lastRoster = "";
 

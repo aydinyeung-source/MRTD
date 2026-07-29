@@ -745,14 +745,20 @@
          Most towers have no shield at all, which is what makes a
          Wasp or a Breaker worth fearing. A Medic gives them one
          back: every second it clears the stun off everything in
-         reach and returns a spent shield charge.
+         reach and refills its shield to full.
+
+         Everything in reach, without exception — every tower,
+         whoever placed it. In a party, keeping the board
+         shooting is worth more than keeping score, and a Medic
+         that only mended its owner's towers would be a tower
+         nobody wants standing next to them.
 
          It cannot be stunned itself — a Medic that could be
          switched off by the thing it exists to answer would be
          no answer at all. Blender range, so it covers a cluster
          rather than a lane, and merging widens it. */
       label: "Medic", role: "support",
-      damage: 0, range: 15, cooldown: 0, cost: 1000,
+      damage: 0, range: 15, cooldown: 0, cost: 2000,
       attack: null,
 
       /* Seconds between pulses. */
