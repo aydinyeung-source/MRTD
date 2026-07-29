@@ -5658,8 +5658,26 @@
      — the run does not exist, so there is nothing to join. Their
      Play button becomes the wait. */
   function beginPlay() {
-    var party = window.MRTD.party ? window.MRTD.party() : null;
     var wait = 2000 + Math.floor(Math.random() * 3000);
+
+    /* Asked fresh rather than trusting the last poll.
+
+       The panel refreshes every three seconds, so what it last
+       heard can be that old — and this is the one press where
+       being out of date sends the player somewhere else
+       entirely. A run that started, or ended, in those three
+       seconds picks the wrong branch. */
+    var ready = window.MRTD.refreshParty
+      ? window.MRTD.refreshParty()
+      : Promise.resolve();
+
+    ready.then(function () {
+      choosePlay(wait);
+    });
+  }
+
+  function choosePlay(wait) {
+    var party = window.MRTD.party ? window.MRTD.party() : null;
 
     /* Somewhere to go back to takes priority over starting
        anything new — the database refuses a second run anyway,
@@ -5668,8 +5686,18 @@
       window.MRTD.rejoinRun().then(function (runId) {
         connect(runId, false);
         window.MRTD.load("Rejoining", wait, open);
-      }).catch(function () {
-        window.MRTD.load("Preparing the field", wait, open);
+      }).catch(function (error) {
+        /* NOT a solo run. This used to quietly start a fresh
+           match when the rejoin was refused, which is exactly
+           what "rejoining does not put me back in the old match"
+           looks like from the outside — it put the player in a
+           new one and said nothing.
+
+           The refusal is worth reading: the run has finished, or
+           everybody else has left it. Both mean there is nothing
+           to go back to, and neither is answered by silently
+           starting something else. */
+        window.MRTD.partyProblem(error.message);
       });
       return;
     }
