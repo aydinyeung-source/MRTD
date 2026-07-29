@@ -253,7 +253,6 @@
 
   /* Which way the map is currently laid out, so a flip can be
      detected and the board turned with it. */
-  var portraitMode = null;
 
   /* The tower waiting to be positioned, as { key, level }. Shown
      semi-opaque until a second click commits it. */
@@ -273,10 +272,10 @@
     return col + "," + row;
   }
 
-  function waypoints(portrait) {
-    return WAYPOINTS.map(function (point) {
-      return portrait ? [point[1], point[0]] : point;
-    });
+  /* The lane, as written. It used to be flipped for a tall
+     window; now the board never turns, so neither does this. */
+  function waypoints() {
+    return WAYPOINTS.slice();
   }
 
   function buildPath(points) {
@@ -304,40 +303,21 @@
     return tiles;
   }
 
-  /* The map is transposed in portrait, so anything already placed
-     has to turn with it — otherwise a block of towers keeps its
-     old shape on a grid that has swapped axes and ends up sitting
-     on the path. */
-  function transposeTowers() {
-    var turned = {};
+  /* The board is always 26 by 15, whatever shape the window is.
 
-    Object.keys(towers).forEach(function (position) {
-      var parts = position.split(",");
+     It used to transpose on a tall window, which was better use
+     of a phone screen and is now impossible: a tile is named by
+     column and row, and those names travel between players. Two
+     clients on different orientations would agree they were
+     talking about tile "3,9" and mean two different squares —
+     so a tower placed on one screen appeared somewhere else on
+     the other, sometimes on the path.
 
-      turned[key(Number(parts[1]), Number(parts[0]))] = towers[position];
-    });
-
-    towers = turned;
-
-    /* These all point at a tile by name and would now be wrong. */
-    hover = null;
-    inspected = null;
-    drag = null;
-    sellZone = null;
-    closeInspect();
-  }
-
+     A tall window gets a smaller board with space above and
+     below instead. Worse on a phone, correct everywhere. */
   function layout() {
-    var portrait = window.innerHeight > window.innerWidth;
-
-    if (portraitMode !== null && portrait !== portraitMode) {
-      transposeTowers();
-    }
-
-    portraitMode = portrait;
-
-    var cols = portrait ? GRID.rows : GRID.cols;
-    var rows = portrait ? GRID.cols : GRID.rows;
+    var cols = GRID.cols;
+    var rows = GRID.rows;
     var width = window.innerWidth;
     var height = window.innerHeight;
     var size = Math.floor(Math.min(width / cols, height / rows));
@@ -354,7 +334,7 @@
     canvas.style.height = height + "px";
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-    var points = waypoints(portrait);
+    var points = waypoints();
 
     view = {
       cols: cols,
@@ -4619,7 +4599,6 @@
     particles = [];
     allies = [];
     spawnQueue = [];
-    portraitMode = null;
     elapsed = 0;
     cash = stats.startingCashFor(upgradeLevel("starting_cash"));
 
