@@ -45,7 +45,7 @@
   var TOWER_KEYS = [
     "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner",
     "beacon", "forge", "metronome", "djtv", "quantum", "icecannon",
-    "fan", "clocktower"
+    "fan", "clocktower", "medic"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -83,6 +83,7 @@
     djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" },
     quantum: { body: "#1b2b3a", accent: "#5fe3d0", plan: "orbit" },
     fan: { body: "#2f3f46", accent: "#9fd6e4", plan: "blades" },
+    medic: { body: "#f2f4f3", accent: "#c9464a", plan: "cross" },
     clocktower: { body: "#2a2436", accent: "#e0c063", plan: "clock" },
     icecannon: { body: "#5b7f9c", accent: "#cfeaf7", plan: "frost" }
   };
@@ -862,6 +863,25 @@
     ctx.restore();
   }
 
+  /* Medic: a cross, with a ring that thickens as it merges. The
+     only white tower on the board, which is most of what makes
+     it findable when everything around it has been stunned. */
+  function planCross(token, radius, level) {
+    var arm = radius * 0.34;
+    var reach = radius * (0.72 + level * 0.025);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * (0.06 + level * 0.008));
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 1.1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = token.accent;
+    ctx.fillRect(-arm / 2, -reach, arm, reach * 2);
+    ctx.fillRect(-reach, -arm / 2, reach * 2, arm);
+  }
+
   /* Clock Tower: a face with two hands, gaining a marker every
      couple of merges. The hands turn with its charge rather than
      with anything it shoots. */
@@ -937,7 +957,8 @@
     barrels: planBarrels,
     barrel: planBarrel,
     gate: planGate,
-    clock: planClock
+    clock: planClock,
+    cross: planCross
   };
 
   function drawTopTower(tower, x, y, size) {
@@ -2033,6 +2054,29 @@
      taunt does not switch anything off, it changes what the tower
      is pointed at. A shielded tower shoots the Herald with
      everything, same as the rest. */
+  /* What two merging towers are left holding.
+
+     Added rather than inherited, so a spent shield is worth
+     bringing to a merge — and capped at one tower's worth, so it
+     is never a way to bank more than a tower can hold. */
+  function mergedShield(occupant, key, mine) {
+    var full = stats.shieldOf(key);
+
+    if (full === Infinity) {
+      return Infinity;
+    }
+
+    var have = mine === undefined ? full : mine;
+
+    if (!occupant) {
+      return have;
+    }
+
+    var theirs = occupant.shield === undefined ? full : occupant.shield;
+
+    return Math.min(full, have + theirs);
+  }
+
   function stunTower(at, seconds) {
     var tower = towers[at];
 
@@ -2842,6 +2886,73 @@
      dies.
      ========================================================= */
 
+  /* The Medic's pulse.
+
+     Once a second it clears the stun off every tower in reach
+     and hands one shield charge back. It does not care whose
+     tower it is — in a party, keeping the board shooting is
+     worth more than keeping score.
+
+     The stun clear is the important half. A shield refill only
+     helps the towers that have shields, and most do not; that is
+     the whole reason this tower exists. */
+  function healNear(position, tower, delta) {
+    var definition = stats.towers[tower.key];
+
+    if (!definition.heal) {
+      return;
+    }
+
+    tower.healTimer = (tower.healTimer || 0) - delta;
+
+    if (tower.healTimer > 0) {
+      return;
+    }
+
+    tower.healTimer = definition.heal;
+
+    var parts = position.split(",");
+    var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+    var reach =
+      (stats.boosted(
+        stats.range(tower.key, tower.level, evolutionFor(tower)),
+        boostFor(position, "range")
+      ) /
+        stats.rangePerTile) *
+      view.size;
+    var mended = false;
+
+    Object.keys(towers).forEach(function (at) {
+      var other = towers[at];
+      var bits = at.split(",");
+      var point = tileCentre(Number(bits[0]), Number(bits[1]));
+      var dx = point.x - centre.x;
+      var dy = point.y - centre.y;
+
+      if (Math.sqrt(dx * dx + dy * dy) > reach) {
+        return;
+      }
+
+      if (other.stunned > 0) {
+        other.stunned = 0;
+        mended = true;
+      }
+
+      var full = stats.shieldOf(other.key);
+
+      if (full !== Infinity && full > 0 && (other.shield || 0) < full) {
+        other.shield = (other.shield || 0) + 1;
+        mended = true;
+      }
+    });
+
+    /* Only pulses when it actually did something, so a Medic
+       sitting in a quiet corner is not a light show. */
+    if (mended && !lowGraphics) {
+      tower.pulse = 1;
+    }
+  }
+
   function spawnAllies(position, tower, delta) {
     var definition = stats.towers[tower.key];
 
@@ -3055,6 +3166,7 @@
     Object.keys(towers).forEach(function (position) {
       fire(position, towers[position], delta);
       spawnAllies(position, towers[position], delta);
+      healNear(position, towers[position], delta);
     });
 
 
@@ -4033,10 +4145,10 @@
       shiny: Boolean(order.shiny),
       level: occupant ? occupant.level + 1 : order.level,
       evolution: occupant ? evolutionFor(occupant) : order.evolution,
-      /* A fresh tower starts with its full shield. Merging keeps
-         whatever the one underneath had spent, so stacking
-         towers is not a way to refill them. */
-      shield: occupant ? occupant.shield : stats.shieldOf(order.key),
+      /* Two towers merging pool what is left of their shields,
+         up to what one tower can hold. Two half-spent shields
+         make one full one; two full ones make one full one. */
+      shield: mergedShield(occupant, order.key, stats.shieldOf(order.key)),
       shieldTimer: 0,
       cooldown: 0,
       angle: occupant ? occupant.angle || 0 : 0
@@ -4451,8 +4563,7 @@
         shiny: Boolean(tower.shiny),
         level: tower.level + 1,
         evolution: evolutionFor(tower),
-        /* Carried across, so merging never refills a shield. */
-        shield: tower.shield,
+        shield: mergedShield(occupant, tower.key, tower.shield),
         shieldTimer: tower.shieldTimer || 0,
         cooldown: 0,
         angle: tower.angle || 0

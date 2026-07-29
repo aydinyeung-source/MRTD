@@ -212,6 +212,7 @@
 
   var SHIELDS = {
     farm: Infinity,
+    medic: Infinity,
     quantum: Infinity,
 
     clocktower: 2,
@@ -620,7 +621,13 @@
       { stat: "boost", mode: "add", amount: 3, percent: true },
       { stat: "range", mode: "add", amount: 5 }
     ],
-    economy: [{ stat: "coins", mode: "multiply", rate: 0.1 }]
+    economy: [{ stat: "coins", mode: "multiply", rate: 0.1 }],
+
+    /* Nothing of its own. A Medic gets the universal +10% range
+       per evolution and no more, which is exactly what it wants
+       — a wider circle of towers kept working. An empty list is
+       the honest way to say that. */
+    support: []
   };
 
   var MAX_MERGE = 10;
@@ -731,6 +738,25 @@
       label: "Quantum", role: "damage",
       damage: 150, range: 42, cooldown: 0.1, cost: 5000, // 1500 dps, 0.30 per cash
       attack: { shape: "circle", angle: 360 }
+    },
+    medic: {
+      /* The answer to being switched off.
+
+         Most towers have no shield at all, which is what makes a
+         Wasp or a Breaker worth fearing. A Medic gives them one
+         back: every second it clears the stun off everything in
+         reach and returns a spent shield charge.
+
+         It cannot be stunned itself — a Medic that could be
+         switched off by the thing it exists to answer would be
+         no answer at all. Blender range, so it covers a cluster
+         rather than a lane, and merging widens it. */
+      label: "Medic", role: "support",
+      damage: 0, range: 15, cooldown: 0, cost: 1000,
+      attack: null,
+
+      /* Seconds between pulses. */
+      heal: 1
     },
     fan: {
       /* Hits everything around it and shoves it back down the
@@ -865,6 +891,7 @@
     forge: "legendary",
     metronome: "legendary",
     blender: "epic",
+    medic: "epic",
     spawner: "epic",
     farm: "rare",
     sniper: "rare",
