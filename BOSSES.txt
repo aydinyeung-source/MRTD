@@ -1,0 +1,118 @@
+MRTD — BOSSES
+=============
+
+A reference for the eight bosses. Everything here is read from
+stats.js; if the two ever disagree, stats.js is right.
+
+
+WHEN THEY APPEAR
+----------------
+
+Every 10th wave up to 100, then every 50th:
+
+    10  20  30  40  50  60  70  80  90  100
+    150  200  250  300  350  400  450  500
+
+A boss wave is the boss plus an escort of 6 ordinary enemies,
+not a full wave with a boss on top.
+
+They come round in a fixed order, so a given wave always has the
+same boss and can be learned rather than met:
+
+    wave  10   Warden
+    wave  20   Brood
+    wave  30   Cleaver
+    wave  40   Sapper
+    wave  50   Wraith
+    wave  60   Swarmlord
+    wave  70   Breaker
+    wave  80   Effigy
+    wave  90   Warden        (the list starts again)
+    wave 100   Brood
+    wave 150   Cleaver       ... and so on
+
+
+WHAT THEY ALL SHARE
+-------------------
+
+    Health      25x a Brute of the same wave
+    Bounty      20x a Brute of the same wave, to every player
+    Speed       0.45 tiles/sec — slower than anything else
+    Weight      1.5 — a Fan holds one to about 2/3 pace
+    Experience  50 x the boss number, so wave 10 pays 50
+                and wave 100 pays 500
+
+Health rides the same 1.12-per-wave curve as everything else, so
+none of these needs its own table.
+
+
+THE EIGHT
+---------
+
+WARDEN — immunity on a cycle
+    Immune for 5 seconds, vulnerable for 8, over and over.
+    Arrives vulnerable. Damage does not shorten or lengthen the
+    window; the cycle is the thing you play around, and a
+    timestop spent on an open window is worth far more than one
+    spent early. Roughly 62% of its listed health matters against
+    steady damage.
+
+BROOD — sheds minions
+    4 Crawlers every 8 seconds, dropped where it stands rather
+    than at the portal. Held to the same 1000-enemy cap as
+    everything else, so one left alive cannot flood the board.
+
+CLEAVER — splits on death
+    Breaks into 2 smaller bosses at 30% health each. The pieces
+    do NOT split again — a chain would have no ceiling. Bounty
+    and experience are paid in proportion, so the halves are
+    worth what the whole was rather than double.
+
+SAPPER — slows nearby towers
+    Towers within 6 tiles fire at half rate. Not a stun: they
+    keep working. Non-stacking, so several Sappers are as bad as
+    one. Damage placed further down the lane is unaffected,
+    which is the answer.
+
+WRAITH — heals out of cover
+    Heals 4% of its health per second, but ONLY while no tower
+    can reach it, and only after 0.2 seconds of that. Tied to
+    coverage rather than to damage taken: a gap in your towers
+    is the only thing that feeds it.
+
+SWARMLORD — flies, sheds Moths
+    Ignores the path entirely and crosses the map in a straight
+    line from portal to base, so everything built along the lane
+    is looking the wrong way. Sheds 3 Moths every 7 seconds —
+    Moths rather than Crawlers, so its escort follows it instead
+    of being left on the first corner.
+
+BREAKER — stuns in a circle
+    Stuns every tower within 5 tiles for 3 seconds, every 9
+    seconds. A circle rather than a chosen target, so the answer
+    is spreading damage out rather than guarding one tower.
+    Shields block it; a Medic clears it.
+
+EFFIGY — takes every shot
+    Every tower that can see it shoots it and nothing else, so a
+    Quantum covering forty enemies covers one. Its escort walks
+    past untouched.
+    Carries only 35% of a normal boss's health, deliberately: on
+    a taunt, health is not difficulty but duration, and a tough
+    one would not be a hard wave, it would be an unanswerable
+    one.
+
+
+ENEMIES THAT SHARE THESE TRICKS
+-------------------------------
+
+Four ordinary enemies use the same mechanics at small scale, and
+arrive long before the bosses that do:
+
+    Moth     wave 11   flies the straight line
+    Wasp     wave 16   flies at a tower, stuns it 3s, dies
+    Raider   wave 21   leaves the lane, stuns a tower, returns
+    Herald   wave 26   takes every shot, like a small Effigy
+
+Each Herald in a wave removes 4 other enemies from it, so
+ignoring one makes the wave small rather than making it lost.
