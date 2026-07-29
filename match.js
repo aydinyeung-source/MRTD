@@ -123,6 +123,7 @@
   var beatenDisplay = document.getElementById("match-beaten");
   var payoutDisplay = document.getElementById("match-payout");
   var gameover = document.getElementById("gameover");
+  var gameoverTitle = document.getElementById("gameover-title");
   var gameoverWaves = document.getElementById("gameover-waves");
   var gameoverCoins = document.getElementById("gameover-coins");
   var gameoverNote = document.getElementById("gameover-note");
@@ -1164,6 +1165,20 @@
 
     drawPulse(tower, x, y, size);
 
+    /* Stunned. Drawn under the tower and left behind it too — a
+       tower that has stopped shooting has to be findable at a
+       glance, or the player only learns it happened from the
+       leak. */
+    if (tower.stunned > 0) {
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(157, 75, 69, 0.22)";
+      ctx.fill();
+      ctx.strokeStyle = "#9d4b45";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
     if (!sprite) {
       drawTopTower(tower, x, y, size);
       return;
@@ -1417,10 +1432,53 @@
       : view.size * 0.3;
     var definition = stats.enemies[enemy.kind];
 
+    /* A flyer casts a shadow under itself, which is the cheapest
+       honest way to say "this one is not on the ground" — the
+       lane it is crossing is drawn right there for comparison. */
+    if (enemy.flying) {
+      ctx.beginPath();
+      ctx.ellipse(
+        point.x + radius * 0.35,
+        point.y + radius * 0.5,
+        radius * 0.7,
+        radius * 0.28,
+        0, 0, Math.PI * 2
+      );
+      ctx.fillStyle = "rgba(24, 32, 36, 0.18)";
+      ctx.fill();
+    }
+
+    /* A Raider off the lane trails a line back to where it will
+       return to, so an enemy leaving the path reads as an
+       excursion rather than as one that has escaped. */
+    if (enemy.raid) {
+      var home = enemy.flying
+        ? flightPoint(enemy.progress)
+        : pathPoint(enemy.progress);
+
+      ctx.beginPath();
+      ctx.moveTo(home.x, home.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.strokeStyle = "rgba(157, 75, 69, 0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fillStyle = boss ? boss.colour : definition.colour;
     ctx.fill();
+
+    /* A Herald wears the ring that says everything is shooting
+       it, so the player knows why their towers have stopped
+       spreading damage. */
+    if (definition.taunt || (boss && boss.taunt)) {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(79, 127, 140, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
 
     /* Immunity reads as a solid ring standing off the body, so
        shots landing for nothing are obviously landing for
@@ -1706,7 +1764,14 @@
   /* Startable when nothing is queued: either between waves, or
      early while the tail of the last wave is still walking. */
   function canStart() {
-    return baseHp > 0 && !spawnQueue.length;
+    return baseHp > 0 && !spawnQueue.length && wave < stats.maxWave;
+  }
+
+  /* Wave 500 cleared. Nothing reachable gets here, which is the
+     point of putting it there — but a run that can be finished
+     is a different thing from one that can only be lost. */
+  function cleared() {
+    return wave >= stats.maxWave && !waveActive && !enemies.length;
   }
 
   function startWave() {
@@ -1773,7 +1838,10 @@
       hp: hp,
       maxHp: hp,
       progress: 0,
-      speed: stats.enemies[kind].speed
+      speed: stats.enemies[kind].speed,
+      /* Read once rather than looked up every frame by everything
+         that needs to know where this thing is. */
+      flying: stats.isFlying(kind)
     });
   }
 
@@ -1798,6 +1866,10 @@
       share: share,
       hp: hp,
       maxHp: hp,
+      /* Taken from the boss rather than from the brute it borrows
+         its numbers from. A Swarmlord flies; a brute does not. */
+      flying: Boolean(definition.flying),
+
       /* Only the Warden is ever immune, and it arrives with the
          shield DOWN — a boss that is untouchable from the moment
          it appears tells the player nothing except to wait. */
@@ -1808,8 +1880,46 @@
     });
   }
 
+  /* Straight from the portal to the base, ignoring every turn the
+     lane takes. What a Moth follows.
+
+     Measured in the same units as walking, so a flyer covers the
+     same "progress" per second as anything else — it simply has
+     far less ground to cover, which is what makes flying worth
+     being. */
+  function flightPoint(progress) {
+    var end = view.path.length - 1;
+    var from = tileCentre(view.path[0][0], view.path[0][1]);
+    var to = tileCentre(view.path[end][0], view.path[end][1]);
+    var t = Math.max(0, Math.min(progress / end, 1));
+
+    return {
+      x: from.x + (to.x - from.x) * t,
+      y: from.y + (to.y - from.y) * t
+    };
+  }
+
+  /* Where an enemy actually is. Three answers now: off on a raid,
+     in the air, or on the lane like everything always was. */
   function enemyAt(enemy) {
-    return pathPoint(enemy.progress);
+    var home = enemy.flying
+      ? flightPoint(enemy.progress)
+      : pathPoint(enemy.progress);
+
+    if (!enemy.raid) {
+      return home;
+    }
+
+    /* Part way between the lane and whatever it is going for.
+       Nothing about `progress` changes while it is out there, so
+       coming back puts it exactly where it left. */
+    var target = enemy.raid.point;
+    var t = enemy.raid.t;
+
+    return {
+      x: home.x + (target.x - home.x) * t,
+      y: home.y + (target.y - home.y) * t
+    };
   }
 
   /* Every point that damages an enemy goes through here, so an
@@ -1825,6 +1935,120 @@
   }
 
 
+
+  /* =========================================================
+     Enemies that leave the lane
+
+     A Raider walks until it fancies a tower, goes and stuns it,
+     and walks back on as though nothing happened. A Wasp does
+     the same thing once and dies on arrival.
+
+     Neither advances while it is out there. That is the whole
+     cost of the ability and the only thing keeping it fair: a
+     tower loses three seconds, and the enemy loses about two
+     getting there and back, in range of everything else the
+     whole time.
+     ========================================================= */
+
+  /* Nearest tower that can actually be taken out of the fight.
+     Farms are skipped — stunning something with no attack is not
+     an attack, it just looks like one. */
+  function raidTarget(from, reach) {
+    var best = null;
+    var bestDistance = reach * view.size;
+
+    Object.keys(towers).forEach(function (at) {
+      if (!stats.attack(towers[at].key) || towers[at].stunned > 0) {
+        return;
+      }
+
+      var parts = at.split(",");
+      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+      var dx = centre.x - from.x;
+      var dy = centre.y - from.y;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { at: at, point: centre };
+      }
+    });
+
+    return best;
+  }
+
+  function stunTower(at, seconds) {
+    if (towers[at]) {
+      towers[at].stunned = Math.max(towers[at].stunned || 0, seconds);
+    }
+  }
+
+  /* Returns true while the enemy is off the lane, so the mover
+     knows not to advance it. */
+  function raiding(enemy, delta) {
+    var kind = stats.behaviour(enemy.kind);
+
+    if (!kind || (!kind.raid && !kind.kamikaze)) {
+      return false;
+    }
+
+    if (enemy.raid) {
+      var leg = kind.raidTime || 0.7;
+
+      if (enemy.raid.back) {
+        enemy.raid.t -= delta / leg;
+
+        if (enemy.raid.t <= 0) {
+          enemy.raid = null;
+          enemy.raidTimer = kind.raidEvery || 6;
+        }
+
+        return true;
+      }
+
+      enemy.raid.t += delta / leg;
+
+      if (enemy.raid.t >= 1) {
+        enemy.raid.t = 1;
+        stunTower(enemy.raid.at, kind.stun || 3);
+
+        if (kind.kamikaze) {
+          /* Spent. The tower it hit is the whole of what it was
+             for, so it does not go home and does not pay out. */
+          enemy.hp = 0;
+          enemy.spent = true;
+        } else {
+          enemy.raid.back = true;
+        }
+      }
+
+      return true;
+    }
+
+    /* Kamikaze looks for a target constantly; a Raider waits out
+       its cooldown between excursions so it cannot chain-stun a
+       line of towers without ever walking. */
+    enemy.raidTimer = (enemy.raidTimer === undefined
+      ? (kind.kamikaze ? 0 : kind.raidEvery || 6)
+      : enemy.raidTimer) - delta;
+
+    if (enemy.raidTimer > 0) {
+      return false;
+    }
+
+    var found = raidTarget(enemyAt(enemy), kind.reach || 4);
+
+    if (!found) {
+      /* Nothing worth going for. Checked again shortly rather
+         than every frame. */
+      enemy.raidTimer = 0.4;
+      return false;
+    }
+
+    enemy.raid = { at: found.at, point: found.point, t: 0, back: false };
+
+    return true;
+  }
 
   /* =========================================================
      Boss abilities
@@ -1927,6 +2151,30 @@
         }
       }
 
+      /* A circle rather than a chosen target, so the answer is
+         spreading damage out rather than guarding one tower. */
+      if (definition.ability === "stun") {
+        enemy.abilityTimer -= delta;
+
+        if (enemy.abilityTimer <= 0) {
+          enemy.abilityTimer = definition.every;
+
+          var from = enemyAt(enemy);
+          var reach = definition.radius * view.size;
+
+          Object.keys(towers).forEach(function (at) {
+            var parts = at.split(",");
+            var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+            var dx = centre.x - from.x;
+            var dy = centre.y - from.y;
+
+            if (Math.sqrt(dx * dx + dy * dy) <= reach) {
+              stunTower(at, definition.stun || 3);
+            }
+          });
+        }
+      }
+
       if (definition.ability === "spawn") {
         enemy.abilityTimer -= delta;
 
@@ -1940,16 +2188,21 @@
               break;
             }
 
-            var hp = stats.waveEnemyHp("crawler", wave, players());
+            /* Crawlers from a Brood, Moths from a Swarmlord —
+               a flyer shedding things that walk would leave its
+               own escort behind on the first corner. */
+            var shed = definition.spawnKind || "crawler";
+            var hp = stats.waveEnemyHp(shed, wave, players());
 
             enemies.push({
-              kind: "crawler",
+              kind: shed,
               hp: hp,
               maxHp: hp,
               /* Dropped where the parent is, not at the portal —
                  they are being shed, not summoned from afar. */
               progress: enemy.progress,
-              speed: stats.enemies.crawler.speed
+              speed: stats.enemies[shed].speed,
+              flying: stats.isFlying(shed)
             });
           }
         }
@@ -2110,6 +2363,20 @@
       return;
     }
 
+    /* Stunned. Counted down here rather than anywhere else,
+       because this runs once per tower per tick and is the one
+       place that already knows the tower is meant to be
+       shooting.
+
+       The cooldown is NOT advanced while stunned, so three
+       seconds of stun costs three seconds of shooting rather
+       than being partly absorbed by a reload that was happening
+       anyway. */
+    if (tower.stunned > 0) {
+      tower.stunned = Math.max(0, tower.stunned - delta);
+      return;
+    }
+
     tower.cooldown = (tower.cooldown || 0) - delta;
 
     if (tower.cooldown > 0 || !enemies.length) {
@@ -2138,6 +2405,32 @@
 
     if (!inRange.length) {
       return;
+    }
+
+    /* A Herald takes everything. If one is in reach it is the
+       only thing this tower can hit — which is what turns a
+       Quantum covering forty enemies into a Quantum covering
+       one, and is the entire reason the enemy exists.
+
+       Applied before the sort, so what is left is still ordered
+       by who is closest to the base. */
+    var taunting = inRange.filter(function (enemy) {
+      /* A boss taunts on its own account. Reading only the enemy
+         table would ask the brute an Effigy borrows its numbers
+         from, and a brute does not taunt. */
+      if (enemy.boss) {
+        var boss = stats.bosses[enemy.boss];
+
+        return Boolean(boss && boss.taunt);
+      }
+
+      var kind = stats.behaviour(enemy.kind);
+
+      return kind && kind.taunt;
+    });
+
+    if (taunting.length) {
+      inRange = taunting;
     }
 
     inRange.sort(function (a, b) {
@@ -2606,6 +2899,13 @@
         return;
       }
 
+      /* Off the lane stunning something: it is busy, and nothing
+         about its position along the path changes until it is
+         back. */
+      if (raiding(enemy, delta)) {
+        return;
+      }
+
       var point = enemyAt(enemy);
       var factor = slowAt(point);
       var push = pushAt(point, enemy);
@@ -2627,6 +2927,13 @@
 
     enemies = enemies.filter(function (enemy) {
       if (enemy.hp <= 0) {
+        /* A Wasp that reached its tower was not killed, it was
+           spent. Paying for it would mean being rewarded for
+           letting the stun land. */
+        if (enemy.spent) {
+          return false;
+        }
+
         if (enemy.boss) {
           /* Paid in proportion, so two halves of a Cleaver are
              worth what the whole was rather than doubling it. */
@@ -2697,6 +3004,14 @@
 
     if (baseHp <= 0) {
       endRun();
+      return;
+    }
+
+    /* The other way a run ends. Only the host decides it, the
+       same as everything else about the simulation. */
+    if (cleared() && isHost()) {
+      wavesSurvived = stats.maxWave;
+      endRun(true);
     }
   }
 
@@ -2728,6 +3043,14 @@
          health. Guessing those would mean showing a kill that
          did not happen. */
       enemies.forEach(function (enemy) {
+        /* Anything off the lane is standing still as far as the
+           path is concerned, so carrying it forward would have
+           a Raider drift down the map while it stunned
+           something and then snap back on the next tick. */
+        if (enemy.raid) {
+          return;
+        }
+
         enemy.progress += enemy.speed * delta * speed;
       });
 
@@ -4089,9 +4412,15 @@
     refreshHud();
   }
 
-  function endRun() {
+  function endRun(won) {
     running = false;
     waveActive = false;
+
+    if (gameoverTitle) {
+      gameoverTitle.textContent = won
+        ? "Wave " + stats.maxWave + " cleared"
+        : "Base destroyed";
+    }
 
     gameoverWaves.textContent = String(wavesSurvived);
     gameoverCoins.textContent = sandboxRun()
@@ -4312,13 +4641,23 @@
         (enemy.slowed ? 1 : 0) |
           (enemy.pushed ? 2 : 0) |
           (enemy.immune ? 4 : 0) |
-          (enemy.healing ? 8 : 0)
+          (enemy.healing ? 8 : 0),
+
+        /* How far off the lane it is, and towards which tile.
+           Without these a guest draws a Raider standing calmly
+           on the path while the host has it halfway across the
+           map stunning something. */
+        enemy.raid ? Math.round(enemy.raid.t * 100) / 100 : 0,
+        enemy.raid ? enemy.raid.at : null
       ];
     });
   }
 
   function unpackEnemies(rows) {
     return (rows || []).map(function (row) {
+      var raidAt = row[8];
+      var parts = raidAt ? String(raidAt).split(",") : null;
+
       return {
         kind: row[0],
         boss: row[1] || null,
@@ -4330,6 +4669,19 @@
         pushed: Boolean(row[6] & 2),
         immune: Boolean(row[6] & 4),
         healing: Boolean(row[6] & 8),
+        flying: stats.isFlying(row[0]),
+        /* Rebuilt rather than sent whole: the tile is all that
+           travels, and the point it maps to is this client's own
+           geometry. A guest on a different screen size has
+           different pixel coordinates for the same tile. */
+        raid: parts
+          ? {
+              at: raidAt,
+              t: row[7],
+              point: tileCentre(Number(parts[0]), Number(parts[1])),
+              back: false
+            }
+          : null,
         speed: row[1] ? stats.boss.speed : stats.enemies[row[0]].speed
       };
     });
@@ -4347,7 +4699,11 @@
         tower.level,
         tower.evolution,
         tower.shiny ? 1 : 0,
-        Math.round((tower.angle || 0) * 100) / 100
+        Math.round((tower.angle || 0) * 100) / 100,
+        /* So a guest can see which of its towers have been
+           stunned, rather than watching them silently not
+           shoot. */
+        Math.round((tower.stunned || 0) * 10) / 10
       ];
     });
 
@@ -4367,6 +4723,7 @@
         evolution: row[3],
         shiny: Boolean(row[4]),
         angle: row[5],
+        stunned: row[6] || 0,
         cooldown: 0
       };
     });

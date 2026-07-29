@@ -313,6 +313,7 @@
       <nav class="handbook__index">
         <button class="handbook__jump" type="button" data-jump="handbook-merging">Merging</button>
         <button class="handbook__jump" type="button" data-jump="handbook-evolutions">Evolutions</button>
+        <button class="handbook__jump" type="button" data-jump="handbook-enemies">Enemies</button>
         <button class="handbook__jump" type="button" data-jump="handbook-bosses">Bosses</button>
         <button class="handbook__jump" type="button" data-jump="handbook-shinies">Shinies</button>
         <button class="handbook__jump" type="button" data-jump="handbook-money">Money and leaks</button>
@@ -364,6 +365,37 @@
         </p>
       </section>
 
+      <section class="handbook__section" id="handbook-enemies">
+        <h3>Enemies</h3>
+        <p>
+          <strong>Crawlers</strong>, <strong>Grunts</strong>,
+          <strong>Runners</strong> and <strong>Brutes</strong> walk the lane
+          and do nothing else. Four more arrive later, and each one breaks
+          something your towers rely on.
+        </p>
+        <p>
+          <strong>Moths</strong> (wave 11) ignore the path entirely and fly
+          straight from the portal to the base — everything you built along
+          the lane is looking the wrong way. <strong>Wasps</strong> (16) fly
+          at a tower, <strong>stun it for 3 seconds</strong> and die doing it;
+          they deal no other damage and pay no bounty, because they were spent
+          rather than killed.
+        </p>
+        <p>
+          <strong>Raiders</strong> (21) leave the lane, stun a tower, and walk
+          back on as though nothing happened. They make no progress while
+          they are out there, which is the only thing keeping it fair.
+          <strong>Heralds</strong> (26) make every tower that can see them
+          shoot them and nothing else — a Quantum covering forty enemies
+          becomes a Quantum covering one.
+        </p>
+        <p>
+          A stunned tower is ringed in red and its cooldown stops, so three
+          seconds of stun costs three seconds of shooting rather than being
+          partly absorbed by a reload that was happening anyway.
+        </p>
+      </section>
+
       <section class="handbook__section" id="handbook-bosses">
         <h3>Bosses</h3>
         <p>
@@ -371,6 +403,12 @@
           <strong>fiftieth</strong>. A boss wave is the boss and a short
           escort rather than a full wave on top of it. Its health shows across
           the top of the board.
+        </p>
+        <p>
+          Each boss wave has its own, in a fixed order, so wave 10 is always
+          the Warden and wave 80 always the Effigy. There are eight, and they
+          come round again once the list runs out — far enough apart to be
+          worth seeing twice. The run ends at <strong>wave 500</strong>.
         </p>
         <p>
           A boss has <strong>25×</strong> a brute's health for that wave and
@@ -391,6 +429,14 @@
           working. <strong>Wraith</strong> heals 4% of its health a second, but
           <strong>only while no tower can reach it</strong> — a gap in your
           coverage is the only thing that feeds it.
+        </p>
+        <p>
+          Three more carry the newer enemies' tricks at boss scale.
+          <strong>Swarmlord</strong> flies the straight line and sheds Moths
+          as it goes. <strong>Breaker</strong> stuns every tower within 5
+          tiles every 9 seconds, so spreading damage out beats guarding one
+          spot. <strong>Effigy</strong> takes every shot on the board, which
+          means its escort walks past untouched.
         </p>
       </section>
 
@@ -600,7 +646,7 @@
 
     <div class="gameover" id="gameover" hidden>
       <div class="gameover__panel">
-        <h2 class="gameover__title">Base destroyed</h2>
+        <h2 class="gameover__title" id="gameover-title">Base destroyed</h2>
         <p class="gameover__line">Waves survived <span id="gameover-waves">0</span></p>
         <p class="gameover__reward"><span id="gameover-coins">0</span> coins</p>
         <p class="gameover__note" id="gameover-note" hidden>Dev mode — nothing banked</p>

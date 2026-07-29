@@ -118,8 +118,70 @@
     grunt: { label: "Grunt", hp: 250, speed: 1.2, dps: 50, bounty: 25, weight: 1, colour: "#7a5c8a" },
     runner: { label: "Runner", hp: 200, speed: 2.6, dps: 40, bounty: 20, weight: 0.8, colour: "#c98f6a" },
     /* Slow and very heavy: a Fan barely moves one. */
-    brute: { label: "Brute", hp: 1200, speed: 0.6, dps: 240, bounty: 120, weight: 2.5, colour: "#5a6b52" }
+    brute: { label: "Brute", hp: 1200, speed: 0.6, dps: 240, bounty: 120, weight: 2.5, colour: "#5a6b52" },
+
+    /* ---------------------------------------------------------
+       Enemies that do something other than walk.
+
+       Everything above walks the lane and dies or does not. The
+       four below each break one assumption a tower is built on,
+       which is the point: after wave 12 the old set never
+       changed again, so every tower answered the same question
+       forever.
+
+         flying   the lane does not contain it
+         stun     a tower can be taken out of the fight
+         taunt    area damage can be made single target
+       --------------------------------------------------------- */
+
+    /* Ignores the path completely and flies the straight line
+       from portal to base. Everything you built along the lane
+       is looking the wrong way — what matters is what covers the
+       middle. */
+    moth: {
+      label: "Moth", hp: 120, speed: 1.8, dps: 20, bounty: 18,
+      weight: 0.4, colour: "#c2b280", flying: true
+    },
+
+    /* Flies at a tower, stuns it, and dies doing it. No walking
+       damage at all — the trade is one enemy for three seconds
+       of one tower, and it chooses the tower. */
+    wasp: {
+      label: "Wasp", hp: 220, speed: 2.2, dps: 0, bounty: 32,
+      weight: 0.4, colour: "#c98b2f", flying: true,
+      kamikaze: true, stun: 3, reach: 9
+    },
+
+    /* Walks the lane like anything else until something is worth
+       hitting, then leaves it, stuns a tower, and walks back on
+       as though nothing happened. Costs it the time, which is
+       the only thing keeping it fair. */
+    raider: {
+      label: "Raider", hp: 420, speed: 1.4, dps: 60, bounty: 44,
+      weight: 0.9, colour: "#8c4f6b", raid: true, stun: 3, reach: 4,
+      /* Seconds between raids, and how long each leg takes. */
+      raidEvery: 6, raidTime: 0.9
+    },
+
+    /* Every tower that can see it shoots it and nothing else,
+       so a Quantum covering forty enemies becomes a Quantum
+       covering one. Killing it is the counter; ignoring it is
+       not available. */
+    herald: {
+      label: "Herald", hp: 950, speed: 0.9, dps: 30, bounty: 75,
+      weight: 1.6, colour: "#4f7f8c", taunt: true
+    }
   };
+
+  function isFlying(kind) {
+    var enemy = ENEMIES[kind];
+
+    return Boolean(enemy && enemy.flying);
+  }
+
+  function behaviour(kind) {
+    return ENEMIES[kind] || null;
+  }
 
   function weightOf(kind) {
     var enemy = ENEMIES[kind];
@@ -213,6 +275,13 @@
   /* Which enemies appear, by wave. The early waves are crawlers
      only, so the opening is survivable on one tower; everything
      else joins gradually. */
+  /* Joined gradually, and each one lands on a boss wave boundary
+     or just after, so a new kind of enemy is never the same
+     surprise as a boss.
+
+     They keep arriving to wave 30 rather than stopping at 12,
+     which is the whole point — a run used to stop changing an
+     eighth of the way through the waves anyone actually reaches. */
   function wavePool(wave) {
     var pool = ["crawler"];
 
@@ -224,8 +293,24 @@
       pool.push("runner");
     }
 
+    if (wave >= 11) {
+      pool.push("moth");
+    }
+
     if (wave >= 12) {
       pool.push("brute");
+    }
+
+    if (wave >= 16) {
+      pool.push("wasp");
+    }
+
+    if (wave >= 21) {
+      pool.push("raider");
+    }
+
+    if (wave >= 26) {
+      pool.push("herald");
     }
 
     return pool;
@@ -242,6 +327,18 @@
      the same 1.12 curve as everything else and never need their
      own table of numbers per wave.
      ========================================================= */
+
+  /* Where the run stops.
+
+     "Endless" was never quite true — enemy health compounds at
+     1.12, so somewhere past wave 6,400 it overflows to infinity
+     and health bars go strange. 500 is far below anything
+     reachable: a wave there has enemies at 10^28 health, and the
+     wave alone would take an hour and a half just to spawn.
+
+     Having an end also means clearing it is a thing that can
+     happen, rather than the run only ever ending in a loss. */
+  var MAX_WAVE = 500;
 
   function isBossWave(wave) {
     if (!wave || wave < 10) {
@@ -343,6 +440,48 @@
       radius: 6,
       rate: 0.5
     },
+    /* The three below carry the new enemies' tricks at boss
+       scale. A boss wave is the one place a mechanic can be
+       shown on its own, with nothing else on the board competing
+       for attention. */
+
+    /* Crosses the map in a straight line like a Moth, so every
+       tower placed along the lane is looking the wrong way at
+       the worst possible moment. */
+    swarmlord: {
+      label: "Swarmlord",
+      colour: "#7a6b3f",
+      flying: true,
+      ability: "spawn",
+      /* Moths, not crawlers — they fly too, so the escort
+         follows it rather than trailing along the lane. */
+      spawns: 3,
+      spawnKind: "moth",
+      every: 7
+    },
+
+    /* Stuns everything near it on a timer. Not a chosen target
+       like a Raider: a circle, so the answer is spreading damage
+       out rather than protecting one tower. */
+    breaker: {
+      label: "Breaker",
+      colour: "#8c3f3f",
+      ability: "stun",
+      radius: 5,
+      stun: 3,
+      every: 9
+    },
+
+    /* Everything shoots it and only it. On a boss wave that
+       means the escort walks past untouched while the whole
+       board empties into one target. */
+    effigy: {
+      label: "Effigy",
+      colour: "#3f6b52",
+      taunt: true,
+      ability: "none"
+    },
+
     wraith: {
       label: "Wraith",
       colour: "#3f7a63",
@@ -364,7 +503,18 @@
     }
   };
 
-  var BOSS_ORDER = ["warden", "brood", "cleaver", "sapper", "wraith"];
+  /* The order they come in. Each boss wave has its own, and once
+     the list runs out it starts again — so wave 10 is always the
+     Warden and wave 90 is always the Swarmlord, and a player
+     learns them rather than meeting a stranger every time.
+
+     Eight of them against boss waves at 10..100 then every 50:
+     ten before the first repeat, and the repeats land far enough
+     apart to be welcome. */
+  var BOSS_ORDER = [
+    "warden", "brood", "cleaver", "sapper",
+    "wraith", "swarmlord", "breaker", "effigy"
+  ];
 
   function bossFor(wave) {
     var number = bossNumber(wave);
@@ -1135,6 +1285,7 @@
     waveBounty: waveBounty,
     waveCount: waveCount,
     wavePool: wavePool,
+    maxWave: MAX_WAVE,
     isBossWave: isBossWave,
     bossNumber: bossNumber,
     bossFor: bossFor,
@@ -1155,6 +1306,8 @@
     pushback: pushbackOf,
     pushFactor: pushFactor,
     weight: weightOf,
+    isFlying: isFlying,
+    behaviour: behaviour,
     ability: abilityOf,
     damage: damage,
     range: range,
