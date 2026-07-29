@@ -4661,10 +4661,12 @@
 
     gameoverWaves.textContent = String(wavesSurvived);
 
-    /* Banked for everyone who was still here, sandbox or not —
-       a fun run pays no coins, but the bosses were still killed
-       and experience is not the thing being given away. */
-    if (earnedXp > 0 && window.MRTD.awardXp) {
+    /* Nothing at all from a fun run, experience included.
+       Infinite money makes deep waves trivial, so paying
+       experience would make a sandbox the fastest way to level —
+       and "we get nothing for whatever wave" was the point of
+       having one. */
+    if (earnedXp > 0 && !sandboxRun() && window.MRTD.awardXp) {
       window.MRTD.awardXp(Math.round(earnedXp));
     }
 

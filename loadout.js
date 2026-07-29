@@ -472,6 +472,24 @@
     }
 
     return fetchOwned().then(function (rows) {
+      /* Developer mode came on while this was in flight, and
+         this answer is now about the wrong thing.
+
+         unlock() fires mrtd:unlocked BEFORE checkDeveloper(), so
+         the first refresh of every session starts down this
+         path even for a developer. The mrtd:dev refresh that
+         follows correctly shows every tower — and then this
+         request lands, prunes the loadout against what the
+         player really owns, and saves that. A developer who
+         equipped anything they did not own lost it on the next
+         load, every load.
+
+         Dropped rather than applied. The dev refresh has already
+         rendered the right thing. */
+      if (window.MRTD.dev) {
+        return;
+      }
+
       /* The read failed. Keep showing what we had and, above all,
          do not write a pruned loadout over a good one — a blip
          here is not evidence that anything was lost. */
