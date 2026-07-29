@@ -4648,6 +4648,19 @@
     running = false;
     waveActive = false;
 
+    /* The run is over for everybody, not just whoever's screen
+       this is. Guests do not simulate, so they have no way of
+       noticing the base fell or that the host forfeited — from
+       their side the host would simply go quiet, and four
+       seconds later one of them would elect themselves and carry
+       on playing a game that had already finished.
+
+       They are told, and they see the same end screen with the
+       same payout before they go anywhere. */
+    if (mp.on && mp.host) {
+      window.MRTD.net.send("e", { waves: wavesSurvived, won: Boolean(won) });
+    }
+
     if (gameoverTitle) {
       gameoverTitle.textContent = won
         ? "Wave " + stats.maxWave + " cleared"
@@ -4675,6 +4688,20 @@
        from the wave count in Postgres, so nought waves is nought
        coins for everybody without the browser being trusted to
        say so. */
+    /* Only the host calls it, and it pays every player still
+       present in one statement. A guest calling it too would be
+       a second attempt at a run that has already closed —
+       harmless, since it would find nothing to do, but it would
+       tell that player their coins came from somewhere they did
+       not. */
+    if (mp.on && !mp.host) {
+      gameoverNote.textContent = sandboxRun()
+        ? "Fun run — nothing banked for anyone"
+        : "Banked by the host";
+      banking = Promise.resolve();
+      return;
+    }
+
     banking = mp.on
       ? window.MRTD.endParty(sandboxRun() ? 0 : wavesSurvived).then(function () {
           gameoverNote.textContent = sandboxRun()
@@ -5092,7 +5119,11 @@
   }
 
   function considerPromotion(now) {
-    if (mp.host || !mp.heardHost) {
+    /* A finished run has nothing to take over. Without this the
+       host going quiet at the end looks exactly like the host
+       crashing, and somebody would promote themselves into a
+       match that is already over. */
+    if (mp.host || mp.ended || !mp.heardHost) {
       return;
     }
 
@@ -5362,6 +5393,10 @@
        stays a fun run even if the simulation later passes to
        somebody who is not a developer. */
     mp.sandbox = asHost ? isDev() : false;
+
+    /* Set once the host says the run is over, so nothing takes
+       it back over afterwards. */
+    mp.ended = false;
     mp.names = {};
     lastRoster = "";
 
@@ -5406,6 +5441,22 @@
     });
 
     window.MRTD.net.on("i", handleInput);
+
+    /* The host saying the run is finished — the base fell, they
+       forfeited, or wave 500 went down. */
+    window.MRTD.net.on("e", function (data) {
+      if (mp.host || mp.ended) {
+        return;
+      }
+
+      mp.ended = true;
+
+      /* The host's count, not this client's. They were the one
+         simulating, so theirs is the real number. */
+      wavesSurvived = data.waves;
+      baseHp = 0;
+      endRun(Boolean(data.won));
+    });
 
     window.MRTD.net.on("p", function (data) {
       if (!data || !data.who) {
@@ -5511,7 +5562,7 @@
        when the person leaving knows they are leaving. */
     window.MRTD.net.send("g", { who: me(), host: mp.host });
 
-    ["s", "t", "b", "i", "p", "h", "g", "_open", "_refused", "_closed"]
+    ["s", "t", "b", "i", "p", "h", "g", "e", "_open", "_refused", "_closed"]
       .forEach(function (event) {
       window.MRTD.net.off(event);
     });
