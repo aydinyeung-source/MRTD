@@ -427,6 +427,10 @@
        the map, just slowly enough to be shot at properly. */
     weight: 1.5,
     bountyMultiple: 20,
+
+    /* Experience for the first boss. The nth boss gives n times
+       this, so wave 10 pays 50 and wave 100 pays 500. */
+    xp: 50,
     /* Ordinary enemies alongside it. */
     escort: 6
   };
@@ -601,6 +605,24 @@
 
   function bossBounty(wave) {
     return waveBounty("brute", wave) * BOSS.bountyMultiple;
+  }
+
+  /* Experience, and the only thing in the game that gives it.
+
+     Paid by the boss of a boss wave and nothing else — not by
+     the enemies that borrow boss behaviour in ordinary waves,
+     and not by anything that merely takes a long time to kill.
+     One boss, one payment, and the tenth boss is worth ten times
+     the first.
+
+     Linear rather than compounding on purpose. Coins already ride
+     an exponential curve; a second one would make the first
+     hundred waves worth nothing at all next to the rest, and the
+     point of experience is that early runs still count. */
+  function bossXp(wave) {
+    var number = bossNumber(wave);
+
+    return number ? BOSS.xp * number : 0;
   }
 
   /* Meta coins taken back to the lobby, from the last wave BEATEN. */
@@ -1392,6 +1414,7 @@
     boss: BOSS,
     bossHp: bossHp,
     bossBounty: bossBounty,
+    bossXp: bossXp,
     runReward: runReward,
     evolutionAll: EVOLUTION_ALL,
     cost: cost,

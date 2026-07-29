@@ -67,6 +67,11 @@
   var seenState = false;
   var lastRunId = null;
 
+  /* True between pressing Play and the match actually opening.
+     Stops the poll pulling the starter into their own run as a
+     guest before they have finished becoming its host. */
+  var starting = false;
+
   /* =========================================================
      Supabase
      ========================================================= */
@@ -377,11 +382,19 @@
 
     play.disabled = waiting;
 
+    /* A fun run is worth naming on the button. Everyone in the
+       party is about to get infinite money and no reward, and
+       the person deciding that should not have to remember which
+       toggle they left on. */
+    var fun = Boolean(window.MRTD.dev) && !inRun;
+
     play.textContent = inRun && !present
       ? "Rejoin"
       : waiting
         ? "Waiting for the leader"
-        : "Play";
+        : fun
+          ? "Start fun-run"
+          : "Play";
   }
 
   /* =========================================================
@@ -396,6 +409,28 @@
      impossible — that is what the Rejoin button is for. */
   function followLeader() {
     var runId = state.run_id || null;
+
+    /* The player who is starting the run is not following
+       anybody into it.
+
+       They enter through the Play button, as the HOST. But the
+       panel polls once a second while a party sits in the lobby,
+       and start_party_run creates the run before that promise
+       resolves — so the very next poll would see a new run,
+       decide this player should be pulled in, and connect them
+       as a GUEST first.
+
+       Nobody was left hosting. The election eventually handed it
+       to somebody, but by then no host had ever broadcast the
+       run's sandbox flag, so a fun run came out as an ordinary
+       one with ordinary money for everybody. */
+    if (starting) {
+      if (window.MRTD.matchOpen && window.MRTD.matchOpen()) {
+        starting = false;
+      }
+
+      return;
+    }
 
     /* The FIRST answer after loading never pulls anyone in, it
        only records what is already true.
@@ -549,6 +584,11 @@
      opened the game can stall four, and there is no way to tell
      that apart from someone still deciding. */
   window.MRTD.startParty = function () {
+    /* Set before the request, not after it — the poll that would
+       steal this player has a whole second to fire while the
+       round trip is in flight. */
+    starting = true;
+
     return rpc("start_party_run").then(function (next) {
       if (next) {
         state = next;
@@ -561,6 +601,12 @@
         runId: state.run_id || null,
         players: window.MRTD.partySize()
       };
+    }).catch(function (error) {
+      /* Released on failure, or a start that was refused would
+         leave this player unable to be pulled into anything
+         afterwards. */
+      starting = false;
+      throw error;
     });
   };
 
@@ -632,6 +678,13 @@
     if (event.target === panel) {
       panel.hidden = true;
     }
+  });
+
+  /* The Play button says whether this will be a fun run, so
+     toggling developer mode has to redraw it rather than leaving
+     it wrong until the next poll. */
+  document.addEventListener("mrtd:dev", function () {
+    refreshPlayButton();
   });
 
   document.addEventListener("mrtd:unlocked", function () {

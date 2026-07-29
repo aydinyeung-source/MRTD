@@ -179,6 +179,10 @@
   var baseHp = 0;
   var wave = 0;
   var wavesSurvived = 0;
+
+  /* Experience earned this run, from boss waves only. Banked
+     with the coins at the end. */
+  var earnedXp = 0;
   var spawnQueue = [];
   var spawnTimer = 0;
   var waveActive = false;
@@ -3148,6 +3152,14 @@
           /* Paid in proportion, so two halves of a Cleaver are
              worth what the whole was rather than doubling it. */
           awardAll(stats.bossBounty(wave) * enemy.share);
+
+          /* Experience, the same way. Only on a boss wave: a
+             Cleaver's halves add up to one boss's worth between
+             them rather than one each. */
+          if (stats.isBossWave(wave)) {
+            earnedXp += stats.bossXp(wave) * enemy.share;
+          }
+
           split.push(enemy);
         } else {
           awardAll(stats.waveBounty(enemy.kind, wave));
@@ -4628,6 +4640,7 @@
     baseHp = stats.baseHp;
     wave = 0;
     wavesSurvived = 0;
+    earnedXp = 0;
     waveActive = false;
     timestop = { charge: 0, ready: false, left: 0 };
 
@@ -4668,6 +4681,14 @@
     }
 
     gameoverWaves.textContent = String(wavesSurvived);
+
+    /* Banked for everyone who was still here, sandbox or not —
+       a fun run pays no coins, but the bosses were still killed
+       and experience is not the thing being given away. */
+    if (earnedXp > 0 && window.MRTD.awardXp) {
+      window.MRTD.awardXp(Math.round(earnedXp));
+    }
+
     gameoverCoins.textContent = sandboxRun()
       ? "0"
       : String(stats.runReward(wavesSurvived));

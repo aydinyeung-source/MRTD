@@ -21,7 +21,7 @@
      major  reserved — only on request
      minor  a new system or screen
      patch  fixes, balance numbers, styling */
-  var VERSION = "1.53.0";
+  var VERSION = "1.54.0";
 
   var STORAGE_KEY = "mrtd.session";
   var DEVICE_KEY = "mrtd.device";
@@ -50,6 +50,7 @@
   var signOutButton = document.getElementById("signout");
   var devButton = document.getElementById("devmode");
   var profileName = document.querySelector(".profile-card__name");
+  var profileLevel = document.getElementById("profile-level");
   var version = document.getElementById("version");
 
   var tabs = document.querySelectorAll(".nav__tab");
@@ -549,6 +550,35 @@
 
     document.dispatchEvent(new CustomEvent("mrtd:unlocked"));
     checkDeveloper();
+    showLevel();
+  }
+
+  /* The profile card has read "Level 1" since the first version
+     with nothing behind it. Now there is: experience from boss
+     waves, and a level worked out from it in Postgres so the two
+     can never disagree. */
+  function showLevel() {
+    var id = userId();
+
+    if (!id || !profileLevel) {
+      return;
+    }
+
+    authed("/rest/v1/profiles?select=xp&id=eq." + id + "&limit=1")
+      .then(function (rows) {
+        var xp = Number((rows[0] || {}).xp || 0);
+
+        return authed("/rest/v1/rpc/level_for_xp", {
+          method: "POST",
+          body: { p_xp: xp }
+        }).then(function (level) {
+          profileLevel.textContent = "Level " + level + " · " + xp + " xp";
+        });
+      })
+      .catch(function () {
+        /* An older database has no xp column yet. Left as it was
+           rather than showing a zero that might not be true. */
+      });
   }
 
   function lock() {
@@ -775,6 +805,21 @@
   window.MRTD.userId = userId;
   window.MRTD.load = showLoader;
   window.MRTD.freshen = freshenToken;
+
+  /* Experience from a finished run. The amount is capped in
+     Postgres, so this is a report rather than an instruction —
+     and it is fire and forget, because a run that banked its
+     coins should not be held up by its experience. */
+  window.MRTD.awardXp = function (amount) {
+    return authed("/rest/v1/rpc/award_run_xp", {
+      method: "POST",
+      body: { p_xp: Math.max(0, Math.round(amount || 0)) }
+    }).catch(function (error) {
+      if (window.console) {
+        window.console.error("MRTD: award_run_xp failed", error.message);
+      }
+    });
+  };
   window.MRTD.settings = settings;
 
   window.MRTD.feature = function (name) {
