@@ -1499,18 +1499,26 @@
        "everything is doing ten times damage to this one" has to
        be the most obvious thing on the board while it lasts. */
     if (enemy.pull) {
+      /* The tether fades as the grip releases, so letting go
+         reads as letting go rather than as the line blinking
+         out. */
+      var grip = enemy.pull.left > 0 ? 1 : Math.max(0, enemy.pull.t / 0.75);
+
       ctx.beginPath();
       ctx.moveTo(enemy.pull.point.x, enemy.pull.point.y);
       ctx.lineTo(point.x, point.y);
-      ctx.strokeStyle = "rgba(217, 194, 106, 0.75)";
+      ctx.strokeStyle = "rgba(217, 194, 106, " + 0.75 * grip + ")";
       ctx.lineWidth = 4;
       ctx.stroke();
 
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius + 6, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(217, 194, 106, 0.9)";
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      /* Only while the damage bonus is actually on. */
+      if (enemy.pull.left > 0) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius + 6, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(217, 194, 106, 0.9)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
     }
 
     /* A Raider off the lane trails a line back to where it will
@@ -2033,8 +2041,13 @@
     /* Ten times over while an Obelisk has hold of it, from
        everything — not just from the Obelisk. Holding one thing
        still and telling the whole board to concentrate is what
-       the tower is for. */
-    if (enemy.pull) {
+       the tower is for.
+
+       Only while it is actually held. The half second it spends
+       sliding back to the lane is animation, not grip, and
+       counting it would quietly make ten seconds into ten and a
+       half. */
+    if (enemy.pull && enemy.pull.left > 0) {
       amount *= enemy.pull.damage;
     }
 
@@ -2154,19 +2167,42 @@
      having.
      ========================================================= */
 
+  /* Dragged in over the first second, held, then let go over
+     half of one.
+
+     It is hauled to three quarters of the way rather than all
+     the way, so it ends up beside the Obelisk instead of on top
+     of it — an enemy standing exactly on the tower is hidden by
+     the tower.
+
+     Letting go eases rather than releasing: the first version
+     dropped the pull outright, and the enemy jumped back across
+     the board to its lane position in one frame. */
+  var PULL_IN = 1;
+  var PULL_OUT = 0.5;
+  var PULL_REACH = 0.75;
+
   function pulling(enemy, delta) {
     if (!enemy.pull) {
       return false;
     }
 
-    /* Dragged in over the first second, then held. Held rather
-       than dropped at the tower's feet, so it stays where the
-       player can see what is happening to it. */
-    enemy.pull.t = Math.min(1, enemy.pull.t + delta);
-    enemy.pull.left -= delta;
+    var hold = enemy.pull;
 
-    if (enemy.pull.left <= 0) {
+    hold.left -= delta;
+
+    if (hold.left > 0) {
+      hold.t = Math.min(PULL_REACH, hold.t + (PULL_REACH / PULL_IN) * delta);
+      return true;
+    }
+
+    /* Time is up: slide back to the lane, and only then let it
+       walk again. */
+    hold.t -= (PULL_REACH / PULL_OUT) * delta;
+
+    if (hold.t <= 0) {
       enemy.pull = null;
+      return false;
     }
 
     return true;
@@ -5101,6 +5137,9 @@
               at: row[10],
               t: row[9],
               point: tileCentre(Number(pullBits[0]), Number(pullBits[1])),
+              /* The host owns the countdown; a guest only needs
+                 to know it is still held, which a positive value
+                 says. */
               left: 1,
               damage: 10
             }
