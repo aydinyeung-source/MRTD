@@ -1494,6 +1494,25 @@
       ctx.fill();
     }
 
+    /* An enemy on the end of an Obelisk gets a heavy line to
+       whatever has hold of it and a ring around itself, because
+       "everything is doing ten times damage to this one" has to
+       be the most obvious thing on the board while it lasts. */
+    if (enemy.pull) {
+      ctx.beginPath();
+      ctx.moveTo(enemy.pull.point.x, enemy.pull.point.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.strokeStyle = "rgba(217, 194, 106, 0.75)";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(217, 194, 106, 0.9)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
     /* A Raider off the lane trails a line back to where it will
        return to, so an enemy leaving the path reads as an
        excursion rather than as one that has escaped. */
@@ -1983,16 +2002,18 @@
     var home = enemy.flying
       ? flightPoint(enemy.progress)
       : pathPoint(enemy.progress);
+    var off = enemy.pull || enemy.raid;
 
-    if (!enemy.raid) {
+    if (!off) {
       return home;
     }
 
-    /* Part way between the lane and whatever it is going for.
-       Nothing about `progress` changes while it is out there, so
-       coming back puts it exactly where it left. */
-    var target = enemy.raid.point;
-    var t = enemy.raid.t;
+    /* Part way between the lane and whatever is holding it — its
+       own raid, or an Obelisk that has hold of it. Nothing about
+       `progress` changes while it is out there, so being let go
+       puts it exactly where it left. */
+    var target = off.point;
+    var t = off.t;
 
     return {
       x: home.x + (target.x - home.x) * t,
@@ -2007,6 +2028,14 @@
   function hurt(enemy, amount) {
     if (!(amount > 0) || enemy.immune) {
       return;
+    }
+
+    /* Ten times over while an Obelisk has hold of it, from
+       everything — not just from the Obelisk. Holding one thing
+       still and telling the whole board to concentrate is what
+       the tower is for. */
+    if (enemy.pull) {
+      amount *= enemy.pull.damage;
     }
 
     enemy.hp -= amount;
@@ -2111,6 +2140,68 @@
     }
 
     tower.stunned = Math.max(tower.stunned || 0, seconds);
+  }
+
+  /* =========================================================
+     The Obelisk's pull
+
+     One enemy at a time, dragged out of the lane and held for
+     ten seconds while everything on the board does ten times the
+     damage to it.
+
+     No weight limit. It takes bosses, which is the whole point:
+     a cap would make it useless on exactly the wave it is worth
+     having.
+     ========================================================= */
+
+  function pulling(enemy, delta) {
+    if (!enemy.pull) {
+      return false;
+    }
+
+    /* Dragged in over the first second, then held. Held rather
+       than dropped at the tower's feet, so it stays where the
+       player can see what is happening to it. */
+    enemy.pull.t = Math.min(1, enemy.pull.t + delta);
+    enemy.pull.left -= delta;
+
+    if (enemy.pull.left <= 0) {
+      enemy.pull = null;
+    }
+
+    return true;
+  }
+
+  /* Starts one, if this tower has a pull and nothing is already
+     on the end of it. */
+  function startPull(position, tower, target) {
+    var ability = stats.pullOf(tower.key);
+
+    if (!ability || target.pull || target.hp <= 0) {
+      return;
+    }
+
+    tower.pullTimer = tower.pullTimer === undefined
+      ? ability.every
+      : tower.pullTimer;
+
+    if (tower.pullTimer > 0) {
+      return;
+    }
+
+    var parts = position.split(",");
+
+    tower.pullTimer = ability.every;
+    target.pull = {
+      /* The TILE, not the pixel. Every client has the same 26x15
+         grid but not the same tile size, so a coordinate in
+         pixels means a different place on a different window. */
+      at: position,
+      point: tileCentre(Number(parts[0]), Number(parts[1])),
+      t: 0,
+      left: ability.lasts,
+      damage: ability.damage
+    };
   }
 
   /* Returns true while the enemy is off the lane, so the mover
@@ -2570,6 +2661,12 @@
     var primary = inRange[0];
     var aim = enemyAt(primary);
 
+    /* Whatever it is already shooting is what it grabs. Choosing
+       separately would mean a tower aiming at one thing and
+       hauling another, which reads as a bug however it is
+       explained. */
+    startPull(position, tower, primary);
+
     tower.angle = Math.atan2(aim.y - origin.y, aim.x - origin.x) + Math.PI / 2;
 
     /* A cooldown boost shortens the wait rather than lengthening
@@ -2840,6 +2937,11 @@
          widens. */
       if (tower.pulse) {
         tower.pulse = Math.max(0, tower.pulse - PULSE_DECAY * delta);
+      }
+
+      /* The wait before an Obelisk can grab something else. */
+      if (tower.pullTimer > 0) {
+        tower.pullTimer = Math.max(0, tower.pullTimer - delta);
       }
 
       /* The flash when a shield eats a stun. */
@@ -3123,10 +3225,10 @@
         return;
       }
 
-      /* Off the lane stunning something: it is busy, and nothing
-         about its position along the path changes until it is
-         back. */
-      if (raiding(enemy, delta)) {
+      /* Held by an Obelisk, or off the lane stunning something.
+         Either way it is busy, and nothing about its position
+         along the path changes until it is done. */
+      if (pulling(enemy, delta) || raiding(enemy, delta)) {
         return;
       }
 
@@ -4947,7 +5049,14 @@
            on the path while the host has it halfway across the
            map stunning something. */
         enemy.raid ? Math.round(enemy.raid.t * 100) / 100 : 0,
-        enemy.raid ? enemy.raid.at : null
+        enemy.raid ? enemy.raid.at : null,
+
+        /* Whether an Obelisk has hold of it, and how far in it
+           has been dragged. A guest drawing this on the lane
+           while the host has it pinned would hide the one thing
+           the tower exists to show. */
+        enemy.pull ? Math.round(enemy.pull.t * 100) / 100 : -1,
+        enemy.pull ? enemy.pull.at : null
       ];
     });
   }
@@ -4956,6 +5065,8 @@
     return (rows || []).map(function (row) {
       var raidAt = row[8];
       var parts = raidAt ? String(raidAt).split(",") : null;
+      var pullAt = row[10];
+      var pullBits = pullAt ? String(pullAt).split(",") : null;
 
       return {
         kind: row[0],
@@ -4979,6 +5090,19 @@
               t: row[7],
               point: tileCentre(Number(parts[0]), Number(parts[1])),
               back: false
+            }
+          : null,
+
+        /* Rebuilt from the tile, the same as a raid. Tile sizes
+           differ between windows even though the grid does not,
+           so the pixel is this client's business. */
+        pull: pullBits
+          ? {
+              at: row[10],
+              t: row[9],
+              point: tileCentre(Number(pullBits[0]), Number(pullBits[1])),
+              left: 1,
+              damage: 10
             }
           : null,
         speed: row[1] ? stats.boss.speed : stats.enemies[row[0]].speed

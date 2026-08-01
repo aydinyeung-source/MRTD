@@ -213,7 +213,7 @@
   function load() {
     markButtons();
     status.textContent = "";
-    resetLine.textContent = "Obelisks handed out in " + untilReset();
+    resetLine.textContent = "Week resets in " + untilReset();
 
     var asking = scope === "weekly"
       ? rpc("board_weekly").then(renderWeekly)

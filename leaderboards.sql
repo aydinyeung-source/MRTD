@@ -122,15 +122,18 @@ end $$;
 -- prizes: the insert into weeks_settled either wins or does
 -- nothing, and the rest only runs if it won.
 --
--- Prizes, by position on last week's board:
+-- THE PRIZE IS TURNED OFF. Everything else works: weeks are
+-- claimed, settled and recorded, and the boards read correctly.
+-- Nothing is handed out.
 --
---     1st        5 Obelisks
---     2nd-3rd    3
---     4th-10th   2
---     11th-50th  1
+-- With only a handful of players, everyone would place on the
+-- first board and a brand new account would be given the best
+-- tower in the game in its first week. The Obelisk exists in the
+-- game files and can be granted by hand; it is not earned by
+-- anybody yet.
 --
--- One entry per player — a player's best run of the week, not
--- every run they made.
+-- To turn it on, uncomment the block below. One Obelisk to
+-- everybody on the board, no tiers — the prize is being on it.
 -- ============================================================
 
 create or replace function public.settle_week()
@@ -154,36 +157,35 @@ begin
     return 0;
   end if;
 
-  with ranked as (
-    select
-      s.player_id,
-      row_number() over (
-        order by max(s.wave) desc, min(s.game_seconds) asc
-      ) as place
+  /* ---- THE PRIZE, TURNED OFF -----------------------------
+     Uncomment to start handing Obelisks out. One each to
+     everybody in the top fifty; being on the board is the
+     prize, so there are no tiers.
+
+  insert into public.player_towers as pt
+    (player_id, tower_key, evolution, copies, shiny)
+  select s.player_id, 'obelisk', 0, 1, false
+  from public.run_scores s
+  where s.ended_at >= last_week and s.ended_at < this_week
+  group by s.player_id
+  order by max(s.wave) desc, min(s.game_seconds) asc
+  limit 50
+  on conflict (player_id, tower_key, evolution, shiny)
+  do update set copies = pt.copies + 1;
+
+  get diagnostics paid = row_count;
+     -------------------------------------------------------- */
+
+  /* Counted anyway, so the record says who WOULD have been paid
+     and the week still reads as settled. */
+  select count(*) into paid
+  from (
+    select s.player_id
     from public.run_scores s
     where s.ended_at >= last_week and s.ended_at < this_week
     group by s.player_id
     limit 50
-  ),
-  prizes as (
-    select
-      r.player_id,
-      case
-        when r.place = 1 then 5
-        when r.place <= 3 then 3
-        when r.place <= 10 then 2
-        else 1
-      end as copies
-    from ranked r
-  )
-  insert into public.player_towers as pt
-    (player_id, tower_key, evolution, copies, shiny)
-  select p.player_id, 'obelisk', 0, p.copies, false
-  from prizes p
-  on conflict (player_id, tower_key, evolution, shiny)
-  do update set copies = pt.copies + excluded.copies;
-
-  get diagnostics paid = row_count;
+  ) as board;
 
   update public.weeks_settled
   set winners = paid

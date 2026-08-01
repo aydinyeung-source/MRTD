@@ -762,22 +762,37 @@
       attack: { shape: "circle", angle: 360 }
     },
     obelisk: {
-      /* The only tower that never comes out of a chest.
+      /* NOT OBTAINABLE YET. Defined here and drawn on the board,
+         but nothing grants it: it is not in chest_odds and the
+         weekly settle does not hand it out. With only a handful
+         of players, everybody would place on the first board and
+         a brand new account would be given the best tower in the
+         game in its first week.
 
-         Handed out when the weekly leaderboard resets, to the
-         players who were on it. That is the whole of how it is
-         obtained — it is not in chest_odds, so no amount of
-         summoning will ever produce one, and a player holding
-         it was on the board that week or was given one by
-         somebody who was.
+         Turn it on by uncommenting the prize block in
+         settle_week. Nothing in this file needs to change.
 
-         A piercing line like the Clock Tower's but wider and far
-         harder hitting, with a long wait between shots. Slow,
-         deliberate, and worth aiming — a monument rather than a
-         machine gun. */
+         The most damage per second of anything, and single
+         target — Quantum does 1500 to everything in reach, this
+         does 2000 to one thing. Against a crowd Quantum wins
+         every time; against the thing that actually matters, it
+         does not.
+
+         The pull is what it is really for. */
       label: "Obelisk", role: "damage",
-      damage: 4000, range: 30, cooldown: 3, cost: 4000, // 1333 dps
-      attack: { shape: "pierce", width: 18 }
+      damage: 4000, range: 30, cooldown: 2, cost: 4000, // 2000 dps
+      attack: { shape: "single" },
+
+      /* Drags whatever it is shooting out of the lane and holds
+         it, and everything hitting it does ten times the damage
+         while it is held.
+
+         No weight limit and no exceptions — it takes bosses. A
+         cap would make it useless on exactly the wave it is
+         worth having, and a boss stopped for ten seconds while
+         the whole board pours into it at ten times over is what
+         a champion tower should read as. */
+      pull: { every: 20, lasts: 10, damage: 10 }
     },
     medic: {
       /* The answer to being switched off.
@@ -925,15 +940,10 @@
      ========================================================= */
 
   /* Best first. Anything unlisted sorts last. */
-  /* "champion" is above godly because it cannot be bought at
-     any price or rolled at any odds — the only way to hold one
-     is to have earned it on a weekly board. */
-  var RARITY_ORDER = [
-    "champion", "godly", "mythic", "legendary", "epic", "rare", "common"
-  ];
+  var RARITY_ORDER = ["godly", "mythic", "legendary", "epic", "rare", "common"];
 
   var RARITY = {
-    obelisk: "champion",
+    obelisk: "godly",
     quantum: "godly",
     clocktower: "godly",
     fan: "mythic",
@@ -1291,6 +1301,13 @@
     return Math.max(PUSH_FLOOR, 1 - pushback / (weight || 1));
   }
 
+  /* The pull an Obelisk carries, or null. */
+  function pullOf(key) {
+    var tower = TOWERS[key];
+
+    return tower && tower.pull ? tower.pull : null;
+  }
+
   /* The timed ability a tower carries, or null. */
   function abilityOf(key) {
     var tower = TOWERS[key];
@@ -1450,6 +1467,7 @@
     damageAtDistance: damageAtDistance,
     inArc: inArc,
     pushback: pushbackOf,
+    pullOf: pullOf,
     pushFactor: pushFactor,
     weight: weightOf,
     shieldOf: shieldOf,
