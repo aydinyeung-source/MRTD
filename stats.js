@@ -761,6 +761,24 @@
       damage: 150, range: 42, cooldown: 0.1, cost: 5000, // 1500 dps, 0.30 per cash
       attack: { shape: "circle", angle: 360 }
     },
+    obelisk: {
+      /* The only tower that never comes out of a chest.
+
+         Handed out when the weekly leaderboard resets, to the
+         players who were on it. That is the whole of how it is
+         obtained — it is not in chest_odds, so no amount of
+         summoning will ever produce one, and a player holding
+         it was on the board that week or was given one by
+         somebody who was.
+
+         A piercing line like the Clock Tower's but wider and far
+         harder hitting, with a long wait between shots. Slow,
+         deliberate, and worth aiming — a monument rather than a
+         machine gun. */
+      label: "Obelisk", role: "damage",
+      damage: 4000, range: 30, cooldown: 3, cost: 4000, // 1333 dps
+      attack: { shape: "pierce", width: 18 }
+    },
     medic: {
       /* The answer to being switched off.
 
@@ -907,9 +925,15 @@
      ========================================================= */
 
   /* Best first. Anything unlisted sorts last. */
-  var RARITY_ORDER = ["godly", "mythic", "legendary", "epic", "rare", "common"];
+  /* "champion" is above godly because it cannot be bought at
+     any price or rolled at any odds — the only way to hold one
+     is to have earned it on a weekly board. */
+  var RARITY_ORDER = [
+    "champion", "godly", "mythic", "legendary", "epic", "rare", "common"
+  ];
 
   var RARITY = {
+    obelisk: "champion",
     quantum: "godly",
     clocktower: "godly",
     fan: "mythic",

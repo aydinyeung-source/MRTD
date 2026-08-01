@@ -204,6 +204,7 @@
     <div class="corner">
       <button class="corner__dev" id="friends-open" type="button">Friends</button>
       <button class="corner__dev" id="party-open" type="button"><span id="party-badge">Party</span><span class="corner__dot" id="party-dot" hidden>0</span></button>
+      <button class="corner__dev" id="leaders-open" type="button">Leaderboard</button>
       <button class="corner__dev" id="handbook-open" type="button">Handbook</button>
       <button class="corner__dev" id="devmode" type="button" hidden>Dev mode: off</button>
       <button class="corner__signout" id="signout" type="button">Sign out</button>
@@ -226,6 +227,44 @@
       <h2 class="handbook__title">Update log</h2>
       <div id="updates-list"></div>
       <button class="handbook__close" id="updates-close" type="button">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <div class="handbook" id="leaders" hidden>
+    <div class="handbook__panel">
+      <h2 class="handbook__title">Leaderboard</h2>
+
+      <nav class="leaders__tabs">
+        <button class="leaders__tab is-on" type="button" data-scope="weekly">This week</button>
+        <button class="leaders__tab" type="button" data-scope="friends">Friends</button>
+        <button class="leaders__tab" type="button" data-scope="global">Global</button>
+      </nav>
+
+      <!-- Only meaningful on the all-time boards; a run has no
+           level, so the weekly one hides this. -->
+      <nav class="leaders__tabs leaders__tabs--sort" id="leaders-sort" hidden>
+        <button class="leaders__tab is-on" type="button" data-sort="wave">Max wave</button>
+        <button class="leaders__tab" type="button" data-sort="level">Player level</button>
+      </nav>
+
+      <p class="leaders__reset" id="leaders-reset"></p>
+
+      <div class="leaders__list" id="leaders-list"></div>
+
+      <p class="leaders__note">
+        The weekly board ranks your best run of the week — furthest wave
+        first, then whoever got there in the least game time. When the week
+        resets, everyone on it is given <strong>Obelisks</strong>: five for
+        first, three for second and third, two to tenth, one to fiftieth.
+        It is the only way to get one — the Obelisk is not in the chest and
+        never will be.
+      </p>
+
+      <p class="friends__status" id="leaders-status"></p>
+
+      <button class="handbook__close" id="leaders-close" type="button">
         Close
       </button>
     </div>
@@ -681,6 +720,7 @@
   <script src="friends.js"></script>
   <script src="net.js"></script>
   <script src="party.js"></script>
+  <script src="leaderboard.js"></script>
   <script src="updates.js"></script>
   <script src="match.js"></script>
 </body>

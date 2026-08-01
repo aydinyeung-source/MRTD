@@ -417,6 +417,122 @@ body::after {
 }
 
 /* =========================================================
+   Leaderboards
+   ========================================================= */
+
+.leaders__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 14px;
+}
+
+.leaders__tabs--sort {
+  margin-top: -6px;
+}
+
+.leaders__tab {
+  padding: 7px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background-color: transparent;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-soft), color 160ms var(--ease-soft);
+}
+
+.leaders__tab:hover {
+  border-color: var(--glacier);
+  color: var(--glacier);
+}
+
+.leaders__tab.is-on {
+  border-color: var(--glacier);
+  background-color: var(--paper-raised);
+  color: var(--glacier);
+}
+
+.leaders__reset {
+  margin: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #b9861a;
+}
+
+.leaders__list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.leaders__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.leaders__row:last-child {
+  border-bottom: 0;
+}
+
+/* Your own line, so it is findable in fifty. */
+.leaders__row.is-me {
+  background-color: rgba(120, 168, 200, 0.1);
+}
+
+.leaders__place {
+  flex-shrink: 0;
+  width: 34px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-muted);
+}
+
+/* Where the Obelisks are actually worth something. */
+.leaders__row.is-podium .leaders__place {
+  font-weight: 600;
+  color: #b9861a;
+}
+
+.leaders__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.leaders__row.is-me .leaders__name {
+  color: var(--glacier);
+}
+
+.leaders__score {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.leaders__empty,
+.leaders__note {
+  margin: 12px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+/* =========================================================
    Party
    ========================================================= */
 

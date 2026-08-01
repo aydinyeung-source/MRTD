@@ -45,7 +45,7 @@
   var TOWER_KEYS = [
     "dagger", "axe", "blender", "shotgunner", "sniper", "farm", "spawner",
     "beacon", "forge", "metronome", "djtv", "quantum", "icecannon",
-    "fan", "clocktower", "medic"
+    "fan", "clocktower", "medic", "obelisk"
   ];
 
   /* Towers with drawn top down artwork. Everything else uses the
@@ -83,6 +83,7 @@
     djtv: { body: "#241f2e", accent: "#ff3ea5", plan: "decks" },
     quantum: { body: "#1b2b3a", accent: "#5fe3d0", plan: "orbit" },
     fan: { body: "#2f3f46", accent: "#9fd6e4", plan: "blades" },
+    obelisk: { body: "#1c1a24", accent: "#d9c26a", plan: "spire" },
     medic: { body: "#f2f4f3", accent: "#c9464a", plan: "cross" },
     clocktower: { body: "#2a2436", accent: "#e0c063", plan: "clock" },
     icecannon: { body: "#5b7f9c", accent: "#cfeaf7", plan: "frost" }
@@ -866,6 +867,34 @@
     ctx.fillRect(-reach, -arm / 2, reach * 2, arm);
   }
 
+  /* Obelisk: a tapered spire with a band for every couple of
+     merges. Nothing moves — it is a monument, and the one tower
+     on the board that had to be won rather than bought. */
+  function planSpire(token, radius, level) {
+    var bands = 1 + Math.floor(level / 2);
+
+    ctx.fillStyle = token.accent;
+    ctx.beginPath();
+    ctx.moveTo(0, -radius * 1.25);
+    ctx.lineTo(radius * 0.38, radius * 0.7);
+    ctx.lineTo(-radius * 0.38, radius * 0.7);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = token.body;
+    ctx.lineWidth = Math.max(1, radius * 0.07);
+
+    for (var i = 1; i <= bands; i += 1) {
+      var y = -radius * 1.25 + (i / (bands + 1)) * radius * 1.95;
+      var half = radius * 0.38 * ((y + radius * 1.25) / (radius * 1.95));
+
+      ctx.beginPath();
+      ctx.moveTo(-half, y);
+      ctx.lineTo(half, y);
+      ctx.stroke();
+    }
+  }
+
   /* Clock Tower: a face with two hands, gaining a marker every
      couple of merges. The hands turn with its charge rather than
      with anything it shoots. */
@@ -942,7 +971,8 @@
     barrel: planBarrel,
     gate: planGate,
     clock: planClock,
-    cross: planCross
+    cross: planCross,
+    spire: planSpire
   };
 
   function drawTopTower(tower, x, y, size) {
@@ -4660,6 +4690,14 @@
     }
 
     gameoverWaves.textContent = String(wavesSurvived);
+
+    /* Filed for the leaderboards: how far, and how long it took
+       in game time. Never from a fun run — infinite money makes
+       a deep wave meaningless as a score, and a board anyone can
+       top by turning on developer mode is not a board. */
+    if (!sandboxRun() && window.MRTD.recordRun) {
+      window.MRTD.recordRun(wavesSurvived, Math.round(elapsed));
+    }
 
     /* Nothing at all from a fun run, experience included.
        Infinite money makes deep waves trivial, so paying
