@@ -361,11 +361,26 @@
       pool.push("raider");
     }
 
-    if (wave >= 26) {
-      pool.push("herald");
-    }
+    /* Herald is NOT in the pool. It is placed by hand, one per
+       qualifying wave — see heraldWave. Leaving it to the random
+       draw meant a wave could roll three, and since every one of
+       them takes every shot on the board, that is a wave where
+       single target towers have nothing to shoot but Heralds. */
 
     return pool;
+  }
+
+  /* Which waves carry a Herald: every fourth from 26, and never
+     a boss wave — a boss is already the thing the board should
+     be concentrating on.
+
+     Spaced rather than random so a player gets waves off. One
+     taunt is a problem to solve; one every wave is a tower list
+     rewritten without being asked. */
+  var HERALD_EVERY = 4;
+
+  function heraldWave(wave) {
+    return wave >= 26 && !isBossWave(wave) && wave % HERALD_EVERY === 0;
   }
 
   /* =========================================================
@@ -1447,6 +1462,7 @@
     waveBounty: waveBounty,
     waveCount: waveCount,
     wavePool: wavePool,
+    heraldWave: heraldWave,
     maxWave: MAX_WAVE,
     isBossWave: isBossWave,
     bossNumber: bossNumber,

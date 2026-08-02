@@ -667,6 +667,26 @@ body::after {
   border-color: #5e84d6;
 }
 
+/* While a Herald or Effigy is alive. Every tower firing at one
+   enemy and ignoring forty is correct and looks exactly like a
+   fault, so it says so in words. */
+.tauntnote {
+  position: absolute;
+  top: 148px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid #4f7f8c;
+  border-radius: 999px;
+  background-color: rgba(249, 251, 252, 0.95);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #35606b;
+  pointer-events: none;
+}
+
 /* Match-level news: a host handover, someone stepping out. Sits
    below the boss bar so the two never fight for the same line. */
 .netnote {

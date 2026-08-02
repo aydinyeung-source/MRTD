@@ -111,6 +111,7 @@
   var timeDisplay = document.getElementById("match-time");
   var aliveDisplay = document.getElementById("match-alive");
   var netNote = document.getElementById("match-netnote");
+  var tauntNote = document.getElementById("match-tauntnote");
   var playersStrip = document.getElementById("match-players");
   var netNoteTimer = null;
 
@@ -1468,14 +1469,35 @@
 
   /* PLACEHOLDER enemy art: a coloured disc with a health bar.
      Swap for enemies/<kind>.svg when the drawings land. */
+  /* Does this enemy pull every tower onto itself. Asked of the
+     enemy table for ordinary ones and of the boss table for
+     bosses, since a boss borrows a brute's numbers and a brute
+     does not taunt. */
+  function definitionTaunts(enemy) {
+    if (enemy.boss) {
+      var boss = stats.bosses[enemy.boss];
+
+      return Boolean(boss && boss.taunt);
+    }
+
+    var kind = stats.behaviour(enemy.kind);
+
+    return Boolean(kind && kind.taunt);
+  }
+
   function drawEnemy(enemy) {
     var point = pathPoint(enemy.progress);
     var boss = enemy.boss && stats.bosses[enemy.boss];
+    var taunts = !boss && definitionTaunts(enemy);
     /* Bosses are drawn far larger, and a Cleaver's pieces smaller
-       than the whole they came from. */
+       than the whole they came from.
+
+       A Herald is drawn large too. It is the reason every tower
+       on the board has stopped shooting anything else, and the
+       player has to be able to find it without looking. */
     var radius = boss
       ? view.size * (0.42 + 0.28 * enemy.share)
-      : view.size * 0.3;
+      : view.size * (taunts ? 0.44 : 0.3);
     var definition = stats.enemies[enemy.kind];
 
     /* A flyer casts a shadow under itself, which is the cheapest
@@ -1542,15 +1564,27 @@
     ctx.fillStyle = boss ? boss.colour : definition.colour;
     ctx.fill();
 
-    /* A Herald wears the ring that says everything is shooting
-       it, so the player knows why their towers have stopped
-       spreading damage. */
+    /* A Herald wears rings that say everything is shooting it,
+       so the player knows why their towers have stopped
+       spreading damage. Two of them, pulsing outward, because
+       one thin ring was not enough to explain a board that has
+       apparently stopped working. */
     if (definition.taunt || (boss && boss.taunt)) {
+      var beat = (elapsed % 1) / 1;
+
       ctx.beginPath();
-      ctx.arc(point.x, point.y, radius + 4, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(79, 127, 140, 0.8)";
-      ctx.lineWidth = 2;
+      ctx.arc(point.x, point.y, radius + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(79, 127, 140, 0.9)";
+      ctx.lineWidth = 3;
       ctx.stroke();
+
+      if (!lowGraphics) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius + 5 + beat * view.size * 0.5, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(79, 127, 140, " + (0.55 * (1 - beat)) + ")";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
 
     /* Immunity reads as a solid ring standing off the body, so
@@ -1881,6 +1915,13 @@
       spawnQueue.push(pool[Math.floor(Math.random() * pool.length)]);
     }
 
+    /* Exactly one, on the waves that carry one. Placed rather
+       than rolled, so a wave can never have two and the player
+       gets waves off in between. */
+    if (!boss && stats.heraldWave(wave)) {
+      spawnQueue.splice(Math.floor(spawnQueue.length / 3), 0, "herald");
+    }
+
     thinForHeralds();
     refreshHud();
   }
@@ -1907,9 +1948,22 @@
      Thinning the rest is what turns it into a decision: kill the
      Herald and the wave is easy, ignore it and the wave is
      small. Heralds themselves are never removed. */
-  var HERALD_COSTS = 4;
+  /* A tenth of the wave, per Herald.
+
+     Taken off the ORIGINAL size and multiplied, not applied one
+     after another: two Heralds cost 20% of the wave, three cost
+     30%. Removing a tenth and then a tenth of what is left would
+     give 19% and 27.1%, which is not what "a tenth each" means
+     and quietly gets cheaper the more of them there are.
+
+     A wave can hold several. Only one is ever ALIVE at once —
+     that is handled where they spawn — so several Heralds means
+     a wave that keeps re-taunting rather than a board with two
+     of them shouting at the same time. */
+  var HERALD_COSTS = 0.1;
 
   function thinForHeralds() {
+    var total = spawnQueue.length;
     var heralds = spawnQueue.filter(function (kind) {
       return kind === "herald";
     }).length;
@@ -1918,7 +1972,7 @@
       return;
     }
 
-    var removing = heralds * HERALD_COSTS;
+    var removing = Math.floor(total * HERALD_COSTS * heralds);
 
     for (var i = spawnQueue.length - 1; i >= 0 && removing > 0; i -= 1) {
       if (spawnQueue[i] !== "herald") {
@@ -1926,6 +1980,37 @@
         removing -= 1;
       }
     }
+  }
+
+  /* Is a taunting enemy on the board right now. Used to hold a
+     second one back and to tell the player why their towers are
+     all pointing the same way. */
+  function taunter() {
+    var found = null;
+
+    enemies.forEach(function (enemy) {
+      if (found) {
+        return;
+      }
+
+      if (enemy.boss) {
+        var boss = stats.bosses[enemy.boss];
+
+        if (boss && boss.taunt) {
+          found = enemy;
+        }
+
+        return;
+      }
+
+      var kind = stats.behaviour(enemy.kind);
+
+      if (kind && kind.taunt) {
+        found = enemy;
+      }
+    });
+
+    return found;
   }
 
   function spawn(kind) {
@@ -2208,22 +2293,47 @@
     return true;
   }
 
-  /* Starts one, if this tower has a pull and nothing is already
-     on the end of it. */
-  function startPull(position, tower, target) {
+  /* Starts one.
+
+     If what this tower is shooting is already on the end of
+     another Obelisk, it takes the next best thing in range
+     instead — two Obelisks holding one enemy would be one of
+     them wasted, and there is always something else walking.
+
+     `inRange` is already sorted by who is closest to the base,
+     so "the next one" is the next most urgent. */
+  function startPull(position, tower, target, inRange) {
     var ability = stats.pullOf(tower.key);
 
-    if (!ability || target.pull || target.hp <= 0) {
+    if (!ability) {
       return;
     }
 
-    tower.pullTimer = tower.pullTimer === undefined
-      ? ability.every
-      : tower.pullTimer;
+    /* Ready as soon as it is placed. Making the first one wait
+       the full twenty seconds meant a newly bought Obelisk did
+       nothing visible for a third of a minute and read as
+       broken. */
+    if (tower.pullTimer === undefined) {
+      tower.pullTimer = 0;
+    }
 
     if (tower.pullTimer > 0) {
       return;
     }
+
+    var pick = target && !target.pull && target.hp > 0 ? target : null;
+
+    if (!pick) {
+      pick = (inRange || []).filter(function (enemy) {
+        return !enemy.pull && enemy.hp > 0;
+      })[0];
+    }
+
+    if (!pick) {
+      return;
+    }
+
+    target = pick;
 
     var parts = position.split(",");
 
@@ -2697,11 +2807,10 @@
     var primary = inRange[0];
     var aim = enemyAt(primary);
 
-    /* Whatever it is already shooting is what it grabs. Choosing
-       separately would mean a tower aiming at one thing and
-       hauling another, which reads as a bug however it is
-       explained. */
-    startPull(position, tower, primary);
+    /* Whatever it is already shooting is what it grabs, unless
+       another Obelisk has that one, in which case it takes the
+       next thing in range. */
+    startPull(position, tower, primary, inRange);
 
     tower.angle = Math.atan2(aim.y - origin.y, aim.x - origin.x) + Math.PI / 2;
 
@@ -2715,7 +2824,28 @@
       (1 + boostFor(position, "cooldown") / 100) /
       sapAt(position);
 
-    var targets = attack.shape === "single" ? [primary] : inRange;
+    /* Sliced, not aliased. The Obelisk pushes onto this list
+       below, and for a circle or a pierce it would otherwise be
+       the same array inRange is, which the next tower to fire
+       would then read. */
+    var targets = attack.shape === "single" ? [primary] : inRange.slice();
+
+    /* An Obelisk also hits anything a DIFFERENT Obelisk is
+       holding, and this is the only circumstance in which it
+       damages more than one thing.
+
+       Two of them should be worth more than one at twice the
+       rate: one holds a target while the other pours into it,
+       and then the reverse. Without this the second Obelisk
+       would simply be a second single target tower pointed
+       somewhere else. */
+    if (stats.pullOf(tower.key)) {
+      inRange.forEach(function (enemy) {
+        if (enemy.pull && targets.indexOf(enemy) < 0) {
+          targets.push(enemy);
+        }
+      });
+    }
     var aimAngle = Math.atan2(aim.y - origin.y, aim.x - origin.x);
 
     /* A piercing shot carries on through whatever it hits, so the
@@ -3234,6 +3364,13 @@
       spawnTimer -= delta;
 
       if (spawnTimer <= 0) {
+        /* A second Herald waits at the back of the queue rather
+           than joining the first. Two taunting at once is a board
+           where nothing but them is ever shot. */
+        if (spawnQueue[0] === "herald" && taunter()) {
+          spawnQueue.push(spawnQueue.shift());
+        }
+
         spawn(spawnQueue.shift());
         spawnTimer = stats.wave.spawnGap;
       }
@@ -3758,6 +3895,24 @@
 
     refreshBossBar();
     refreshPlayers();
+
+    /* Said in words while one is alive.
+
+       "Every tower is shooting one enemy and ignoring forty" is
+       correct behaviour that looks exactly like a fault, and a
+       ring on the enemy only helps once you already know to look
+       for it. */
+    if (tauntNote) {
+      var pulling = taunter();
+
+      tauntNote.hidden = !pulling;
+
+      if (pulling) {
+        tauntNote.textContent =
+          (pulling.boss ? stats.bosses[pulling.boss].label : "Herald") +
+          " — every tower is firing at it";
+      }
+    }
 
     /* The ability button: counting down the freeze, announcing
        itself ready, or charging. Hidden entirely when no Clock
