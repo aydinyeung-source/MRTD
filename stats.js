@@ -776,6 +776,34 @@
       damage: 150, range: 42, cooldown: 0.1, cost: 5000, // 1500 dps, 0.30 per cash
       attack: { shape: "circle", angle: 360 }
     },
+    mint: {
+      /* A Farm for people who already have money.
+
+         Starts at ten times a Farm's output and climbs more
+         slowly — 1000 a wave against 100, but x1.8 a merge
+         against x2. That crossover is the whole design: a Mint
+         is better immediately and stays better, but the gap
+         narrows, so a player who has already merged Farms to
+         level 8 is not simply told their work was wasted.
+
+         Fully merged it pays 198,359 a wave against a Farm's
+         51,200. Three of them is around 595,000, which is most
+         of a fully merged Quantum every wave.
+
+         The damage is incidental — it flings coins at whatever
+         walks past. Nothing about its evolution improves it, and
+         nobody should buy one to shoot things. It is here so a
+         godly tower is not something you place and ignore. */
+      label: "Mint", role: "economy",
+      damage: 200, range: 12, cooldown: 1, cost: 2250, // 200 dps
+      coins: 1000,
+      attack: { shape: "circle", angle: 360 },
+
+      /* Its own income curve, overriding the shared x2. */
+      curve: {
+        coins: { mode: "multiply", factor: 1.8 }
+      }
+    },
     obelisk: {
       /* NOT OBTAINABLE YET. Defined here and drawn on the board,
          but nothing grants it: it is not in chest_odds and the
@@ -955,12 +983,21 @@
      ========================================================= */
 
   /* Best first. Anything unlisted sorts last. */
-  var RARITY_ORDER = ["godly", "mythic", "legendary", "epic", "rare", "common"];
+  /* "ultimate" sits above godly and holds the two towers that
+     are not a tier of anything — Quantum, and the Obelisk once
+     it reaches players. Godly was doing two jobs: the rarest
+     thing in the chest, and the best thing in the game. Splitting
+     them means a new tower can be godly without being compared
+     to Quantum. */
+  var RARITY_ORDER = [
+    "ultimate", "godly", "mythic", "legendary", "epic", "rare", "common"
+  ];
 
   var RARITY = {
-    obelisk: "godly",
-    quantum: "godly",
+    obelisk: "ultimate",
+    quantum: "ultimate",
     clocktower: "godly",
+    mint: "godly",
     fan: "mythic",
     djtv: "mythic",
     icecannon: "mythic",
@@ -1171,7 +1208,13 @@
 
     var merges = (level || 1) - 1;
     var steps = evolution || 0;
-    var curve = MERGE[stat];
+
+    /* A tower may carry its own curve for a stat, which wins
+       over the shared one. Only the Mint uses this: it earns far
+       more to begin with and climbs more slowly, and there is no
+       way to say that with a single curve every economy tower
+       shares. */
+    var curve = (tower.curve && tower.curve[stat]) || MERGE[stat];
     var value = tower[stat];
 
     if (curve) {

@@ -1638,6 +1638,30 @@ body::after {
 .collection__group[data-rarity="mythic"]    { --rarity: #a82c5e; }
 .collection__group[data-rarity="godly"]     { --rarity: #2fa896; }
 
+/* Ultimate is the only rarity that is not one colour, because
+   it is the only one holding towers that are not a tier of
+   anything. */
+.collection__group[data-rarity="ultimate"]  { --rarity: #b452d6; }
+
+.collection__group[data-rarity="ultimate"] {
+  border-image: linear-gradient(
+    90deg,
+    #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6, #e05a5a
+  ) 1;
+  border-top-width: 3px;
+}
+
+.collection__group[data-rarity="ultimate"] .collection__group-rarity {
+  background-image: linear-gradient(
+    90deg,
+    #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+}
+
 .collection__tiers {
   display: flex;
   flex-wrap: wrap;
@@ -2692,6 +2716,34 @@ body::after {
 .chestitem[data-rarity="godly"] .chestitem__chance,
 .chestitem[data-rarity="godly"] .chestitem__name {
   color: #eafaf7;
+}
+
+/* Ultimate goes further again: the only card on the screen that
+   is not a flat colour. */
+.chestitem[data-rarity="ultimate"] {
+  border-color: transparent;
+  background-color: #17141c;
+  background-image: linear-gradient(#17141c, #17141c),
+    linear-gradient(120deg, #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  box-shadow: 0 10px 26px -14px rgba(180, 82, 214, 0.8);
+}
+
+.chestitem[data-rarity="ultimate"] .chestitem__chance,
+.chestitem[data-rarity="ultimate"] .chestitem__name {
+  color: #f4eefa;
+}
+
+.chestitem[data-rarity="ultimate"] .chestitem__rarity {
+  background-image: linear-gradient(
+    90deg,
+    #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
 }
 
 .chestitem__rarity {
