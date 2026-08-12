@@ -3140,6 +3140,10 @@
     /* Movement, then anything that reached the base. */
     var end = view.path.length - 1;
 
+    /* Once a tick, before anything asks. Rebuilding it per enemy
+       is what made this the most expensive thing in the game. */
+    gatherFields();
+
     tickTimestop(delta);
 
     /* Bosses hold still with everything else while time is
@@ -3448,32 +3452,84 @@
      compared shoves inside one frame. Reading position instead
      means any number of Fans is exactly as strong as the best of
      them, and firing rate has nothing to do with it. */
+  /* =========================================================
+     Field effects
+
+     Slows and pushbacks are asked about once per enemy per tick.
+     Both used to walk EVERY tower to answer, which meant a party
+     of five at the enemy cap doing ten million comparisons a
+     second — and, worse, an Object.keys() allocation for each
+     one, so a hundred and twenty thousand throwaway arrays a
+     second before any arithmetic.
+
+     Almost none of those towers slow or push anything. So the
+     handful that do are gathered once a tick, with their centre
+     and reach already worked out, and the per enemy question
+     becomes a walk of a list that is usually empty.
+     ========================================================= */
+
+  var fields = { slowers: [], pushers: [] };
+
+  function gatherFields() {
+    fields.slowers.length = 0;
+    fields.pushers.length = 0;
+
+    Object.keys(towers).forEach(function (at) {
+      var tower = towers[at];
+      var slow = stats.slowOf(tower.key);
+      var pushback = stats.pushback(tower.key);
+
+      if (slow >= 1 && !pushback) {
+        return;
+      }
+
+      var parts = at.split(",");
+      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
+      var reach =
+        (stats.range(tower.key, tower.level, evolutionFor(tower)) /
+          stats.rangePerTile) *
+        view.size;
+      var entry = { x: centre.x, y: centre.y, reach: reach * reach };
+
+      if (slow < 1) {
+        entry.slow = slow;
+        fields.slowers.push(entry);
+      }
+
+      if (pushback) {
+        fields.pushers.push({
+          x: entry.x,
+          y: entry.y,
+          reach: entry.reach,
+          pushback: pushback
+        });
+      }
+    });
+  }
+
+  /* Compared squared, so nothing here takes a square root. */
+  function within(entry, point) {
+    var dx = point.x - entry.x;
+    var dy = point.y - entry.y;
+
+    return dx * dx + dy * dy <= entry.reach;
+  }
+
   function pushAt(point, enemy) {
+    if (!fields.pushers.length) {
+      return 1;
+    }
+
     var factor = 1;
     /* A boss has its own weight — heavier than anything else, so
        it is shoved less, but a Fan still bites. Nothing is exempt
        from pushback. */
     var weight = enemy.boss ? stats.boss.weight : stats.weight(enemy.kind);
 
-    Object.keys(towers).forEach(function (at) {
-      var tower = towers[at];
-      var pushback = stats.pushback(tower.key);
+    fields.pushers.forEach(function (entry) {
+      var kept = stats.pushFactor(entry.pushback, weight);
 
-      if (!pushback) {
-        return;
-      }
-
-      var parts = at.split(",");
-      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
-      var dx = point.x - centre.x;
-      var dy = point.y - centre.y;
-      var reach =
-        (stats.range(tower.key, tower.level, evolutionFor(tower)) /
-          stats.rangePerTile) *
-        view.size;
-      var kept = stats.pushFactor(pushback, weight);
-
-      if (Math.sqrt(dx * dx + dy * dy) <= reach && kept < factor) {
+      if (kept < factor && within(entry, point)) {
         factor = kept;
       }
     });
@@ -3482,27 +3538,15 @@
   }
 
   function slowAt(point) {
+    if (!fields.slowers.length) {
+      return 1;
+    }
+
     var factor = 1;
 
-    Object.keys(towers).forEach(function (at) {
-      var tower = towers[at];
-      var slow = stats.slowOf(tower.key);
-
-      if (slow >= 1) {
-        return;
-      }
-
-      var parts = at.split(",");
-      var centre = tileCentre(Number(parts[0]), Number(parts[1]));
-      var dx = point.x - centre.x;
-      var dy = point.y - centre.y;
-      var reach =
-        (stats.range(tower.key, tower.level, evolutionFor(tower)) /
-          stats.rangePerTile) *
-        view.size;
-
-      if (Math.sqrt(dx * dx + dy * dy) <= reach && slow < factor) {
-        factor = slow;
+    fields.slowers.forEach(function (entry) {
+      if (entry.slow < factor && within(entry, point)) {
+        factor = entry.slow;
       }
     });
 
