@@ -1,54 +1,76 @@
 -- ============================================================
--- MRTD: the Mint, and a new rarity above godly.
+-- MRTD: the Mint, and a tier above godly.
 --
--- Two changes to chest_odds.
+-- Rebuilt after the original was lost. The client side was
+-- untouched, so this is written to match what stats.js already
+-- says rather than from memory:
 --
--- 1. Quantum moves from godly to ULTIMATE.
+--   mint      godly
+--   quantum   ultimate
+--   obelisk   ultimate  (but NOT added here — see below)
 --
---    Godly was doing two jobs — the rarest thing in the chest,
---    and the best thing in the game. Splitting them means a new
---    tower can be godly without being measured against Quantum.
---    The Obelisk joins ultimate when it starts being handed out;
---    it is not in this table and must not be, or it becomes
---    summonable.
+-- ============================================================
+-- HOW THE WEIGHTS WORK, because it is not obvious
 --
--- 2. The Mint arrives at godly, beside the Clock Tower.
+-- The weight column is the whole RARITY's share of a pull, per
+-- mille, repeated on every tower in that rarity. Whichever
+-- tower is up that half hour carries it. That is what lets a
+-- rarity gain a tower without becoming more common — it only
+-- changes how often you see that particular one.
 --
--- WEIGHTS ARE PER MILLE AND ARE THE RARITY'S SHARE, repeated on
--- every tower in that rarity. So moving Quantum out of godly and
--- into a tier of its own does NOT change how often godly comes
--- up — it changes what is in it.
+-- So the numbers have to add up across RARITIES, not rows:
 --
---   ultimate    1    0.1%   Quantum, alone, always up
---   godly       1    0.1%   Clock Tower / Mint, alternating
---   mythic     10    1.0%   DJTV / Ice Cannon / Fan
---   epic      180   18.0%   Blender / Spawner / Medic
---   rare      267   26.7%
---   common    512   51.2%
+--   common     511   dagger, axe
+--   rare       267   farm, sniper, shotgunner
+--   epic       180   blender, spawner, medic
+--   legendary   30   beacon, forge, metronome
+--   mythic      10   djtv, ice cannon, fan
+--   godly        1   clock tower, mint
+--   ultimate     1   quantum
+--              ----
+--              1000
 --
--- That adds 0.1% and takes the total to 1001 per mille rather
--- than 1000. draw_tower sums the active line-up and rolls
--- against that sum, so it stays correct — the shares simply
--- become 1/1001 rather than 1/1000. Common drops from 51.2% to
--- 51.15%. Nobody will notice, and the alternative is shaving a
--- point off another tier for no reason.
+-- Common drops from 512 to 511 to pay for the new tier. Ultimate
+-- is 0.1%, the same as godly was, and Quantum moves into it —
+-- so Quantum is exactly as rare as it always was, and the Clock
+-- Tower is now easier to see because it no longer shares its
+-- slot with Quantum.
+--
+-- THE OBELISK IS NOT HERE ON PURPOSE. It is not obtainable yet,
+-- and anything in this table can be rolled or admin-granted.
+-- Dev mode owns every tower regardless of this table, which is
+-- how it is tested. Add it here when the weekly prize is turned
+-- on.
 --
 -- Run once, then this file goes.
 -- ============================================================
 
 insert into public.chest_odds (tower_key, weight, rarity) values
   ('mint',      1, 'godly'),
-  ('quantum',   1, 'ultimate')
+
+  /* Out of godly and into a tier of its own. */
+  ('quantum',   1, 'ultimate'),
+
+  /* Common pays for the new tier, so the total stays at 1000. */
+  ('dagger',  511, 'common'),
+  ('axe',     511, 'common')
 on conflict (tower_key) do update
   set weight = excluded.weight, rarity = excluded.rarity;
 
--- What is up now, and what each is worth. Ultimate should show
--- Quantum on its own; godly should show one of Clock Tower or
--- Mint depending on the half hour.
+
+-- Should be 1000 across the rarities, and one row per rarity.
 select
-  tower_key,
   rarity,
-  weight,
-  round(weight * 100.0 / sum(weight) over (), 2) as percent
-from public.active_chest()
-order by weight asc, tower_key;
+  min(weight)      as weight,
+  count(*)         as towers,
+  string_agg(tower_key, ', ' order by tower_key) as members
+from public.chest_odds
+group by rarity
+order by min(weight) desc;
+
+select sum(weight) as should_be_1000
+from (
+  select distinct on (rarity) rarity, weight
+  from public.chest_odds
+  order by rarity, weight
+) as tiers;
