@@ -261,6 +261,233 @@
     }
   }
 
+  /* Every plan changes on every merge — one more blade, one more
+     knife, one more crop row, a longer barrel — so an upgrade is
+     always visible on the board and not only in the number. */
+
+  /* Blender: a disc of blades that gains one per merge. */
+  function planBlades(token, radius, level) {
+    var count = 3 + (level - 1);
+    var reach = radius * (1.32 + level * 0.02);
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < count; i += 1) {
+      ctx.save();
+      ctx.rotate((i / count) * Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.15, 0);
+      ctx.lineTo(0, -reach);
+      ctx.lineTo(radius * 0.15, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* Dagger: a robotic arm. Two jointed segments reaching forward
+     with a blade at the tip, and a rack of spares behind it that
+     fills up as the tower merges. */
+  function planArm(token, radius, level) {
+    var upper = radius * 0.75;
+    var fore = radius * (0.6 + level * 0.045);
+    var thick = radius * 0.22;
+
+    /* Rack of spare daggers behind the shoulder. */
+    var spares = 2 + Math.floor(level / 2);
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < spares; i += 1) {
+      var x = -radius * 0.55 + (radius * 1.1 * i) / (spares - 1 || 1);
+
+      ctx.fillRect(x - radius * 0.04, radius * 0.45, radius * 0.08, radius * 0.34);
+    }
+
+    ctx.save();
+
+    /* Upper segment, angled out from the shoulder. */
+    ctx.rotate(-0.35);
+    ctx.fillStyle = "#3f4448";
+    roundedPath(-thick / 2, -upper, thick, upper, thick * 0.45);
+    ctx.fill();
+
+    /* Elbow, then the forearm straightening towards the target. */
+    ctx.translate(0, -upper);
+    ctx.beginPath();
+    ctx.arc(0, 0, thick * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = "#8c9296";
+    ctx.fill();
+
+    ctx.rotate(0.35);
+    ctx.fillStyle = "#4d5357";
+    roundedPath(-thick * 0.4, -fore, thick * 0.8, fore, thick * 0.35);
+    ctx.fill();
+
+    /* The blade it is about to fling. */
+    ctx.beginPath();
+    ctx.moveTo(-thick * 0.34, -fore);
+    ctx.lineTo(0, -fore - radius * 0.5);
+    ctx.lineTo(thick * 0.34, -fore);
+    ctx.closePath();
+    ctx.fillStyle = token.accent;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /* Axe: heads on short handles, thrown fast and often. */
+  function planAxes(token, radius, level) {
+    var count = 2 + Math.floor(level / 3);
+    var reach = radius * (1.05 + level * 0.03);
+
+    for (var i = 0; i < count; i += 1) {
+      ctx.save();
+      ctx.rotate(((i - (count - 1) / 2) * Math.PI) / 5);
+
+      /* Handle. */
+      ctx.fillStyle = "#6b573f";
+      ctx.fillRect(-radius * 0.06, -reach, radius * 0.12, reach * 0.8);
+
+      /* Head. */
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.06, -reach);
+      ctx.lineTo(-radius * 0.34, -reach + radius * 0.22);
+      ctx.lineTo(radius * 0.34, -reach + radius * 0.22);
+      ctx.lineTo(radius * 0.06, -reach);
+      ctx.closePath();
+      ctx.fillStyle = token.accent;
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  /* Farm: crop rows, plus silos as it grows. */
+  function planField(token, radius, level) {
+    var rows = 2 + Math.floor(level / 2);
+    var silos = Math.floor(level / 4);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.09);
+    ctx.beginPath();
+
+    for (var i = 1; i <= rows; i += 1) {
+      var y = -radius + (radius * 2 * i) / (rows + 1);
+      ctx.moveTo(-radius * 0.78, y);
+      ctx.lineTo(radius * 0.78, y);
+    }
+
+    ctx.stroke();
+
+    ctx.fillStyle = "#8a7f3a";
+
+    for (var s = 0; s < silos; s += 1) {
+      ctx.beginPath();
+      ctx.arc(
+        -radius * 0.55 + s * radius * 0.55,
+        radius * 0.62,
+        radius * 0.16,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  }
+
+  /* Shotgunner: barrels that widen and lengthen as it merges. */
+  function planBarrels(token, radius, level) {
+    var count = 2 + Math.floor((level - 1) / 3);
+    var width = radius * 0.24;
+    var length = radius * (0.9 + level * 0.055);
+    var span = width * (count - 1) * 1.5;
+
+    ctx.fillStyle = token.accent;
+
+    for (var i = 0; i < count; i += 1) {
+      var offset = -span / 2 + i * width * 1.5;
+
+      ctx.fillRect(offset - width / 2, -radius * 0.4 - length, width, length);
+    }
+
+    /* Choke on the muzzle, thicker each merge. */
+    ctx.fillStyle = "#3a3f42";
+    ctx.fillRect(
+      -span / 2 - width,
+      -radius * 0.4 - length,
+      span + width * 2,
+      radius * (0.06 + level * 0.012)
+    );
+  }
+
+  /* Sniper: a long barrel over a bipod, with a scope behind it.
+     Everything grows with the merge level — the barrel longest,
+     because reach is what the tower is for and length is the one
+     thing that reads at this size.
+
+     Kept deliberately narrow. The shotgunner is the other tower
+     that points, and it is two short fat barrels; from above,
+     thin and long against short and wide is the whole difference
+     between them. */
+  function planBarrel(token, radius, level) {
+    var length = radius * (1.35 + level * 0.11);
+    var width = radius * 0.14;
+
+    /* Bipod, splayed under the muzzle end. */
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.07);
+
+    [-1, 1].forEach(function (side) {
+      ctx.beginPath();
+      ctx.moveTo(0, -length * 0.55);
+      ctx.lineTo(side * radius * 0.42, -length * 0.55 + radius * 0.38);
+      ctx.stroke();
+    });
+
+    ctx.fillStyle = token.accent;
+    ctx.fillRect(-width, -length, width * 2, length);
+
+    /* Muzzle brake, from halfway up the merges. */
+    if (level >= 5) {
+      ctx.fillRect(-radius * 0.28, -length, radius * 0.56, radius * 0.14);
+    }
+
+    /* A second, longer barrel once it is nearly maxed — the
+       silhouette has to keep changing or the last few merges
+       look like nothing happened. */
+    if (level >= 8) {
+      ctx.fillRect(-width * 0.5, -length - radius * 0.3, width, radius * 0.3);
+    }
+
+    /* Scope, sitting behind the receiver. */
+    ctx.fillStyle = token.body;
+    ctx.fillRect(-radius * 0.2, -radius * 0.5, radius * 0.4, radius * 0.55);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1, radius * 0.06);
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.22, radius * 0.16, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  /* Spawner: a gate with bars, gaining one per merge. */
+  function planGate(token, radius, level) {
+    var bars = 2 + Math.floor(level / 2);
+
+    ctx.strokeStyle = token.accent;
+    ctx.lineWidth = Math.max(1.5, radius * 0.14);
+    ctx.beginPath();
+
+    for (var i = 0; i < bars; i += 1) {
+      var x = -radius * 0.7 + (radius * 1.4 * i) / (bars - 1 || 1);
+
+      ctx.moveTo(x, -radius * 0.7);
+      ctx.lineTo(x, radius * 0.7);
+    }
+
+    ctx.stroke();
+  }
+
   var PLANS = {
     aura: planAura,
     frost: planFrost,
