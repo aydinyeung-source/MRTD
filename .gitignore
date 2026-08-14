@@ -1,0 +1,18 @@
+# Tooling, not the game.
+#
+# This repo is what Cloudflare deploys — everything committed
+# here is served at mrtd.aydinyeung.workers.dev. These are
+# editor and agent config, so they stay local: no reason to
+# publish them, and one fewer file in every build.
+.claude/
+.mcp.json
+
+# Migrations are written, run once against Supabase, then
+# deleted. Anything still sitting here is waiting to be run and
+# has no business in a deploy.
+*.sql
+
+# Windows and editors.
+Thumbs.db
+desktop.ini
+.DS_Store
