@@ -1643,12 +1643,33 @@ body::after {
    anything. */
 .collection__group[data-rarity="ultimate"]  { --rarity: #b452d6; }
 
+/* Chromatic across the whole group, not only the rule above it.
+
+   Softer than the chest card on purpose: this one has tower
+   cards sitting on top of it, and a full strength rainbow behind
+   them would make every card harder to read to decorate the one
+   heading. Enough colour to be unmistakable, little enough to
+   still be a background. */
 .collection__group[data-rarity="ultimate"] {
   border-image: linear-gradient(
     90deg,
     #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6, #e05a5a
   ) 1;
   border-top-width: 3px;
+  border-radius: 0 0 12px 12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-bottom: 12px;
+  background-image: linear-gradient(
+    135deg,
+    rgba(224, 90, 90, 0.16),
+    rgba(224, 137, 43, 0.16),
+    rgba(216, 197, 58, 0.16),
+    rgba(99, 196, 107, 0.16),
+    rgba(74, 168, 216, 0.16),
+    rgba(123, 92, 224, 0.16),
+    rgba(180, 82, 214, 0.16)
+  );
 }
 
 .collection__group[data-rarity="ultimate"] .collection__group-rarity {
@@ -2718,31 +2739,46 @@ body::after {
   color: #eafaf7;
 }
 
-/* Ultimate goes further again: the only card on the screen that
-   is not a flat colour. */
+/* Ultimate goes further again: the whole card is the colour,
+   not a colour around the edge of a dark one. Every other rarity
+   is a flat fill, so a card that is all of them at once is the
+   thing you notice first in the row without reading a word.
+
+   The gradient runs across six stops and back to the first, so
+   the two ends meet rather than stopping dead at the corner. */
 .chestitem[data-rarity="ultimate"] {
-  border-color: transparent;
-  background-color: #17141c;
-  background-image: linear-gradient(#17141c, #17141c),
-    linear-gradient(120deg, #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6);
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-  box-shadow: 0 10px 26px -14px rgba(180, 82, 214, 0.8);
+  border-color: rgba(255, 255, 255, 0.55);
+  background-color: #b452d6;
+  background-image: linear-gradient(
+    135deg,
+    #e05a5a, #e0892b, #d8c53a, #63c46b, #4aa8d8, #7b5ce0, #b452d6, #e05a5a
+  );
+  box-shadow: 0 10px 26px -12px rgba(180, 82, 214, 0.85);
 }
 
+/* White on a moving hue needs its own contrast — a shadow rather
+   than a scrim, so the colour underneath stays whole. */
 .chestitem[data-rarity="ultimate"] .chestitem__chance,
 .chestitem[data-rarity="ultimate"] .chestitem__name {
-  color: #f4eefa;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(28, 20, 40, 0.75);
 }
 
+/* The tower art sits on colour now, so it gets the same lift. */
+.chestitem[data-rarity="ultimate"] .chestitem__icon {
+  filter: drop-shadow(0 2px 4px rgba(28, 20, 40, 0.55));
+}
+
+/* Solid, not gradient-clipped. It was rainbow lettering back
+   when the card behind it was near black; on a card that is
+   itself a rainbow it would be colour on colour and read as
+   nothing at all. */
 .chestitem[data-rarity="ultimate"] .chestitem__rarity {
-  background-image: linear-gradient(
-    90deg,
-    #e05a5a, #e0a92b, #63c46b, #4aa8d8, #b452d6
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(28, 20, 40, 0.8);
   font-weight: 700;
 }
 
